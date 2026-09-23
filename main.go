@@ -12,6 +12,7 @@ import (
 
 	"hyphp/internal/paths"
 	"hyphp/internal/state"
+	"hyphp/internal/supervisor"
 	"hyphp/services"
 )
 
@@ -40,6 +41,16 @@ func main() {
 		os.Exit(1)
 	}
 	logger.Info("hyphp iniciando", "root", paths.Root(), "webServer", st.WebServer)
+
+	// O supervisor nasce antes da UI: New() associa o processo ao Job Object
+	// kill-on-close, e todo filho criado a partir daqui herda esse job.
+	sup, err := supervisor.New(logger)
+	if err != nil {
+		logger.Error("criar supervisor", "err", err)
+		os.Exit(1)
+	}
+	// stopEvents é preenchido depois de application.New e usado no OnShutdown.
+	var stopEvents func()
 
 	// quitting distingue "usuário fechou a janela" (ocultar) de "Sair" (encerrar):
 	// o hook WindowClosing só cancela o fechamento enquanto quitting == false.
@@ -72,6 +83,12 @@ func main() {
 		},
 		OnShutdown: func() {
 			// hyphp: shutdown
+			if stopEvents != nil {
+				stopEvents()
+			}
+			if err := sup.Close(); err != nil {
+				logger.Error("encerrar supervisor", "err", err)
+			}
 			if tray != nil {
 				tray.Destroy()
 			}
@@ -90,6 +107,17 @@ func main() {
 		StatePath: statePath,
 		Logger:    logger,
 	})))
+	app.RegisterService(application.NewService(services.NewServicesService(services.ServicesDeps{
+		Sup:    sup,
+		Logger: logger,
+	})))
+	app.RegisterService(application.NewService(services.NewLogsService(services.LogsDeps{
+		Sup:    sup,
+		Logger: logger,
+	})))
+
+	services.RegisterLogStreams(app, sup)
+	stopEvents = services.ForwardServiceEvents(app, sup)
 
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "main",
