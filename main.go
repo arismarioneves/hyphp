@@ -12,6 +12,7 @@ import (
 
 	"hyphp/internal/paths"
 	"hyphp/internal/state"
+	"hyphp/services"
 )
 
 //go:embed all:frontend/dist
@@ -83,6 +84,12 @@ func main() {
 	}
 
 	// hyphp: services
+	app.RegisterService(application.NewService(services.NewAppService(services.AppDeps{
+		Quit:      quit,
+		State:     &st,
+		StatePath: statePath,
+		Logger:    logger,
+	})))
 
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "main",
