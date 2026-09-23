@@ -1,0 +1,53 @@
+/*
+ * Design tokens do HyPHP (spec §12.2). Fonte única de cor/raio/fonte.
+ * As custom properties abaixo usam os nomes exatos da spec e podem ser lidas
+ * em CSS puro; o bloco @theme expõe as mesmas cores ao Tailwind v4 como
+ * utilitários (bg-bg-app, text-fg-muted, border-border, rounded-card, ...).
+ */
+:root {
+  --bg-app: #0f1826;
+  --bg-sidebar: #0b1220;
+  --bg-card: #111c2e;
+  --bg-card-hover: #152238;
+  --border: #1e2a3d;
+  --fg: #e6edf7;
+  --fg-muted: #8b9bb4;
+  --fg-faint: #5b6b85;
+  --accent: #3b82f6;
+  --accent-fg: #60a5fa;
+  --accent-soft: #1d3a6b;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --err: #ef4444;
+}
+
+/* Cores: referenciam as custom properties acima (inline → o utilitário usa var(--bg-app) direto). */
+@theme inline {
+  --color-bg-app: var(--bg-app);
+  --color-bg-sidebar: var(--bg-sidebar);
+  --color-bg-card: var(--bg-card);
+  --color-bg-card-hover: var(--bg-card-hover);
+  --color-border: var(--border);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-err: var(--err);
+}
+
+/*
+ * Raios e fontes: os nomes da spec (--radius-card, --radius-pill, --font-sans,
+ * --font-mono) coincidem com os namespaces do tema Tailwind, então são
+ * declarados só aqui — o Tailwind os emite em :root com esses mesmos nomes
+ * e gera rounded-card, rounded-pill, font-sans, font-mono.
+ */
+@theme {
+  --radius-card: 12px;
+  --radius-pill: 8px;
+  --font-sans: Inter, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+}
