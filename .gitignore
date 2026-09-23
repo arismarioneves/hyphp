@@ -1,15 +1,23 @@
 # runtime local do HyPHP (binarios upstream, dados, certificados, configs geradas)
 .runtime/
-.tmp-spike/
 
-# build
-build/bin/
+# build (wails3 / go-task)
+.task/
+bin/
 *.exe
 *.syso
+build/linux/appimage/build
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+# Mobile generated (per-machine; overlays hold absolute paths)
+build/ios/xcode/overlay.json
+build/ios/xcode/gen/
+build/android/overlay.json
+build/android/gen/
 
 # frontend
 frontend/node_modules/
 frontend/dist/
+# frontend/bindings/ e COMMITADO (gerado por `wails3 generate bindings -ts -i`, nunca editado a mao)
 
 # go
 vendor/

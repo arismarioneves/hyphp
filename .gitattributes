@@ -1,2 +1,11 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# binarios do template e das fontes
+*.png binary
+*.ico binary
+*.icns binary
+*.car binary
+*.jar binary
+*.woff2 binary
+*.ttf binary
