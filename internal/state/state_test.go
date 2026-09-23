@@ -51,7 +51,7 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:    "arquivo parcial preenche o resto com Default",
-			content: ptr(`{"webServer":"nginx","roots":["C:\\DEV"]}`),
+			content: new(`{"webServer":"nginx","roots":["C:\\DEV"]}`),
 			want: func() State {
 				s := Default()
 				s.WebServer = Nginx
@@ -61,7 +61,7 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name:    "json invalido retorna erro",
-			content: ptr(`{"webServer": `),
+			content: new(`{"webServer": `),
 			wantErr: true,
 		},
 	}
@@ -157,5 +157,3 @@ func TestSaveAtomico(t *testing.T) {
 		t.Fatalf("esperava JSON indentado com schemaVersion, veio:\n%s", raw)
 	}
 }
-
-func ptr(s string) *string { return &s }
