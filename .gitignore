@@ -1,0 +1,21 @@
+# runtime local do HyPHP (binarios upstream, dados, certificados, configs geradas)
+.runtime/
+.tmp-spike/
+
+# build
+build/bin/
+*.exe
+*.syso
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+
+# go
+vendor/
+
+# editores / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
