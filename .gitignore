@@ -31,3 +31,4 @@ desktop.ini
 # scripts descartaveis de smoke visual (PrintWindow, cliques sinteticos)
 .*.ps1
 .*.png
+.smoke/
