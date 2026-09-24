@@ -48,6 +48,9 @@ func TestRootPrefereExeGravavel(t *testing.T) {
 	writable = func(string) bool { return true }
 
 	t.Setenv(EnvRoot, "")
+	// LOCALAPPDATA aponta para um diretório vazio: sem raiz anterior, a regra
+	// do diretório do executável é a que vale.
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -55,6 +58,56 @@ func TestRootPrefereExeGravavel(t *testing.T) {
 	if got, want := Root(), filepath.Dir(exe); got != want {
 		t.Errorf("Root() = %q, quero %q", got, want)
 	}
+}
+
+// A raiz não pode depender do token do processo: Program Files é gravável para
+// um processo elevado, e abrir o app como administrador passava a usar o
+// diretório de instalação — o usuário via tudo desaparecer.
+func TestRootIgnoraProgramFilesMesmoGravavel(t *testing.T) {
+	orig := writable
+	t.Cleanup(func() { writable = orig })
+	writable = func(string) bool { return true } // como se fosse elevado
+
+	local := t.TempDir()
+	t.Setenv(EnvRoot, "")
+	t.Setenv("LOCALAPPDATA", local)
+	t.Setenv("ProgramFiles", filepath.Dir(mustExeDir(t)))
+
+	if got, want := Root(), filepath.Join(local, "HyPHP"); got != want {
+		t.Errorf("Root() = %q, quero %q", got, want)
+	}
+}
+
+// Uma vez que os dados moram em LOCALAPPDATA, nenhuma outra regra pode mudar a
+// raiz — senão a mesma máquina teria dois ambientes.
+func TestRootPrefereRaizJaExistente(t *testing.T) {
+	orig := writable
+	t.Cleanup(func() { writable = orig })
+	writable = func(string) bool { return true }
+
+	local := t.TempDir()
+	raiz := filepath.Join(local, "HyPHP")
+	if err := os.MkdirAll(filepath.Join(raiz, "var"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(raiz, "var", "state.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(EnvRoot, "")
+	t.Setenv("LOCALAPPDATA", local)
+
+	if got := Root(); got != raiz {
+		t.Errorf("Root() = %q, quero %q", got, raiz)
+	}
+}
+
+func mustExeDir(t *testing.T) string {
+	t.Helper()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return filepath.Dir(exe)
 }
 
 func TestRootEnvVenceTudo(t *testing.T) {

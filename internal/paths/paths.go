@@ -1,15 +1,11 @@
 // Package paths resolve a raiz de runtime do HyPHP e seus subdiretórios.
-//
-// Root é $HYPHP_ROOT quando definido; senão, o diretório do executável se der
-// para escrever nele; senão, %LOCALAPPDATA%\HyPHP.
-// Em `wails3 dev` o executável fica em bin/, então o Taskfile define
-// HYPHP_ROOT=<repo>/.runtime.
 package paths
 
 import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // EnvRoot é a variável de ambiente que sobrescreve a raiz de runtime.
@@ -33,13 +29,41 @@ func canWrite(dir string) bool {
 	return true
 }
 
-// Root retorna a raiz de runtime, sempre absoluta e limpa. Ordem (C1):
-// $HYPHP_ROOT, diretório do executável se for gravável, senão
-// %LOCALAPPDATA%\HyPHP.
+// localRoot é %LOCALAPPDATA%\HyPHP ("" se a variável não existir).
+func localRoot() string {
+	if local := os.Getenv("LOCALAPPDATA"); local != "" {
+		return filepath.Join(local, "HyPHP")
+	}
+	return ""
+}
+
+// protegido responde se dir está sob um diretório do sistema onde dados de
+// usuário não devem morar, mesmo que o processo consiga escrever lá.
+func protegido(dir string) bool {
+	for _, env := range []string{"ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "SystemRoot"} {
+		base := os.Getenv(env)
+		if base == "" {
+			continue
+		}
+		rel, err := filepath.Rel(base, dir)
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// Root retorna a raiz de runtime, sempre absoluta e limpa.
 //
-// A sonda de escrita existe por causa da instalação em Program Files: lá o
-// usuário comum não escreve, e sem o desvio o app falharia ao gerar a primeira
-// config — com erro de permissão em vez de explicação.
+// Ordem: $HYPHP_ROOT; raiz já existente em %LOCALAPPDATA%\HyPHP; diretório do
+// executável, se for gravável e não estiver sob Program Files ou Windows;
+// senão %LOCALAPPDATA%\HyPHP.
+//
+// As duas primeiras regras existem porque a resposta NÃO pode depender do
+// token do processo. Program Files é gravável para um processo elevado: com só
+// a sonda de escrita, abrir o app como administrador mudava a raiz para o
+// diretório de instalação e o usuário via projetos, runtimes e configurações
+// desaparecerem — havia dois ambientes, escolhidos pelo nível de privilégio.
 func Root() string {
 	if v := os.Getenv(EnvRoot); v != "" {
 		if abs, err := filepath.Abs(v); err == nil {
@@ -47,14 +71,21 @@ func Root() string {
 		}
 		return filepath.Clean(v)
 	}
+	// Raiz já usada antes vence: uma vez que os dados moram em LOCALAPPDATA,
+	// nenhuma mudança de contexto pode apontar para outro lugar.
+	if local := localRoot(); local != "" {
+		if _, err := os.Stat(filepath.Join(local, "var", "state.json")); err == nil {
+			return local
+		}
+	}
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
-		if writable(dir) {
+		if !protegido(dir) && writable(dir) {
 			return dir
 		}
 	}
-	if local := os.Getenv("LOCALAPPDATA"); local != "" {
-		return filepath.Join(local, "HyPHP")
+	if local := localRoot(); local != "" {
+		return local
 	}
 	wd, _ := os.Getwd()
 	return wd

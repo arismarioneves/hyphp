@@ -3,7 +3,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -27,18 +27,14 @@ export function Create(name: string): $CancellablePromise<void> {
  * só em loopback; a senha vazia é decisão registrada, não descuido.
  */
 export function Credentials(): $CancellablePromise<$models.Credentials> {
-    return $Call.ByID(2739629349).then(($result: any) => {
-        return $$createType0($result);
-    });
+    return $Call.ByID(2739629349);
 }
 
 /**
  * Databases lista os schemas de usuário com tamanho em MB.
  */
-export function Databases(): $CancellablePromise<$models.DBInfo[]> {
-    return $Call.ByID(524346749).then(($result: any) => {
-        return $$createType2($result);
-    });
+export function Databases(): $CancellablePromise<$models.DBInfo[] | null> {
+    return $Call.ByID(524346749);
 }
 
 /**
@@ -55,13 +51,5 @@ export function Drop(name: string): $CancellablePromise<void> {
  * ID e do nome para desenhar a tela vazia.
  */
 export function Status(): $CancellablePromise<supervisor$0.Status> {
-    return $Call.ByID(230257251).then(($result: any) => {
-        return $$createType3($result);
-    });
+    return $Call.ByID(230257251);
 }
-
-// Private type creation functions
-const $$createType0 = $models.Credentials.createFrom;
-const $$createType1 = $models.DBInfo.createFrom;
-const $$createType2 = $Create.Array($$createType1);
-const $$createType3 = supervisor$0.Status.createFrom;

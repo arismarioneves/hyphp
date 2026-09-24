@@ -10,7 +10,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -27,10 +27,8 @@ export function CreateManifest(id: string): $CancellablePromise<void> {
     return $Call.ByID(550577495, id);
 }
 
-export function List(): $CancellablePromise<project$0.Project[]> {
-    return $Call.ByID(2443881030).then(($result: any) => {
-        return $$createType1($result);
-    });
+export function List(): $CancellablePromise<project$0.Project[] | null> {
+    return $Call.ByID(2443881030);
 }
 
 /**
@@ -52,10 +50,8 @@ export function Rescan(): $CancellablePromise<void> {
     return $Call.ByID(1220673294);
 }
 
-export function Roots(): $CancellablePromise<string[]> {
-    return $Call.ByID(1596131223).then(($result: any) => {
-        return $$createType2($result);
-    });
+export function Roots(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(1596131223);
 }
 
 /**
@@ -70,8 +66,3 @@ export function SetPHP(id: string, major: string): $CancellablePromise<void> {
 export function SetWildcard(id: string, on: boolean): $CancellablePromise<void> {
     return $Call.ByID(4166981656, id, on);
 }
-
-// Private type creation functions
-const $$createType0 = project$0.Project.createFrom;
-const $$createType1 = $Create.Array($$createType0);
-const $$createType2 = $Create.Array($Create.Any);

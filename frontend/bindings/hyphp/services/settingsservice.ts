@@ -9,7 +9,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -38,9 +38,7 @@ export function ApplyWildcardDNS(): $CancellablePromise<void> {
 }
 
 export function Get(): $CancellablePromise<state$0.State> {
-    return $Call.ByID(3443630107).then(($result: any) => {
-        return $$createType0($result);
-    });
+    return $Call.ByID(3443630107);
 }
 
 /**
@@ -72,13 +70,6 @@ export function SwitchWebServer(name: string): $CancellablePromise<void> {
     return $Call.ByID(2073644598, name);
 }
 
-export function Warnings(): $CancellablePromise<stack$0.Warning[]> {
-    return $Call.ByID(667350216).then(($result: any) => {
-        return $$createType2($result);
-    });
+export function Warnings(): $CancellablePromise<stack$0.Warning[] | null> {
+    return $Call.ByID(667350216);
 }
-
-// Private type creation functions
-const $$createType0 = state$0.State.createFrom;
-const $$createType1 = stack$0.Warning.createFrom;
-const $$createType2 = $Create.Array($$createType1);
