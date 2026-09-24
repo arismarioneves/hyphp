@@ -1,0 +1,151 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"reflect"
+	"sort"
+	"sync"
+
+	"hyphp/internal/project"
+	"hyphp/internal/stack"
+	"hyphp/internal/state"
+)
+
+// SettingsService lê e grava state.json via Stack e dispara Reconcile quando
+// algo que afeta processos/configs mudou.
+type SettingsService struct {
+	mu   sync.Mutex
+	stk  *stack.Stack
+	emit func(name string, data any)
+}
+
+func NewSettingsService(stk *stack.Stack, emit func(name string, data any)) *SettingsService {
+	return &SettingsService{stk: stk, emit: emit}
+}
+
+func (s *SettingsService) Get() state.State {
+	return s.stk.State()
+}
+
+func (s *SettingsService) Warnings() []stack.Warning {
+	return s.stk.Warnings()
+}
+
+// Set aplica os campos editáveis. SchemaVersion e PortAlloc pertencem ao Stack
+// e são ignorados. Mudança de WebServer é delegada a SwitchWebServer depois de
+// gravar o resto (para a troca já usar as portas/pool novos).
+func (s *SettingsService) Set(in state.State) error {
+	if err := validateSettings(in); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	cur := s.stk.State()
+	relevant := cur.DefaultPHP != in.DefaultPHP || cur.PoolSize != in.PoolSize ||
+		cur.HTTPPort != in.HTTPPort || cur.HTTPSPort != in.HTTPSPort ||
+		cur.MySQLPort != in.MySQLPort || cur.MailpitSMTPPort != in.MailpitSMTPPort ||
+		cur.MailpitHTTPPort != in.MailpitHTTPPort || !reflect.DeepEqual(cur.PHPExtensions, in.PHPExtensions)
+	rootsChanged := !sameSet(cur.Roots, in.Roots)
+
+	err := s.stk.UpdateState(func(st *state.State) {
+		st.DefaultPHP = in.DefaultPHP
+		st.PoolSize = in.PoolSize
+		st.HTTPPort = in.HTTPPort
+		st.HTTPSPort = in.HTTPSPort
+		st.MySQLPort = in.MySQLPort
+		st.MailpitSMTPPort = in.MailpitSMTPPort
+		st.MailpitHTTPPort = in.MailpitHTTPPort
+		st.Roots = append([]string(nil), in.Roots...)
+		st.PHPExtensions = in.PHPExtensions
+		st.Editor = in.Editor
+		st.Terminal = in.Terminal
+		st.SidebarCollapsed = in.SidebarCollapsed
+		st.Autostart = in.Autostart
+	})
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	defer cancel()
+
+	if rootsChanged {
+		projs, err := project.Discover(in.Roots)
+		if err != nil {
+			return err
+		}
+		s.stk.SetProjects(projs)
+		s.emit("project:changed", projs)
+	}
+
+	switch {
+	case in.WebServer != cur.WebServer:
+		if err := s.stk.SwitchWebServer(ctx, in.WebServer); err != nil {
+			s.emit("settings:changed", s.stk.State())
+			return err
+		}
+	case relevant || rootsChanged:
+		if _, err := s.stk.Reconcile(ctx); err != nil {
+			s.emit("settings:changed", s.stk.State())
+			return fmt.Errorf("reconciliar: %w", err)
+		}
+	}
+	s.emit("settings:changed", s.stk.State())
+	return nil
+}
+
+func (s *SettingsService) SwitchWebServer(name string) error {
+	ws := state.WebServerName(name)
+	if ws != state.Apache && ws != state.Nginx {
+		return fmt.Errorf("web server %q inválido (apache|nginx)", name)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	defer cancel()
+	if err := s.stk.SwitchWebServer(ctx, ws); err != nil {
+		return err
+	}
+	s.emit("settings:changed", s.stk.State())
+	return nil
+}
+
+func validateSettings(st state.State) error {
+	if st.WebServer != state.Apache && st.WebServer != state.Nginx {
+		return fmt.Errorf("webServer %q inválido (apache|nginx)", st.WebServer)
+	}
+	if st.PoolSize < 1 || st.PoolSize > 16 {
+		return fmt.Errorf("poolSize %d fora de 1..16", st.PoolSize)
+	}
+	if st.DefaultPHP != "" && !phpMajorRe.MatchString(st.DefaultPHP) {
+		return fmt.Errorf("defaultPhp %q inválido; use major.minor", st.DefaultPHP)
+	}
+	ports := map[string]int{
+		"httpPort": st.HTTPPort, "httpsPort": st.HTTPSPort, "mysqlPort": st.MySQLPort,
+		"mailpitSmtpPort": st.MailpitSMTPPort, "mailpitHttpPort": st.MailpitHTTPPort,
+	}
+	seen := map[int]string{}
+	for name, port := range ports {
+		if port < 1 || port > 65535 {
+			return fmt.Errorf("%s %d fora de 1..65535", name, port)
+		}
+		if other, dup := seen[port]; dup {
+			return fmt.Errorf("%s e %s usam a mesma porta %d", other, name, port)
+		}
+		seen[port] = name
+	}
+	return nil
+}
+
+func sameSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	sa := append([]string(nil), a...)
+	sb := append([]string(nil), b...)
+	sort.Strings(sa)
+	sort.Strings(sb)
+	return reflect.DeepEqual(sa, sb)
+}
