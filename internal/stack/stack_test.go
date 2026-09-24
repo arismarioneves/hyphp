@@ -1,0 +1,341 @@
+package stack
+
+import (
+	"path/filepath"
+	"reflect"
+	"sort"
+	"strings"
+	"testing"
+
+	"hyphp/internal/netcfg"
+	"hyphp/internal/project"
+	"hyphp/internal/runtime"
+	"hyphp/internal/state"
+	"hyphp/internal/supervisor"
+)
+
+func php(version, major, dir string) runtime.Installed {
+	return runtime.Installed{
+		Kind: runtime.PHP, Version: version, Major: major, Dir: dir,
+		Exe: filepath.Join(dir, "php.exe"), CGIExe: filepath.Join(dir, "php-cgi.exe"),
+	}
+}
+
+func proj(id, root, phpMajor string) project.Project {
+	return project.Project{
+		Manifest:   project.Manifest{Name: id, Domain: id + ".test", PHP: phpMajor, Docroot: "public"},
+		ID:         id,
+		Root:       root,
+		DocrootAbs: filepath.Join(root, "public"),
+	}
+}
+
+func alwaysFree(int) bool { return true }
+
+func fakeTLS(domains []string) (string, string, error) {
+	return `C:\certs\` + domains[0] + ".pem", `C:\certs\` + domains[0] + "-key.pem", nil
+}
+
+func baseInput(projs ...project.Project) desiredInput {
+	return desiredInput{
+		State: state.State{
+			WebServer: state.Apache, DefaultPHP: "8.1", PoolSize: 4, HTTPPort: 80, HTTPSPort: 443,
+		},
+		Runtimes: []runtime.Installed{
+			php("8.1.10", "8.1", `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64`),
+			php("7.2.34", "7.2", `C:\rt\bin\php\php-7.2.34-Win32-VC15-x64`),
+		},
+		Projects: projs,
+		Alloc:    netcfg.NewAllocatorWithProbe(9000, nil, alwaysFree),
+		TLS:      fakeTLS,
+		EtcDir:   `C:\rt\etc`,
+		VarDir:   `C:\rt\var`,
+		LogDir:   `C:\rt\log`,
+	}
+}
+
+func specIDs(specs []supervisor.Spec, prefix string) []string {
+	var ids []string
+	for _, s := range specs {
+		if strings.HasPrefix(s.ID, prefix) {
+			ids = append(ids, s.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
+func TestDesiredTwoMajors(t *testing.T) {
+	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"), proj("app72", `C:\DEV\app72`, "7.2"))
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Warnings) != 0 {
+		t.Fatalf("warnings inesperados: %+v", out.Warnings)
+	}
+
+	// pools: um por major, ordenados por major, 4 portas contíguas e disjuntas
+	if len(out.Pools) != 2 {
+		t.Fatalf("pools = %d, want 2", len(out.Pools))
+	}
+	wantPools := map[string][]int{"php72": {9000, 9001, 9002, 9003}, "php81": {9004, 9005, 9006, 9007}}
+	for _, p := range out.Pools {
+		if !reflect.DeepEqual(p.Ports, wantPools[p.Name]) {
+			t.Fatalf("pool %s ports = %v, want %v", p.Name, p.Ports, wantPools[p.Name])
+		}
+	}
+
+	// 8 specs php:<major>:<i>
+	got := specIDs(out.Specs, "php:")
+	want := []string{"php:7.2:0", "php:7.2:1", "php:7.2:2", "php:7.2:3", "php:8.1:0", "php:8.1:1", "php:8.1:2", "php:8.1:3"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("php specs = %v, want %v", got, want)
+	}
+
+	// receita C16 do worker
+	for _, s := range out.Specs {
+		if s.ID != "php:8.1:1" {
+			continue
+		}
+		if s.Group != "php" || s.Port != 9005 {
+			t.Fatalf("spec %+v", s)
+		}
+		if s.Exe != `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64\php-cgi.exe` {
+			t.Fatalf("Exe = %q", s.Exe)
+		}
+		wantArgs := []string{"-b", "127.0.0.1:9005", "-c", filepath.Join(`C:\rt\etc`, "php", "8.1", "php.ini"), "-d", "cgi.force_redirect=0", "-d", "cgi.fix_pathinfo=1"}
+		if !reflect.DeepEqual(s.Args, wantArgs) {
+			t.Fatalf("Args = %q, want %q", s.Args, wantArgs)
+		}
+		if !reflect.DeepEqual(s.Env, []string{"PHP_FCGI_MAX_REQUESTS=0"}) {
+			t.Fatalf("Env = %q", s.Env)
+		}
+		if p, ok := s.Probe.(*supervisor.TCPProbe); !ok || p.Addr != "127.0.0.1:9005" {
+			t.Fatalf("Probe = %#v", s.Probe)
+		}
+		if !s.Restart.Enabled {
+			t.Fatal("Restart deve estar ligado")
+		}
+	}
+
+	// sites
+	if len(out.Sites) != 2 {
+		t.Fatalf("sites = %d", len(out.Sites))
+	}
+	byID := map[string]int{}
+	for i, s := range out.Sites {
+		byID[s.ID] = i
+	}
+	s81 := out.Sites[byID["app81"]]
+	if s81.Domain != "app81.test" || s81.PoolName != "php81" || s81.Docroot != "C:/DEV/app81/public" {
+		t.Fatalf("site app81 = %+v", s81)
+	}
+	if s81.TLSCert == "" || s81.TLSKey == "" || strings.Contains(s81.TLSCert, `\`) {
+		t.Fatalf("TLS deve estar preenchido e com '/': %+v", s81)
+	}
+	if out.Sites[byID["app72"]].PoolName != "php72" {
+		t.Fatalf("site app72 = %+v", out.Sites[byID["app72"]])
+	}
+
+	// alocador persistiu as duas chaves
+	snap := in.Alloc.Snapshot()
+	if len(snap["php:8.1"]) != 4 || len(snap["php:7.2"]) != 4 {
+		t.Fatalf("snapshot = %v", snap)
+	}
+
+	// sem Web → nenhum spec web:
+	if ids := specIDs(out.Specs, "web:"); len(ids) != 0 {
+		t.Fatalf("não esperava spec web sem in.Web: %v", ids)
+	}
+}
+
+func TestDesiredMissingPHP(t *testing.T) {
+	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"), proj("novo", `C:\DEV\novo`, "8.3"))
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Pools) != 1 || out.Pools[0].Name != "php81" {
+		t.Fatalf("pools = %+v, want só php81", out.Pools)
+	}
+	if len(out.Sites) != 1 || out.Sites[0].ID != "app81" {
+		t.Fatalf("sites = %+v", out.Sites)
+	}
+	if len(out.Warnings) != 1 || out.Warnings[0].Code != "php-missing" || out.Warnings[0].ProjectID != "novo" || !strings.Contains(out.Warnings[0].Message, "8.3") {
+		t.Fatalf("warnings = %+v", out.Warnings)
+	}
+	if ids := specIDs(out.Specs, "php:"); len(ids) != 4 {
+		t.Fatalf("php specs = %v, want 4", ids)
+	}
+}
+
+func TestDesiredDefaultAndHighestPHP(t *testing.T) {
+	t.Run("usa DefaultPHP", func(t *testing.T) {
+		in := baseInput(proj("x", `C:\DEV\x`, ""))
+		in.State.DefaultPHP = "7.2"
+		out, err := desired(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Pools) != 1 || out.Pools[0].Version != "7.2" {
+			t.Fatalf("pools = %+v", out.Pools)
+		}
+	})
+	t.Run("sem DefaultPHP usa a maior instalada", func(t *testing.T) {
+		in := baseInput(proj("x", `C:\DEV\x`, ""))
+		in.State.DefaultPHP = ""
+		out, err := desired(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(out.Pools) != 1 || out.Pools[0].Version != "8.1" {
+			t.Fatalf("pools = %+v", out.Pools)
+		}
+	})
+}
+
+func TestDesiredReleasesUnusedMajor(t *testing.T) {
+	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in.Alloc = netcfg.NewAllocatorWithProbe(9000, map[string][]int{"php:7.2": {9000, 9001, 9002, 9003}, "php:8.1": {9004, 9005, 9006, 9007}}, alwaysFree)
+	if _, err := desired(in); err != nil {
+		t.Fatal(err)
+	}
+	snap := in.Alloc.Snapshot()
+	if _, still := snap["php:7.2"]; still {
+		t.Fatalf("php:7.2 deveria ter sido liberado: %v", snap)
+	}
+	if !reflect.DeepEqual(snap["php:8.1"], []int{9004, 9005, 9006, 9007}) {
+		t.Fatalf("php:8.1 deveria ser reutilizado: %v", snap)
+	}
+}
+
+func TestDesiredProcesses(t *testing.T) {
+	p := proj("app81", `C:\DEV\app81`, "8.1")
+	p.Processes = map[string]string{
+		"queue":     "php artisan queue:work --tries=3",
+		"scheduler": "php artisan schedule:work",
+		"vite":      `npm run dev -- --host "127.0.0.1"`,
+	}
+	out, err := desired(baseInput(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	procs := map[string]supervisor.Spec{}
+	for _, s := range out.Specs {
+		if strings.HasPrefix(s.ID, "proc:") {
+			procs[s.ID] = s
+		}
+	}
+	if len(procs) != 3 {
+		t.Fatalf("procs = %v", procs)
+	}
+	q := procs["proc:app81:queue"]
+	if q.Group != "proc" || q.Dir != `C:\DEV\app81` {
+		t.Fatalf("queue = %+v", q)
+	}
+	if q.Exe != `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64\php.exe` {
+		t.Fatalf("php deve resolver para o php.exe do major: %q", q.Exe)
+	}
+	if !reflect.DeepEqual(q.Args, []string{"artisan", "queue:work", "--tries=3"}) {
+		t.Fatalf("Args = %q", q.Args)
+	}
+	if len(q.Env) != 1 || !strings.HasPrefix(q.Env[0], `PATH=C:\rt\bin\php\php-8.1.10-Win32-vs16-x64;`) {
+		t.Fatalf("Env = %q", q.Env)
+	}
+	if ap, ok := q.Probe.(*supervisor.AliveProbe); !ok || ap.Grace <= 0 {
+		t.Fatalf("Probe = %#v", q.Probe)
+	}
+	if !q.Restart.Enabled || q.Restart.MaxRetries != 0 {
+		t.Fatalf("Restart = %+v", q.Restart)
+	}
+	v := procs["proc:app81:vite"]
+	if v.Exe != "npm" || !reflect.DeepEqual(v.Args, []string{"run", "dev", "--", "--host", "127.0.0.1"}) {
+		t.Fatalf("vite = %q %q", v.Exe, v.Args)
+	}
+}
+
+func TestDesiredHtaccessUnderNginx(t *testing.T) {
+	p := proj("legacy", `C:\DEV\legacy`, "8.1")
+	p.HasHtaccess = true
+	in := baseInput(p)
+	in.State.WebServer = state.Nginx
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Warnings) != 1 || out.Warnings[0].Code != "htaccess-under-nginx" || out.Warnings[0].ProjectID != "legacy" {
+		t.Fatalf("warnings = %+v", out.Warnings)
+	}
+	if !out.Sites[0].HasHtaccess {
+		t.Fatal("Site.HasHtaccess deve propagar")
+	}
+
+	// sob apache não há aviso
+	in.State.WebServer = state.Apache
+	out, _ = desired(in)
+	if len(out.Warnings) != 0 {
+		t.Fatalf("apache não deveria avisar: %+v", out.Warnings)
+	}
+}
+
+func TestDesiredWildcardAndTLSFailure(t *testing.T) {
+	p := proj("multi", `C:\DEV\multi`, "8.1")
+	p.Wildcard = true
+	in := baseInput(p)
+	var gotDomains []string
+	in.TLS = func(domains []string) (string, string, error) {
+		gotDomains = domains
+		return "", "", errTLS
+	}
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(gotDomains, []string{"multi.test", "*.multi.test"}) {
+		t.Fatalf("domínios pedidos ao TLS = %v", gotDomains)
+	}
+	s := out.Sites[0]
+	if !reflect.DeepEqual(s.Aliases, []string{"*.multi.test"}) || s.TLSCert != "" {
+		t.Fatalf("site = %+v", s)
+	}
+	if len(out.Warnings) != 1 || out.Warnings[0].Code != "tls-unavailable" || out.Warnings[0].ProjectID != "multi" {
+		t.Fatalf("warnings = %+v", out.Warnings)
+	}
+}
+
+func TestDesiredExtensionsUnion(t *testing.T) {
+	a := proj("a", `C:\DEV\a`, "8.1")
+	a.Extensions = []string{"intl", "pdo_mysql"}
+	b := proj("b", `C:\DEV\b`, "8.1")
+	b.Extensions = []string{"gd", "intl"}
+	in := baseInput(a, b)
+	in.State.PHPExtensions = map[string][]string{"8.1": {"mbstring", "gd"}}
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(out.Extensions["8.1"], []string{"gd", "intl", "mbstring", "pdo_mysql"}) {
+		t.Fatalf("Extensions = %v", out.Extensions)
+	}
+}
+
+func TestSplitArgs(t *testing.T) {
+	cases := []struct {
+		in   string
+		want []string
+	}{
+		{"php artisan queue:work", []string{"php", "artisan", "queue:work"}},
+		{`  a   b  `, []string{"a", "b"}},
+		{`node "C:\Program Files\x.js" --flag`, []string{"node", `C:\Program Files\x.js`, "--flag"}},
+		{`x 'single quoted arg' y`, []string{"x", "single quoted arg", "y"}},
+		{"", nil},
+	}
+	for _, c := range cases {
+		t.Run(c.in, func(t *testing.T) {
+			if got := splitArgs(c.in); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("splitArgs(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
