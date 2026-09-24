@@ -1,0 +1,53 @@
+param([int]$X, [int]$Y)
+
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class M {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint x, uint y, uint d, IntPtr e);
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr pid);
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
+  [StructLayout(LayoutKind.Sequential)] public struct R { public int L, T, Rt, B; }
+}
+'@
+
+$p = Get-Process hyphp-dbg | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+$h = $p.MainWindowHandle
+
+# O Windows recusa SetForegroundWindow de um processo que nunca recebeu input.
+# Anexar a fila de input da thread em primeiro plano contorna a restricao; sem
+# isso o WebView2 nunca recebe o clique sintetico.
+$fg = [M]::GetForegroundWindow()
+$tidFg = [M]::GetWindowThreadProcessId($fg, [IntPtr]::Zero)
+$tidMe = [M]::GetCurrentThreadId()
+[void][M]::AttachThreadInput($tidMe, $tidFg, $true)
+[void][M]::ShowWindow($h, 9)
+[void][M]::BringWindowToTop($h)
+[void][M]::SetForegroundWindow($h)
+[void][M]::AttachThreadInput($tidMe, $tidFg, $false)
+Start-Sleep -Milliseconds 600
+
+[M+R]$r = New-Object M+R
+[void][M]::GetWindowRect($h, [ref]$r)
+$ax = $r.L + $X
+$ay = $r.T + $Y
+# O WebView2 so atualiza o hit-test depois de processar movimento do mouse:
+# um SetCursorPos seco seguido de clique cai no elemento errado (ou em nenhum).
+[void][M]::SetCursorPos(($ax - 12), ($ay - 8))
+Start-Sleep -Milliseconds 120
+[void][M]::SetCursorPos($ax, $ay)
+[M]::mouse_event(0x0001, 0, 0, 0, [IntPtr]::Zero)  # MOVE, entrega WM_MOUSEMOVE
+Start-Sleep -Milliseconds 250
+[M]::mouse_event(0x0002, 0, 0, 0, [IntPtr]::Zero)
+Start-Sleep -Milliseconds 90
+[M]::mouse_event(0x0004, 0, 0, 0, [IntPtr]::Zero)
+Start-Sleep -Milliseconds 700
+$now = [M]::GetForegroundWindow()
+Write-Output "click $ax,$ay fg_ok=$($now -eq $h)"

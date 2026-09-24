@@ -573,7 +573,11 @@ func (s *Stack) ApplyHosts(ctx context.Context) error {
 		return fmt.Errorf("stack: helper hosts-write: %w", err)
 	}
 	s.d.Logger.Info("stack: hosts atualizado", "domains", want)
-	return nil
+	// Sem reconciliar, Warnings() continua devolvendo o resultado do último
+	// Reconcile — com o hosts-pending que acabou de deixar de existir — e o
+	// card Permissões seguiria oferecendo uma ação já concluída.
+	_, err = s.Reconcile(ctx)
+	return err
 }
 
 // ---- start/stop -----------------------------------------------------------
