@@ -37,7 +37,9 @@ const (
 const ERROR_CANCELLED = 1223
 
 var (
-	// ErrElevationDenied: o usuário recusou o UAC. Vira o warning "elevation-denied" no Stack.
+	// ErrElevationDenied: o usuário recusou o UAC. Como só ações explícitas
+	// elevam (Stack.ApplyHosts, Stack.InstallCA), isso vira erro da ação e
+	// aparece na própria tela — não um warning do Reconcile.
 	ErrElevationDenied = errors.New("elevação negada pelo usuário (UAC)")
 	// ErrHelperFailed: o helper rodou e terminou com código ≠ 0. Sentinela de HelperError.
 	ErrHelperFailed = errors.New("hyphp-helper falhou")
