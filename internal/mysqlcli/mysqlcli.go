@@ -108,7 +108,7 @@ func (c Client) query(ctx context.Context, sql string) (string, error) {
 		"-e", sql,
 	}
 	cmd := exec.CommandContext(ctx, c.Exe, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("mysqlcli: %s: %w: %s", filepath.Base(c.Exe), err, strings.TrimSpace(string(out)))

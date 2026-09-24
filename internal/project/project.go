@@ -18,6 +18,7 @@ type Project struct {
 	Root        string `json:"root"`        // absoluto, limpo
 	HasManifest bool   `json:"hasManifest"` // hyphp.yaml existia
 	HasHtaccess bool   `json:"hasHtaccess"` // .htaccess em Root ou em DocrootAbs
+	HasIndex    bool   `json:"hasIndex"`    // index.php/html/htm em DocrootAbs
 	DocrootAbs  string `json:"docrootAbs"`  // Root ou Root/Docroot
 	// PHPEffective é a série que o projeto usa de fato, já resolvida pela
 	// precedência manifesto → DefaultPHP → maior instalada. Vazia até o Stack
@@ -62,6 +63,15 @@ func Load(root string) (Project, error) {
 		p.DocrootAbs = filepath.Join(abs, filepath.FromSlash(p.Docroot))
 	}
 	p.HasHtaccess = fileExists(filepath.Join(abs, ".htaccess")) || fileExists(filepath.Join(p.DocrootAbs, ".htaccess"))
+	// Sem índice no docroot, o domínio abre um 404 mesmo com tudo certo: o
+	// vhost casa, o servidor entra no diretório e não acha o que servir. Aqui é
+	// onde a informação existe barato — o stat já está sendo feito.
+	for _, nome := range []string{"index.php", "index.html", "index.htm"} {
+		if fileExists(filepath.Join(p.DocrootAbs, nome)) {
+			p.HasIndex = true
+			break
+		}
+	}
 	return p, nil
 }
 

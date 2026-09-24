@@ -237,6 +237,7 @@ func siteFor(in desiredInput, p project.Project, major string) (webserver.Site, 
 		PoolName:    webserver.PoolName(major),
 		HasHtaccess: p.HasHtaccess,
 	}
+
 	domains := []string{p.Domain}
 	if p.Wildcard {
 		site.Aliases = []string{"*." + p.Domain}

@@ -92,7 +92,7 @@ func InitMySQLData(ctx context.Context, inst runtime.Installed, port int, etcDir
 	cmd := exec.CommandContext(ctx, filepath.Join(inst.Dir, "bin", "mysqld.exe"),
 		"--defaults-file="+MyIniPath(etcDir), "--initialize-insecure", "--console")
 	cmd.Dir = inst.Dir
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, runErr := cmd.CombinedOutput()
 
 	logPath := filepath.Join(logDir, "mysql-init.log")

@@ -175,7 +175,7 @@ func WhoHolds(port int) (pid int, exe string, err error) {
 // listeningPorts executa `netstat.exe -ano` e devolve porta → PID de todo listener TCP (v4 e v6).
 func listeningPorts() (map[int]int, error) {
 	cmd := exec.Command("netstat.exe", "-ano")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("netstat: %w", err)

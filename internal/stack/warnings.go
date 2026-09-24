@@ -7,7 +7,7 @@ type Warning struct {
 	// Code: "port-conflict" | "php-missing" | "htaccess-under-nginx" |
 	// "wildcard-unavailable" | "wildcard-pending" | "hosts-pending" |
 	// "ca-pending" | "tls-unavailable" | "web-missing" | "db-init-failed" |
-	// "db-create-failed" | "proc-exe-missing"
+	// "db-create-failed" | "proc-exe-missing" | "docroot-sem-indice"
 	//
 	// "hosts-pending", "ca-pending" e "wildcard-pending" são as três pendências
 	// que exigem UAC. O Reconcile só as reporta; a escrita fica em

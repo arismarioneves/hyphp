@@ -134,7 +134,7 @@ func (a *AppService) OpenTerminal(path string) error {
 	// `start` abre uma nova janela de console herdando o cwd do cmd /c (= path).
 	cmd := exec.Command("cmd.exe", "/c", "start", "", "cmd.exe")
 	cmd.Dir = path
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	return a.logged("abrir terminal", path, start(cmd))
 }
 
@@ -210,7 +210,7 @@ func mustDir(path string) error {
 // startHidden inicia exe sem janela de console própria e não espera término.
 func startHidden(exe string, args ...string) error {
 	cmd := exec.Command(exe, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	return start(cmd)
 }
 

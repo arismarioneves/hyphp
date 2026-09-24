@@ -24,7 +24,7 @@ type Mkcert struct{ Exe, CARoot, CertDir string }
 // NewMkcert roda `mkcert -CAROOT` uma vez e devolve o Mkcert com CARoot preenchido.
 func NewMkcert(exe, certDir string) (Mkcert, error) {
 	cmd := exec.Command(exe, "-CAROOT")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, err := cmd.Output()
 	if err != nil {
 		return Mkcert{}, fmt.Errorf("mkcert -CAROOT: %w", err)
@@ -75,7 +75,7 @@ func (m Mkcert) IssueCert(domains []string) (certPath, keyPath string, err error
 	}
 	args := append([]string{"-cert-file", certPath, "-key-file", keyPath}, domains...)
 	cmd := exec.Command(m.Exe, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	if m.CARoot != "" {
 		cmd.Env = append(os.Environ(), "CAROOT="+m.CARoot)
 	}

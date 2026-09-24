@@ -251,6 +251,20 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 
 	// 7. hosts — só detecta a pendência; a escrita (e a UAC) é sob demanda,
 	// via ApplyHosts, disparada pela UI.
+	// Docroot sem índice é a causa silenciosa mais comum de "o domínio abre um
+	// 404": o vhost casa, o servidor entra no diretório e não acha o que
+	// servir. Sem este aviso resta adivinhar entre DNS, vhost, PHP e caminho.
+	for _, p := range projs {
+		if !p.HasIndex {
+			warnings = append(warnings, Warning{
+				Code:      "docroot-sem-indice",
+				ProjectID: p.ID,
+				Message: fmt.Sprintf("%s serve %s, que não tem index.php nem index.html; ajuste `docroot:` no hyphp.yaml",
+					p.Domain, p.DocrootAbs),
+			})
+		}
+	}
+
 	s.lastSites = append(s.lastSites[:0], out.Sites...)
 	hostWarns, err := s.syncHosts(out.Sites)
 	warnings = append(warnings, hostWarns...)

@@ -20,6 +20,9 @@ const TABS: Array<{ kind: RuntimeKind; label: string }> = [
   { kind: 'nginx', label: 'nginx' },
   { kind: 'mysql', label: 'MySQL' },
   { kind: 'mailpit', label: 'Mailpit' },
+  // mkcert estava no catálogo mas não tinha aba: não havia como instalá-lo
+  // pela UI, e o aviso tls-unavailable apontava para uma ação inexistente.
+  { kind: 'mkcert', label: 'mkcert' },
 ]
 
 /** Espelha as constantes `Phase*` de internal/pkgmgr/manager.go. */

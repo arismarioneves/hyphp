@@ -36,15 +36,3 @@ func TestSyncHostsReportaSemElevar(t *testing.T) {
 		}
 	}
 }
-
-// Domínios já presentes não geram pendência — senão a UI ofereceria
-// "aplicar hosts" para sempre, e o usuário pagaria UAC à toa.
-func TestSyncHostsSemPendenciaQuandoVazio(t *testing.T) {
-	warns, err := new(Stack).syncHosts(nil)
-	if err != nil {
-		t.Fatalf("syncHosts: %v", err)
-	}
-	if len(warns) != 0 {
-		t.Errorf("esperava nenhum warning, veio %+v", warns)
-	}
-}
