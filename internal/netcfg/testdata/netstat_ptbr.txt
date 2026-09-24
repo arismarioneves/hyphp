@@ -1,0 +1,16 @@
+
+Conexões ativas
+
+  Proto  Endereço local         Endereço externo       Estado           PID
+  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       1528
+  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING       4
+  TCP    0.0.0.0:3306           0.0.0.0:0              LISTENING       20616
+  TCP    0.0.0.0:80             0.0.0.0:0              LISTENING       18704
+  TCP    127.0.0.1:52538        127.0.0.1:52539        ESTABLISHED     18728
+  TCP    127.0.2.2:53           0.0.0.0:0              LISTENING       6520
+  TCP    192.168.11.37:7680     192.168.11.42:64399    TIME_WAIT       0
+  TCP    [::]:135               [::]:0                 LISTENING       1528
+  TCP    [::]:3306              [::]:0                 LISTENING       20616
+  TCP    [::]:8443              [::]:0                 LISTENING       9001
+  UDP    0.0.0.0:53             *:*                                    3872
+  UDP    127.0.2.2:53           *:*                                    6520
