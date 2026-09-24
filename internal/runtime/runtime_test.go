@@ -121,3 +121,131 @@ func mustWrite(t *testing.T, path, content string) {
 		t.Fatal(err)
 	}
 }
+
+func TestParsePHPProbe(t *testing.T) {
+	cases := []struct {
+		name, out, version string
+		intSize            int
+		zts, wantErr       bool
+	}{
+		{"8.1.10 zts x64 (laragon)", "8.1.10|8|zts", "8.1.10", 8, true, false},
+		{"7.2.34 zts x64 (laragon)", "7.2.34|8|zts", "7.2.34", 8, true, false},
+		{"nts x86 com CRLF", "8.3.33|4|nts\r\n", "8.3.33", 4, false, false},
+		{"release candidate", "8.4.0RC1|8|nts", "8.4.0RC1", 8, false, false},
+		{"warning de php.ini antes da saída", "Warning: PHP Startup: Unable to load dynamic library 'curl'\n8.1.10|8|zts", "", 0, false, true},
+		{"vazio", "", "", 0, false, true},
+		{"campo faltando", "8.1.10|8", "", 0, false, true},
+		{"thread-safety inválida", "8.1.10|8|tsrm", "", 0, false, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			version, intSize, zts, err := parsePHPProbe(c.out)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("err = %v; wantErr %v", err, c.wantErr)
+			}
+			if version != c.version || intSize != c.intSize || zts != c.zts {
+				t.Fatalf("got (%q, %d, %v); want (%q, %d, %v)", version, intSize, zts, c.version, c.intSize, c.zts)
+			}
+		})
+	}
+}
+
+func TestParseApacheVersion(t *testing.T) {
+	cases := []struct {
+		name, out, version, compiler, arch string
+		wantErr                            bool
+	}{
+		{
+			"apache lounge 2.4.54 VS16 (laragon)",
+			"Server version: Apache/2.4.54 (Win64)\r\nApache Lounge VS16 Server built:   Jun 22 2022 09:58:15\r\n",
+			"2.4.54", "VS16", "x64", false,
+		},
+		{
+			"apache lounge 2.4.68 VS18 win32",
+			"Server version: Apache/2.4.68 (Win32)\nApache Lounge VS18 Server built:   Sep 20 2026 10:00:00\n",
+			"2.4.68", "VS18", "x86", false,
+		},
+		{"sem banner", "httpd: illegal option -- v", "", "", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			version, compiler, arch, err := parseApacheVersion(c.out)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("err = %v; wantErr %v", err, c.wantErr)
+			}
+			if version != c.version || compiler != c.compiler || arch != c.arch {
+				t.Fatalf("got (%q, %q, %q); want (%q, %q, %q)", version, compiler, arch, c.version, c.compiler, c.arch)
+			}
+		})
+	}
+}
+
+func TestParseNginxVersion(t *testing.T) {
+	cases := []struct {
+		name, out, want string
+		wantErr         bool
+	}{
+		{"1.22.0 (laragon, stderr)", "nginx version: nginx/1.22.0\r\n", "1.22.0", false},
+		{"1.30.5", "nginx version: nginx/1.30.5", "1.30.5", false},
+		{"vazio", "", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := parseNginxVersion(c.out)
+			if (err != nil) != c.wantErr || got != c.want {
+				t.Fatalf("parseNginxVersion(%q) = (%q, %v); want (%q, wantErr=%v)", c.out, got, err, c.want, c.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseMySQLVersion(t *testing.T) {
+	cases := []struct {
+		name, out, version, arch string
+		wantErr                  bool
+	}{
+		{
+			"8.0.30 (laragon)",
+			"C:\\laragon\\bin\\mysql\\mysql-8.0.30-winx64\\bin\\mysqld.exe  Ver 8.0.30 for Win64 on x86_64 (MySQL Community Server - GPL)\r\n",
+			"8.0.30", "x64", false,
+		},
+		{
+			"8.4.11 caminho com barras normais",
+			"C:/hyphp/.runtime/bin/mysql/mysql-8.4.11-winx64/bin/mysqld.exe  Ver 8.4.11 for Win64 on x86_64 (MySQL Community Server - GPL)",
+			"8.4.11", "x64", false,
+		},
+		{"sem Ver", "mysqld: unknown option '--versionx'", "", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			version, arch, err := parseMySQLVersion(c.out)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("err = %v; wantErr %v", err, c.wantErr)
+			}
+			if version != c.version || arch != c.arch {
+				t.Fatalf("got (%q, %q); want (%q, %q)", version, arch, c.version, c.arch)
+			}
+		})
+	}
+}
+
+func TestParseFirstVersion(t *testing.T) {
+	cases := []struct {
+		name, out, want string
+		wantErr         bool
+	}{
+		{"mailpit com v", "v1.21.5\n", "1.21.5", false},
+		{"mailpit sem v", "1.21.5", "1.21.5", false},
+		{"mkcert", "v1.4.4\r\n", "1.4.4", false},
+		{"texto ao redor", "Mailpit v1.31.1 compiled with Go 1.25.1", "1.31.1", false},
+		{"sem versão", "usage: mailpit [flags]", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got, err := parseFirstVersion(c.out, "tool")
+			if (err != nil) != c.wantErr || got != c.want {
+				t.Fatalf("parseFirstVersion(%q) = (%q, %v); want (%q, wantErr=%v)", c.out, got, err, c.want, c.wantErr)
+			}
+		})
+	}
+}
