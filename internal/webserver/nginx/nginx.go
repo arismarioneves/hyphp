@@ -11,6 +11,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"syscall"
 	"text/template"
 
 	"hyphp/internal/runtime"
@@ -100,6 +101,7 @@ func (s server) Validate(etcDir string) error {
 	exe, args, dir := s.command(etcDir, true)
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(out))
 	if !strings.Contains(text, "test is successful") {

@@ -52,10 +52,36 @@ func ApplyDefaults(m *Manifest, root string) {
 		m.Domain = NormalizeName(m.Name) + ".test"
 	}
 	if m.Docroot == "" {
-		if st, err := os.Stat(filepath.Join(root, "public")); err == nil && st.IsDir() {
-			m.Docroot = "public"
+		m.Docroot = docrootPadrao(root)
+	}
+}
+
+// docrootPadrao escolhe entre a raiz do projeto e public/.
+//
+// A presença da pasta public/ não basta: muito projeto legado guarda só
+// assets ali e serve pela raiz, onde o index.php e o .htaccess fazem o
+// roteamento. Apontar o docroot para public/ nesse caso entrega um 404 com
+// tudo o mais correto. Então public/ só vence quando tem o index e a raiz não
+// tem — que é o caso do Laravel e dos frameworks que seguem o mesmo layout.
+func docrootPadrao(root string) string {
+	if temIndice(root) {
+		return ""
+	}
+	if temIndice(filepath.Join(root, "public")) {
+		return "public"
+	}
+	return ""
+}
+
+// temIndice responde se o diretório tem um arquivo que o servidor entregaria
+// como raiz. A lista acompanha o DirectoryIndex dos templates de vhost.
+func temIndice(dir string) bool {
+	for _, nome := range []string{"index.php", "index.html", "index.htm"} {
+		if st, err := os.Stat(filepath.Join(dir, nome)); err == nil && !st.IsDir() {
+			return true
 		}
 	}
+	return false
 }
 
 // Validate garante o mínimo para gerar um vhost: nome utilizável, domínio .test,

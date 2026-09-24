@@ -36,8 +36,12 @@ func startProcess(spec Spec, out io.Writer) (*exec.Cmd, windows.Handle, error) {
 	cmd.Stdout = out
 	cmd.Stderr = out
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		HideWindow:    true,
-		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP,
+		HideWindow: true,
+		// CREATE_NO_WINDOW é o que de fato impede o console: HideWindow só passa
+		// SW_HIDE pelo STARTUPINFO, e o console de um processo console nasce
+		// antes disso — cada serviço piscava uma janela ao subir, e são sete.
+		// CREATE_NEW_PROCESS_GROUP continua necessário para o Ctrl-Break do Stop.
+		CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_NO_WINDOW,
 	}
 	if err := cmd.Start(); err != nil {
 		windows.CloseHandle(job)

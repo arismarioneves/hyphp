@@ -64,14 +64,8 @@ func Load(root string) (Project, error) {
 	}
 	p.HasHtaccess = fileExists(filepath.Join(abs, ".htaccess")) || fileExists(filepath.Join(p.DocrootAbs, ".htaccess"))
 	// Sem índice no docroot, o domínio abre um 404 mesmo com tudo certo: o
-	// vhost casa, o servidor entra no diretório e não acha o que servir. Aqui é
-	// onde a informação existe barato — o stat já está sendo feito.
-	for _, nome := range []string{"index.php", "index.html", "index.htm"} {
-		if fileExists(filepath.Join(p.DocrootAbs, nome)) {
-			p.HasIndex = true
-			break
-		}
-	}
+	// vhost casa, o servidor entra no diretório e não acha o que servir.
+	p.HasIndex = temIndice(p.DocrootAbs)
 	return p, nil
 }
 

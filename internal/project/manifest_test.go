@@ -28,13 +28,27 @@ func TestNormalizeName(t *testing.T) {
 }
 
 func TestApplyDefaults(t *testing.T) {
+	// public/ só conta como docroot quando tem o índice: pasta vazia não move
+	// o docroot, senão um projeto que serve pela raiz devolveria 404.
 	withPublic := filepath.Join(t.TempDir(), "My App")
 	if err := os.MkdirAll(filepath.Join(withPublic, "public"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(withPublic, "public", "index.php"), []byte("<?php"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	noPublic := filepath.Join(t.TempDir(), "legacy")
 	if err := os.MkdirAll(noPublic, 0o755); err != nil {
 		t.Fatal(err)
+	}
+	raizComIndice := filepath.Join(t.TempDir(), "site")
+	if err := os.MkdirAll(filepath.Join(raizComIndice, "public"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"index.php", ".htaccess"} {
+		if err := os.WriteFile(filepath.Join(raizComIndice, f), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	cases := []struct {
@@ -54,6 +68,15 @@ func TestApplyDefaults(t *testing.T) {
 			in:   Manifest{},
 			root: noPublic,
 			want: Manifest{Name: "legacy", Domain: "legacy.test", Docroot: ""},
+		},
+		{
+			// Projeto legado: index.php e .htaccess na raiz, public/ só com
+			// assets. Mover o docroot para public/ devolveria 404 com tudo o
+			// mais correto.
+			name: "indice na raiz vence public",
+			in:   Manifest{},
+			root: raizComIndice,
+			want: Manifest{Name: "site", Domain: "site.test", Docroot: ""},
 		},
 		{
 			name: "mantém valores explícitos",
