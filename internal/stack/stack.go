@@ -109,9 +109,27 @@ func (s *Stack) SetProjects(p []project.Project) {
 	s.stateMu.Unlock()
 }
 
+// SetRuntimes troca a lista de runtimes conhecidos.
 func (s *Stack) SetRuntimes(r []runtime.Installed) {
 	s.stateMu.Lock()
 	s.d.Runtimes = append([]runtime.Installed(nil), r...)
+	s.stateMu.Unlock()
+}
+
+// SetWebServers troca os web servers disponíveis. Necessário porque eles são
+// construídos a partir do que existe em bin/, e instalar o Apache com o app
+// aberto deixava o mapa vazio até o próximo início — o Reconcile seguia
+// avisando "web server não encontrado" com o Apache já instalado.
+func (s *Stack) SetWebServers(w map[state.WebServerName]webserver.WebServer) {
+	s.stateMu.Lock()
+	s.d.Web = w
+	s.stateMu.Unlock()
+}
+
+// SetMkcert troca o mkcert conhecido, pelo mesmo motivo de SetWebServers.
+func (s *Stack) SetMkcert(mk netcfg.Mkcert) {
+	s.stateMu.Lock()
+	s.d.Mkcert = mk
 	s.stateMu.Unlock()
 }
 

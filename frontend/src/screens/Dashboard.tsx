@@ -8,7 +8,7 @@ import { EmptyState } from '../components/EmptyState'
 import { SectionLabel } from '../components/SectionLabel'
 import { Skeleton } from '../components/Skeleton'
 import { StatusDot, type ServiceState } from '../components/StatusDot'
-import type { ScreenProps } from '../lib/screens'
+import type { Screen, ScreenProps } from '../lib/screens'
 import { phpPools } from '../lib/status'
 import type { Installed, RuntimeKind, ServiceStatus } from '../lib/types'
 import { useProjects } from '../lib/useProjects'
@@ -18,6 +18,18 @@ import { useSettings } from '../lib/useSettings'
 import { useWarnings } from '../lib/useWarnings'
 
 type StackRow = { key: string; state: ServiceState; name: string; version: string; extra?: string }
+
+// Onde o usuário resolve cada pendência. Aviso sem saída é reclamação: o texto
+// diz o que falta, o botão leva a quem resolve. Código ausente aqui é aviso
+// informativo (conflito de porta, por exemplo), que não tem ação na UI.
+const ONDE_RESOLVER: Record<string, { tela: Screen; acao: string }> = {
+  'web-missing': { tela: 'runtimes', acao: 'Instalar web server' },
+  'tls-unavailable': { tela: 'runtimes', acao: 'Instalar mkcert' },
+  'php-missing': { tela: 'runtimes', acao: 'Instalar PHP' },
+  'hosts-pending': { tela: 'settings', acao: 'Aplicar domínios' },
+  'ca-pending': { tela: 'settings', acao: 'Instalar certificado' },
+  'wildcard-pending': { tela: 'settings', acao: 'Registrar regra de DNS' },
+}
 
 // `Installed.kind` é o enum gerado `runtime.Kind`; comparar com os literais de
 // RuntimeKind exige alargar para string (enum de string do TS é nominal).
@@ -208,27 +220,41 @@ export function Dashboard({ onNavigate }: ScreenProps) {
         </Card>
       </div>
 
-      <Card>
-        <SectionLabel>AVISOS</SectionLabel>
-        {warnings.length === 0 ? (
-          <p className="mt-3 text-sm text-fg-faint">Nenhum aviso.</p>
-        ) : (
-          <ul className="mt-3 flex flex-col gap-2">
-            {warnings.map((w, i) => (
-              <li key={`${w.code}-${w.projectId}-${i}`} className="flex items-start gap-2 text-sm">
-                <WarningIcon size={16} className="mt-0.5 shrink-0 text-warn" />
-                <div className="flex flex-col">
-                  <span className="selectable text-fg">{w.message}</span>
-                  <span className="selectable font-mono text-xs text-fg-faint">
-                    {w.code}
-                    {w.projectId ? ` · ${w.projectId}` : ''}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      {/* Sem nenhum runtime instalado, todo aviso é consequência disso: o card
+          "YOUR STACK" acima já convida a instalar, e repetir a falta como três
+          alertas amarelos faz o app parecer quebrado logo na primeira abertura. */}
+      {installed.length > 0 && (
+        <Card>
+          <SectionLabel>AVISOS</SectionLabel>
+          {warnings.length === 0 ? (
+            <p className="mt-3 text-sm text-fg-faint">Nenhum aviso.</p>
+          ) : (
+            <ul className="mt-3 flex flex-col gap-2">
+              {warnings.map((w, i) => (
+                <li key={`${w.code}-${w.projectId}-${i}`} className="flex items-start gap-2 text-sm">
+                  <WarningIcon size={16} className="mt-0.5 shrink-0 text-warn" />
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="selectable text-fg">{w.message}</span>
+                    <span className="selectable font-mono text-xs text-fg-faint">
+                      {w.code}
+                      {w.projectId ? ` · ${w.projectId}` : ''}
+                    </span>
+                    {ONDE_RESOLVER[w.code] && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onNavigate(ONDE_RESOLVER[w.code].tela)}
+                      >
+                        {ONDE_RESOLVER[w.code].acao}
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
     </div>
   )
 }

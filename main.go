@@ -181,6 +181,12 @@ func main() {
 				return
 			}
 			stk.SetRuntimes(list)
+			// Web server e mkcert são derivados do que existe em bin/. Sem
+			// recalcular aqui, instalar o Apache (ou o mkcert) com o app aberto
+			// não tinha efeito nenhum até reiniciar: o mapa continuava o do boot
+			// e o aviso "não encontrado" persistia com o runtime já instalado.
+			stk.SetWebServers(webServers(list))
+			stk.SetMkcert(newMkcert(logger))
 			reconcile("runtime:changed")
 		},
 	})
@@ -189,21 +195,9 @@ func main() {
 	// hyphp: 06 — alocador de portas persistido
 	alloc := netcfg.NewAllocator(9000, st.PortAlloc)
 
-	// hyphp: 06 — web servers disponíveis (só os instalados em bin/)
-	web := map[state.WebServerName]webserver.WebServer{}
-	if list := runtime.ByKind(rts, runtime.Apache); len(list) > 0 {
-		web[state.Apache] = apache.New(list[0])
-	}
-	if list := runtime.ByKind(rts, runtime.Nginx); len(list) > 0 {
-		web[state.Nginx] = nginx.New(list[0])
-	}
-
-	// hyphp: 06 — mkcert (ausente → sites só em HTTP, warning tls-unavailable)
-	mk, err := netcfg.NewMkcert(filepath.Join(paths.Bin(), "mkcert", "mkcert.exe"), filepath.Join(paths.Var(), "certs"))
-	if err != nil {
-		logger.Warn("mkcert indisponível; sites sem TLS", "err", err)
-		mk = netcfg.Mkcert{}
-	}
+	// hyphp: 06 — web servers e mkcert disponíveis (só os instalados em bin/)
+	web := webServers(rts)
+	mk := newMkcert(logger)
 
 	// hyphp: 06 — stack + projetos
 	stk = stack.New(stack.Deps{
@@ -336,4 +330,30 @@ func main() {
 		logger.Error("app.Run", "err", err)
 		os.Exit(1)
 	}
+}
+
+// webServers monta o mapa de web servers a partir do que está instalado em
+// bin/. É função (e não código inline no bootstrap) porque precisa rodar de
+// novo a cada mudança em bin/: instalar o Apache com o app aberto tem de
+// passar a valer sem reiniciar.
+func webServers(rts []runtime.Installed) map[state.WebServerName]webserver.WebServer {
+	web := map[state.WebServerName]webserver.WebServer{}
+	if list := runtime.ByKind(rts, runtime.Apache); len(list) > 0 {
+		web[state.Apache] = apache.New(list[0])
+	}
+	if list := runtime.ByKind(rts, runtime.Nginx); len(list) > 0 {
+		web[state.Nginx] = nginx.New(list[0])
+	}
+	return web
+}
+
+// newMkcert resolve o mkcert em bin/. Ausente não é erro: os sites ficam só em
+// HTTP e o Reconcile emite tls-unavailable.
+func newMkcert(logger *slog.Logger) netcfg.Mkcert {
+	mk, err := netcfg.NewMkcert(filepath.Join(paths.Bin(), "mkcert", "mkcert.exe"), filepath.Join(paths.Var(), "certs"))
+	if err != nil {
+		logger.Warn("mkcert indisponível; sites sem TLS", "err", err)
+		return netcfg.Mkcert{}
+	}
+	return mk
 }
