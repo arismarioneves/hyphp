@@ -28,6 +28,15 @@ export function ApplyHosts(): $CancellablePromise<void> {
     return $Call.ByID(4150864126);
 }
 
+/**
+ * ApplyWildcardDNS registra a regra de DNS que faz *.dominio.test resolver.
+ * Pede UAC, por isso é ação explícita: o Reconcile apenas reporta
+ * "wildcard-pending".
+ */
+export function ApplyWildcardDNS(): $CancellablePromise<void> {
+    return $Call.ByID(1410094740);
+}
+
 export function Get(): $CancellablePromise<state$0.State> {
     return $Call.ByID(3443630107).then(($result: any) => {
         return $$createType0($result);
@@ -40,6 +49,14 @@ export function Get(): $CancellablePromise<state$0.State> {
  */
 export function InstallCA(): $CancellablePromise<void> {
     return $Call.ByID(701329380);
+}
+
+/**
+ * RemoveWildcardDNS desfaz a regra. Sem esta porta, quem parasse de usar
+ * wildcard ficaria com o namespace .test apontando para um resolvedor morto.
+ */
+export function RemoveWildcardDNS(): $CancellablePromise<void> {
+    return $Call.ByID(3436439270);
 }
 
 /**

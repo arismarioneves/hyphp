@@ -22,6 +22,7 @@ import { useWarnings } from '../lib/useWarnings'
 /** Códigos de `stack.Warning` que o card Permissões resolve (C18.42 e C18.45). */
 const HOSTS_PENDING = 'hosts-pending'
 const CA_PENDING = 'ca-pending'
+const WILDCARD_PENDING = 'wildcard-pending'
 
 const WEB_SERVERS: Array<{ name: WebServerName; label: string }> = [
   { name: WebServerName.Apache, label: 'Apache' },
@@ -148,7 +149,8 @@ function PermissionsCard() {
   const { warnings } = useWarnings()
   const hosts = warnings.find((w) => w.code === HOSTS_PENDING)
   const ca = warnings.find((w) => w.code === CA_PENDING)
-  if (!hosts && !ca) return null
+  const wildcard = warnings.find((w) => w.code === WILDCARD_PENDING)
+  if (!hosts && !ca && !wildcard) return null
   return (
     <Section label="PERMISSÕES">
       <p className="text-xs text-fg-faint">
@@ -157,6 +159,9 @@ function PermissionsCard() {
       </p>
       {hosts && <ElevatedAction warning={hosts} label="Aplicar domínios" run={SettingsService.ApplyHosts} />}
       {ca && <ElevatedAction warning={ca} label="Instalar certificado" run={SettingsService.InstallCA} />}
+      {wildcard && (
+        <ElevatedAction warning={wildcard} label="Registrar regra de DNS" run={SettingsService.ApplyWildcardDNS} />
+      )}
     </Section>
   )
 }
