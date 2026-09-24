@@ -35,6 +35,11 @@ export interface Project {
     "hasHtaccess": boolean;
 
     /**
+     * index.php/html/htm em DocrootAbs
+     */
+    "hasIndex": boolean;
+
+    /**
      * Root ou Root/Docroot
      */
     "docrootAbs": string;
