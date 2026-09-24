@@ -237,6 +237,14 @@ func (s *Stack) finish(w []Warning) []Warning {
 	s.stateMu.Lock()
 	s.warnings = w
 	s.stateMu.Unlock()
+	// Os warnings também vão para o log. Sem isto eles existem só na tela, e
+	// um diagnóstico como "porta 80 ocupada por outro processo" fica invisível
+	// para quem está lendo o log — que é exatamente onde se procura quando o
+	// web server entra em ciclo de reinício e a única linha visível é
+	// "processo encerrou com código 1".
+	for _, warn := range w {
+		s.d.Logger.Warn("stack: aviso", "code", warn.Code, "msg", warn.Message, "project", warn.ProjectID)
+	}
 	s.d.Emit("stack:warnings", w)
 	return w
 }
