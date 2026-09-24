@@ -1,0 +1,46 @@
+; Gerado pelo HyPHP — não editar à mão.
+; Fonte: internal/render/phpini.go — reescrito a cada Reconcile.
+; PHP 8.1.10 (série 8.1)
+
+[PHP]
+extension_dir = "__PHPDIR__/ext"
+extension=curl
+extension=exif
+extension=fileinfo
+extension=gd
+extension=intl
+extension=mbstring
+extension=openssl
+extension=pdo_mysql
+extension=pdo_sqlite
+extension=soap
+extension=sodium
+extension=sqlite3
+zend_extension=php_opcache.dll
+
+error_reporting = E_ALL
+display_errors = On
+display_startup_errors = On
+log_errors = On
+error_log = "C:/hyphp/log/php-8.1.log"
+
+upload_max_filesize = 64M
+post_max_size = 64M
+memory_limit = 512M
+max_execution_time = 120
+date.timezone = UTC
+
+sys_temp_dir = "C:/hyphp/var/tmp/php/8.1"
+upload_tmp_dir = "C:/hyphp/var/tmp/php/8.1"
+session.save_path = "C:/hyphp/var/tmp/php/8.1"
+
+[CGI]
+cgi.force_redirect = 0
+cgi.fix_pathinfo = 1
+fastcgi.impersonate = 0
+
+[opcache]
+opcache.enable = 1
+opcache.enable_cli = 0
+opcache.validate_timestamps = 1
+opcache.revalidate_freq = 0

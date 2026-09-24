@@ -1,0 +1,83 @@
+// Package webserver define o contrato comum aos web servers plugáveis do HyPHP
+// (Apache e nginx) e os tipos de entrada da renderização de configuração.
+//
+// Um web server ativo por vez (spec §6.7): ambos querem as portas 80/443. A
+// troca é feita a quente por stack.SwitchWebServer.
+package webserver
+
+import (
+	"strings"
+
+	"hyphp/internal/state"
+	"hyphp/internal/supervisor"
+)
+
+// Site é um projeto publicado pelo web server.
+type Site struct {
+	ID          string   // id do projeto (nome normalizado); vira o nome do arquivo de vhost
+	Domain      string   // "acme.test"
+	Aliases     []string // ["*.acme.test"] quando wildcard
+	Docroot     string   // absoluto, com "/" como separador
+	PoolName    string   // "php81" — casa com PHPPool.Name
+	TLSCert     string   // "" = sem TLS
+	TLSKey      string
+	HasHtaccess bool
+}
+
+// PHPPool é o conjunto de workers php-cgi de uma série de PHP (spec §6.3).
+type PHPPool struct {
+	Name    string // "php81" (sem pontos: letras+dígitos)
+	Version string // "8.1"
+	Ports   []int  // [9000, 9001, 9002, 9003]
+}
+
+// TLS descreve o estado global de TLS. Mantido por C6; o detalhe por site vive
+// em Site.TLSCert/TLSKey.
+type TLS struct {
+	Enabled bool
+}
+
+// Ports são as portas de escuta globais (state.HTTPPort / state.HTTPSPort).
+type Ports struct {
+	HTTP  int
+	HTTPS int
+}
+
+// WebServer é a fachada que o stack usa para renderizar, validar, executar e
+// sondar o web server ativo.
+//
+// RELOCABILIDADE (requisito duro): a saída de Render NUNCA embute o diretório
+// de configuração absoluto. Motivo: stack.Reconcile renderiza em
+// etc/<web>.next, valida *lá dentro* e só promove para etc/<web> se o
+// validador passar. Se um arquivo gerado carimbasse o etcDir, o `-t` rodando
+// em `.next` leria os arquivos antigos de etc/<web> e aprovaria a config
+// errada — o oposto do que a validação existe para garantir.
+//
+// Como cada implementação cumpre isso:
+//   - Apache: Validate/Command passam -C "Define HYPHP_ETC <etcDir>" e o
+//     httpd.conf referencia ${HYPHP_ETC}/pools.conf, ${HYPHP_ETC}/vhosts/*.conf.
+//   - nginx: Validate/Command passam -p <etcDir> e o nginx.conf usa includes
+//     relativos (upstreams.conf, sites/*.conf), que o nginx resolve contra -p.
+//
+// Caminhos que NÃO são o etcDir (diretório do runtime, docroots, logDir,
+// certificados) podem e devem ser absolutos.
+type WebServer interface {
+	Name() state.WebServerName
+	// Render devolve caminho-relativo-ao-etcDir (sempre com "/") → conteúdo.
+	// Determinístico: mesma entrada, mesmos bytes.
+	Render(sites []Site, pools []PHPPool, ports Ports, logDir string) (map[string][]byte, error)
+	// Validate roda o validador nativo apontando para etcDir. Erro traz a
+	// saída completa do validador.
+	Validate(etcDir string) error
+	// Command devolve o processo de foreground a ser supervisionado.
+	Command(etcDir string) (exe string, args []string, dir string)
+	// Probe é a prova de readiness do serviço web (spec §7.2).
+	Probe(ports Ports) supervisor.Probe
+}
+
+// PoolName converte uma série de PHP no nome do pool/upstream: "8.1" → "php81".
+// Apache (balancer://<nome>) e nginx (upstream <nome>) só aceitam identificador
+// sem ponto, por isso o ponto some em vez de virar outro separador.
+func PoolName(version string) string {
+	return "php" + strings.ReplaceAll(version, ".", "")
+}
