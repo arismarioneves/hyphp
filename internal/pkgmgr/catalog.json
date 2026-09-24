@@ -1,0 +1,115 @@
+{
+  "updatedAt": "2026-09-24",
+  "packages": [
+    {
+      "id": "php-8.1.34-nts-vs16-x64",
+      "kind": "php",
+      "version": "8.1.34",
+      "url": "https://windows.php.net/downloads/releases/php-8.1.34-nts-Win32-vs16-x64.zip",
+      "sha256": "9cfe246cb144076c16f5913a3ef88a474c3dd7e60f0f0c8bb95faf68674016cc",
+      "compiler": "vs16",
+      "arch": "x64",
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+    },
+    {
+      "id": "php-8.2.34-nts-vs16-x64",
+      "kind": "php",
+      "version": "8.2.34",
+      "url": "https://windows.php.net/downloads/releases/php-8.2.34-nts-Win32-vs16-x64.zip",
+      "sha256": "03249b5c9414c6dbe30276f4a7598bd9d2a7417ee81f709b06b99e9c4a2aff4f",
+      "compiler": "vs16",
+      "arch": "x64",
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+    },
+    {
+      "id": "php-8.3.35-nts-vs16-x64",
+      "kind": "php",
+      "version": "8.3.35",
+      "url": "https://windows.php.net/downloads/releases/php-8.3.35-nts-Win32-vs16-x64.zip",
+      "sha256": "25a8e2ac9ff30f1d768d1447c09a600617fa6e6082729f6e95f008b59c91fe45",
+      "compiler": "vs16",
+      "arch": "x64",
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+    },
+    {
+      "id": "php-8.4.26-nts-vs17-x64",
+      "kind": "php",
+      "version": "8.4.26",
+      "url": "https://windows.php.net/downloads/releases/php-8.4.26-nts-Win32-vs17-x64.zip",
+      "sha256": "da68394f9193b7f6b89d0c76861a4034ae10efee7fd55a7255d8118c2acf70d7",
+      "compiler": "vs17",
+      "arch": "x64",
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+    },
+    {
+      "id": "php-8.5.11-nts-vs17-x64",
+      "kind": "php",
+      "version": "8.5.11",
+      "url": "https://windows.php.net/downloads/releases/php-8.5.11-nts-Win32-vs17-x64.zip",
+      "sha256": "0ea96e0d2b9b737a6036f05cf4e95c49313faa6d0f27bd97edb2742503f0c043",
+      "compiler": "vs17",
+      "arch": "x64",
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+    },
+    {
+      "id": "apache-2.4.68-vs18-x64",
+      "kind": "apache",
+      "version": "2.4.68",
+      "url": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.68-260920-Win64-VS18.zip",
+      "sha256": "f6dcf17d08aa32721ae418cd818c157e4c521c9e889b758646fb64287f1d56e3",
+      "compiler": "VS18",
+      "arch": "x64",
+      "notes": "Apache Lounge build 260920. SHA-256 de https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.68-260920-Win64-VS18.zip.txt (publicado em maiusculas; comparacao case-insensitive). Zip tem raiz Apache24/ + ReadMe.txt/Security.txt soltos -> instalado em bin/apache/apache-2.4.68-vs18-x64/. Requer VC++ Redistributable 14.51+ (https://aka.ms/vc14/vc_redist.x64.exe). Apache Lounge SOBRESCREVE builds: se a URL responder HTML 'Oops', reler a pagina de download e atualizar url+sha256."
+    },
+    {
+      "id": "nginx-1.30.5",
+      "kind": "nginx",
+      "version": "1.30.5",
+      "url": "https://nginx.org/download/nginx-1.30.5.zip",
+      "sha256": "e5afe28b6a50bec92c478bfe1a4d3758206b80fb77159277bc5c4e88955c2a35",
+      "compiler": "",
+      "arch": "",
+      "notes": "Stable. nginx.org publica apenas assinatura PGP (https://nginx.org/download/nginx-1.30.5.zip.asc), nao SHA-256: o hash acima foi CALCULADO LOCALMENTE em 2026-09-20 a partir da URL oficial (2776622 bytes). Build oficial e 32-bit. Raiz unica nginx-1.30.5/ -> bin/nginx/nginx-1.30.5/."
+    },
+    {
+      "id": "mysql-8.4.11-winx64",
+      "kind": "mysql",
+      "version": "8.4.11",
+      "url": "https://cdn.mysql.com/Downloads/MySQL-8.4/mysql-8.4.11-winx64.zip",
+      "sha256": "a492371d687d2bab088b0062581144a0044b8964baefdf4faa579292b423d25c",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "MySQL Community Server 8.4 LTS, ZIP Archive Windows x86 64-bit (281191914 bytes). Oracle publica so MD5 (2e833921898a9a030ea6bfe81bd811bc em https://dev.mysql.com/downloads/mysql/); o SHA-256 acima foi calculado localmente em 2026-09-20 apos conferir o MD5. Usar cdn.mysql.com: dev.mysql.com/get/ responde 403 fora do browser. Raiz unica mysql-8.4.11-winx64/."
+    },
+    {
+      "id": "mysql-8.0.46-winx64",
+      "kind": "mysql",
+      "version": "8.0.46",
+      "url": "https://cdn.mysql.com/Downloads/MySQL-8.0/mysql-8.0.46-winx64.zip",
+      "sha256": "28e9eda019d88eff4478d811ea2110b83f02a3966be157fe91cc55def3ab0d4d",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "MySQL Community Server 8.0, ZIP Archive Windows x86 64-bit (248009349 bytes). MD5 publicado 003f527d5df61b663ff191038cd676bd conferido; SHA-256 calculado localmente em 2026-09-20. Compativel com datadir do 8.0.30 do Laragon (upgrade in-place)."
+    },
+    {
+      "id": "mailpit-1.31.1",
+      "kind": "mailpit",
+      "version": "1.31.1",
+      "url": "https://github.com/axllent/mailpit/releases/download/v1.31.1/mailpit-windows-amd64.zip",
+      "sha256": "73ff05204741bd89cc96e6074573c4b22e1edfadf1b3427536233ff20c751604",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "SHA-256 do campo digest da GitHub Releases API (https://api.github.com/repos/axllent/mailpit/releases/latest) e conferido no zip baixado em 2026-09-20. checksums.txt nao existe nesta release. Zip plano (mailpit.exe, LICENSE, README.md) -> bin/mailpit/."
+    },
+    {
+      "id": "mkcert-1.4.4",
+      "kind": "mkcert",
+      "version": "1.4.4",
+      "url": "https://github.com/FiloSottile/mkcert/releases/download/v1.4.4/mkcert-v1.4.4-windows-amd64.exe",
+      "sha256": "d2660b50a9ed59eada480750561c96abc2ed4c9a38c6a24d93e30e0977631398",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "Executavel solto, nao e zip: copiado como bin/mkcert/mkcert.exe. GitHub nao publica digest para esta release (2022); SHA-256 calculado localmente em 2026-09-20, tamanho 4896256 bytes confere com o campo size da API."
+    }
+  ]
+}
