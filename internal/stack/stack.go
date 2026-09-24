@@ -241,10 +241,14 @@ func (s *Stack) finish(w []Warning) []Warning {
 	return w
 }
 
-// tlsIssuer devolve a função de emissão de certificados ou nil (+ warning) quando
-// o mkcert não existe ou a CA não pôde ser instalada. A instalação da CA exige
-// UAC uma única vez (helper mkcert-install); negação vira warning e sites ficam
-// só em HTTP nesta sessão.
+// tlsIssuer devolve a função de emissão de certificados ou nil (+ warning)
+// quando o mkcert não existe ou a CA local ainda não foi instalada.
+//
+// Instalar a CA exige UAC, e pela mesma razão do hosts (C18.42) isso NÃO pode
+// acontecer aqui: tlsIssuer roda dentro do Reconcile, que roda no bootstrap.
+// Um usuário novo — que é justamente quem ainda não tem a CA — abriria o app
+// e receberia um diálogo de UAC antes da primeira tela. Sem CA os sites saem
+// só em HTTP e o warning "ca-pending" leva ao botão que instala.
 func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) {
 	mk := s.d.Mkcert
 	if mk.Exe == "" {
@@ -256,21 +260,44 @@ func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) 
 			return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("verificar CA do mkcert: %v", err)}}
 		}
 		if !ok {
-			helper, herr := elevate.HelperPath()
-			if herr != nil {
-				return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("helper elevado indisponível: %v", herr)}}
-			}
-			err := elevate.RunElevated(helper, []string{"mkcert-install", "--exe", mk.Exe})
-			switch {
-			case errors.Is(err, elevate.ErrElevationDenied):
-				return nil, []Warning{{Code: "elevation-denied", Message: "instalação da CA local (mkcert -install) cancelada; sites só em HTTP"}}
-			case err != nil:
-				return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("mkcert -install falhou: %v", err)}}
-			}
+			return nil, []Warning{{
+				Code:    "ca-pending",
+				Message: "certificado raiz local não instalado; sites só em HTTP até você instalá-lo",
+			}}
 		}
 		s.caReady = true
 	}
 	return mk.IssueCert, nil
+}
+
+// InstallCA instala o certificado raiz local (mkcert -install) pelo helper
+// elevado. Como ApplyHosts, é ação explícita do usuário — a única forma de
+// habilitar HTTPS, e a única que pede UAC por causa de TLS.
+func (s *Stack) InstallCA(ctx context.Context) error {
+	mk := s.d.Mkcert
+	if mk.Exe == "" {
+		return fmt.Errorf("mkcert não encontrado em bin/mkcert/mkcert.exe")
+	}
+	switch ok, err := mk.CAInstalled(); {
+	case err != nil:
+		return fmt.Errorf("verificar CA do mkcert: %w", err)
+	case ok:
+		return nil
+	}
+	helper, herr := elevate.HelperPath()
+	if herr != nil {
+		return fmt.Errorf("helper elevado indisponível: %w", herr)
+	}
+	switch err := elevate.RunElevated(helper, []string{"mkcert-install", "--exe", mk.Exe}); {
+	case errors.Is(err, elevate.ErrElevationDenied):
+		return fmt.Errorf("instalação do certificado raiz cancelada; sites seguem só em HTTP")
+	case err != nil:
+		return fmt.Errorf("mkcert -install falhou: %w", err)
+	}
+	s.d.Logger.Info("stack: CA local instalada")
+	// Agora os vhosts podem nascer com TLS: o Reconcile re-emite tudo.
+	_, err := s.Reconcile(ctx)
+	return err
 }
 
 // renderWeb renderiza em etc/<name>.next, valida lá e só então grava em

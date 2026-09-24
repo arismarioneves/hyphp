@@ -5,11 +5,13 @@ package stack
 // Warning é um aviso não bloqueante mostrado na UI (evento stack:warnings).
 type Warning struct {
 	// Code: "port-conflict" | "php-missing" | "htaccess-under-nginx" |
-	// "wildcard-unavailable" | "hosts-pending" | "tls-unavailable" |
-	// "web-missing" | "db-init-failed" | "db-create-failed" | "proc-exe-missing"
+	// "wildcard-unavailable" | "hosts-pending" | "ca-pending" |
+	// "tls-unavailable" | "web-missing" | "db-init-failed" |
+	// "db-create-failed" | "proc-exe-missing"
 	//
-	// "hosts-pending": domínios fora do arquivo hosts. O Reconcile só reporta;
-	// gravar exige UAC e acontece em Stack.ApplyHosts, por ação do usuário.
+	// "hosts-pending" e "ca-pending" são as duas pendências que exigem UAC. O
+	// Reconcile só as reporta; a escrita fica em Stack.ApplyHosts e
+	// Stack.InstallCA, disparadas por botão — abrir o app não pede privilégio.
 	Code      string `json:"code"`
 	Message   string `json:"message"`
 	ProjectID string `json:"projectId"` // "" quando global

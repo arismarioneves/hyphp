@@ -47,6 +47,18 @@ func (s *SettingsService) ApplyHosts() error {
 	return nil
 }
 
+// InstallCA instala o certificado raiz local, habilitando HTTPS nos sites.
+// Pede UAC, por isso é ação explícita: o Reconcile apenas reporta "ca-pending".
+func (s *SettingsService) InstallCA() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := s.stk.InstallCA(ctx); err != nil {
+		return err
+	}
+	s.emit("stack:warnings", s.stk.Warnings())
+	return nil
+}
+
 // Set aplica os campos editáveis. SchemaVersion e PortAlloc pertencem ao Stack
 // e são ignorados. Mudança de WebServer é delegada a SwitchWebServer depois de
 // gravar o resto (para a troca já usar as portas/pool novos).
