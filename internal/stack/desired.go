@@ -131,7 +131,9 @@ func desired(in desiredInput) (desiredOutput, error) {
 
 	// 6. processes dos projetos
 	for _, s := range srv {
-		out.Specs = append(out.Specs, procSpecs(s.p, s.inst, in.LogDir)...)
+		specs, warns := procSpecs(s.p, s.inst, in.LogDir)
+		out.Specs = append(out.Specs, specs...)
+		out.Warnings = append(out.Warnings, warns...)
 	}
 	return out, nil
 }
@@ -252,76 +254,210 @@ func webSpec(w webserver.WebServer, st state.State, etcDir, logDir string) super
 	}
 }
 
-// procSpecs gera um spec por entrada de processes (C15): Dir = Root, `php`
-// resolvido para o php.exe do major do projeto, PATH com a pasta do PHP na frente.
-func procSpecs(p project.Project, inst runtime.Installed, logDir string) []supervisor.Spec {
+// procSpecs gera um spec por entrada de processes (C15): Dir = Root, PATH com a
+// pasta do PHP do projeto na frente e executável resolvido contra esse PATH.
+func procSpecs(p project.Project, inst runtime.Installed, logDir string) ([]supervisor.Spec, []Warning) {
 	names := make([]string, 0, len(p.Processes))
 	for n := range p.Processes {
 		names = append(names, n)
 	}
 	sort.Strings(names)
+
+	// A pasta do PHP vai na frente para `php` e `composer` do projeto vencerem
+	// qualquer PHP que exista no PATH da máquina.
+	pathEnv := inst.Dir + string(os.PathListSeparator) + os.Getenv("PATH")
 	specs := make([]supervisor.Spec, 0, len(names))
+	var warns []Warning
 	for _, name := range names {
-		tokens := splitArgs(p.Processes[name])
+		tokens := splitCommand(p.Processes[name])
 		if len(tokens) == 0 {
 			continue // Validate já impede; defesa contra manifesto editado à mão
 		}
-		exe := tokens[0]
-		if strings.EqualFold(exe, "php") || strings.EqualFold(exe, "php.exe") {
-			exe = inst.Exe
+		exe, args, err := resolveProcExe(tokens, inst, pathEnv)
+		if err != nil {
+			warns = append(warns, Warning{
+				Code: "proc-exe-missing", ProjectID: p.ID,
+				Message: fmt.Sprintf("%s › %s: %v", p.ID, name, err),
+			})
+			continue
 		}
 		specs = append(specs, supervisor.Spec{
 			ID:      "proc:" + p.ID + ":" + name,
 			Name:    p.ID + " › " + name,
 			Group:   "proc",
 			Exe:     exe,
-			Args:    tokens[1:],
-			Env:     []string{"PATH=" + inst.Dir + string(os.PathListSeparator) + os.Getenv("PATH")},
+			Args:    args,
+			Env:     []string{"PATH=" + pathEnv},
 			Dir:     p.Root,
 			Probe:   &supervisor.AliveProbe{Grace: 2 * time.Second},
 			Restart: defaultRestart(),
 			LogPath: filepath.Join(logDir, "proc-"+p.ID+"-"+name+".log"),
 		})
 	}
-	return specs
+	return specs, warns
 }
 
-// splitArgs separa por espaços respeitando aspas simples e duplas (sem escapes).
-// Suficiente para linhas de comando de manifesto; não é um shell.
-func splitArgs(s string) []string {
-	var out []string
-	var cur strings.Builder
-	inTok := false
-	var quote rune
+// resolveProcExe transforma os tokens da linha de comando em (Exe, Args).
+//
+// Resolver aqui, e não deixar para o exec, é obrigatório: os/exec faz LookPath
+// com o PATH do processo pai e ignora cmd.Env, então um `npm` ou `composer` do
+// manifesto nunca enxergaria o PATH montado para o projeto.
+func resolveProcExe(tokens []string, inst runtime.Installed, pathEnv string) (string, []string, error) {
+	head := strings.TrimSuffix(strings.ToLower(tokens[0]), ".exe")
+	rest := tokens[1:]
+	switch head {
+	case "php":
+		return inst.Exe, rest, nil
+	case "composer":
+		if exe, err := lookPathIn(pathEnv, "composer"); err == nil {
+			return exe, rest, nil
+		}
+		// Instalação que só copiou o .phar: roda com o PHP do projeto.
+		phar, err := findInPath(pathEnv, "composer.phar")
+		if err != nil {
+			return "", nil, fmt.Errorf("composer não encontrado no PATH do projeto")
+		}
+		return inst.Exe, append([]string{phar}, rest...), nil
+	default:
+		exe, err := lookPathIn(pathEnv, tokens[0])
+		if err != nil {
+			return "", nil, fmt.Errorf("%s não encontrado no PATH do projeto", tokens[0])
+		}
+		return exe, rest, nil
+	}
+}
+
+// lookPathIn é substituída nos testes por uma resolução determinística.
+var lookPathIn = defaultLookPathIn
+
+// defaultLookPathIn procura file nos diretórios de pathEnv, aplicando as
+// extensões de PATHEXT quando file não tem extensão. Um caminho com separador
+// é usado como veio, só confirmando que existe.
+func defaultLookPathIn(pathEnv, file string) (string, error) {
+	if strings.ContainsAny(file, `\/`) {
+		if isExecFile(file) {
+			return file, nil
+		}
+		return "", fmt.Errorf("stack: %s não existe", file)
+	}
+	exts := []string{""}
+	if filepath.Ext(file) == "" {
+		// PATHEXT vem em maiúsculas (".COM;.EXE;.BAT"). O sistema de arquivos do
+		// Windows é case-insensitive, mas o caminho vai para o Spec, aparece na
+		// UI e entra na comparação do Reconcile: minúsculas mantêm o valor
+		// estável e legível.
+		for _, e := range strings.Split(pathExt(), ";") {
+			if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
+				exts = append(exts, e)
+			}
+		}
+	}
+	for _, dir := range filepath.SplitList(pathEnv) {
+		if dir == "" {
+			continue
+		}
+		for _, ext := range exts {
+			cand := filepath.Join(dir, file+ext)
+			if isExecFile(cand) {
+				return cand, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("stack: %s não encontrado no PATH", file)
+}
+
+// findInPath procura um arquivo exato (sem PATHEXT) nos diretórios de pathEnv.
+func findInPath(pathEnv, file string) (string, error) {
+	for _, dir := range filepath.SplitList(pathEnv) {
+		if dir == "" {
+			continue
+		}
+		cand := filepath.Join(dir, file)
+		if isExecFile(cand) {
+			return cand, nil
+		}
+	}
+	return "", fmt.Errorf("stack: %s não encontrado no PATH", file)
+}
+
+func pathExt() string {
+	if v := os.Getenv("PATHEXT"); v != "" {
+		return v
+	}
+	return ".COM;.EXE;.BAT;.CMD"
+}
+
+func isExecFile(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && !fi.IsDir()
+}
+
+// splitCommand separa a linha de comando de `processes` em tokens.
+//
+// Regras: as do CommandLineToArgvW (que é o que o Windows usa para desfazer o
+// syscall.EscapeArg do os/exec), mais aspas simples por conveniência de
+// manifesto. Espaços e tabs separam; "..." e '...' agrupam; dentro de "...",
+// \" é uma aspa literal e 2n barras invertidas antes de uma aspa viram n
+// barras. Barra invertida que NÃO precede aspas é literal — sem essa regra
+// C:\temp\arquivo viraria C:temparquivo, e manifesto Windows é cheio deles.
+func splitCommand(s string) []string {
+	var (
+		out   []string
+		cur   strings.Builder
+		inTok bool
+		quote rune
+		bs    int // barras invertidas pendentes
+	)
+	flushBS := func() {
+		if bs > 0 {
+			cur.WriteString(strings.Repeat(`\`, bs))
+			bs = 0
+		}
+	}
 	for _, r := range s {
 		switch {
-		case quote != 0:
-			if r == quote {
+		case r == '\\' && quote != '\'':
+			bs++
+			inTok = true
+		case r == '"' && quote != '\'':
+			cur.WriteString(strings.Repeat(`\`, bs/2))
+			odd := bs%2 == 1
+			bs = 0
+			if odd {
+				cur.WriteRune('"')
+			} else if quote == '"' {
 				quote = 0
 			} else {
-				cur.WriteRune(r)
+				quote = '"'
 			}
-		case r == '"' || r == '\'':
-			quote = r
 			inTok = true
-		case r == ' ' || r == '\t':
+		case r == '\'' && quote != '"':
+			flushBS()
+			if quote == '\'' {
+				quote = 0
+			} else {
+				quote = '\''
+			}
+			inTok = true
+		case (r == ' ' || r == '\t') && quote == 0:
+			flushBS()
 			if inTok {
 				out = append(out, cur.String())
 				cur.Reset()
 				inTok = false
 			}
 		default:
+			flushBS()
 			cur.WriteRune(r)
 			inTok = true
 		}
 	}
+	flushBS()
 	if inTok {
 		out = append(out, cur.String())
 	}
 	return out
 }
-
-// ---------------------------------------------------------------- plano 07
 
 // MySQLSpecID e MailpitSpecID são os IDs fixos do contrato (C3/C11).
 const (
@@ -330,11 +466,6 @@ const (
 )
 
 // mysqlSpec devolve o spec do MySQL, ou ok=false quando não há MySQL em bin/.
-// A ausência não gera warning: MySQL é opcional (o projeto pode usar SQLite).
-//
-// ProbeTimeout de 60s, não os 20s do default: medido nesta máquina, o primeiro
-// start depois do --initialize gasta ~10s abrindo os arquivos do InnoDB antes
-// de aceitar conexão, e num disco lento passa disso.
 func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 	list := runtime.ByKind(in.Runtimes, runtime.MySQL)
 	if len(list) == 0 {

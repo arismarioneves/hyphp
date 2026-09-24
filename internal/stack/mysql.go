@@ -9,10 +9,13 @@ import (
 	"syscall"
 	"time"
 
+	"hyphp/internal/mysqlcli"
 	"hyphp/internal/paths"
+	"hyphp/internal/project"
 	"hyphp/internal/render"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
+	"hyphp/internal/supervisor"
 )
 
 const (
@@ -150,4 +153,122 @@ func dropKind(list []runtime.Installed, k runtime.Kind) []runtime.Installed {
 		}
 	}
 	return out
+}
+
+// dbSyncTimeout cobre esperar o mysql ficar ready + criar todos os databases.
+const dbSyncTimeout = 120 * time.Second
+
+type dbRequest struct {
+	ProjectID string
+	Name      string
+}
+
+// syncDatabases cria, em background, os databases declarados nos manifestos.
+//
+// Não bloqueia o Reconcile: espera o spec mysql ficar ready pela assinatura do
+// supervisor e só então roda os CREATE DATABASE. Uma sincronização por vez;
+// Reconciles disparados enquanto ela corre são ignorados — a lista de projetos
+// que eles veriam é a mesma, e empilhar goroutines esperando o mesmo evento é
+// como se acumula trabalho invisível.
+func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) {
+	reqs := make([]dbRequest, 0, len(projs))
+	for _, p := range projs {
+		if p.Database != "" {
+			reqs = append(reqs, dbRequest{ProjectID: p.ID, Name: p.Database})
+		}
+	}
+	if len(reqs) == 0 {
+		return
+	}
+	list := runtime.ByKind(rts, runtime.MySQL)
+	if len(list) == 0 {
+		return
+	}
+	s.stateMu.Lock()
+	if s.dbSync {
+		s.stateMu.Unlock()
+		return
+	}
+	s.dbSync = true
+	s.stateMu.Unlock()
+
+	client := mysqlcli.New(list[0], s.State().MySQLPort)
+	go func() {
+		defer func() {
+			s.stateMu.Lock()
+			s.dbSync = false
+			s.stateMu.Unlock()
+		}()
+		// Contexto próprio: o ctx do Reconcile é cancelado quando ele retorna.
+		ctx, cancel := context.WithTimeout(context.Background(), dbSyncTimeout)
+		defer cancel()
+		if err := s.waitMySQLReady(ctx); err != nil {
+			s.addWarnings([]Warning{{
+				Code:    "db-create-failed",
+				Message: fmt.Sprintf("databases dos projetos não foram criados: %v", err),
+			}})
+			return
+		}
+		var warns []Warning
+		for _, req := range reqs {
+			if err := mysqlcli.ValidateName(req.Name); err != nil {
+				// Nome inválido nunca vira comando: vira aviso.
+				warns = append(warns, Warning{
+					Code: "db-create-failed", ProjectID: req.ProjectID,
+					Message: fmt.Sprintf("database %q de %s ignorado: %v", req.Name, req.ProjectID, err),
+				})
+				continue
+			}
+			if err := client.Create(ctx, req.Name); err != nil {
+				warns = append(warns, Warning{
+					Code: "db-create-failed", ProjectID: req.ProjectID,
+					Message: fmt.Sprintf("criar database %s de %s: %v", req.Name, req.ProjectID, err),
+				})
+				continue
+			}
+			s.d.Logger.Info("stack: database garantido", "project", req.ProjectID, "database", req.Name)
+		}
+		if len(warns) > 0 {
+			s.addWarnings(warns)
+		}
+	}()
+}
+
+// waitMySQLReady devolve nil assim que o spec mysql estiver ready.
+func (s *Stack) waitMySQLReady(ctx context.Context) error {
+	ch, cancel := s.d.Sup.Subscribe()
+	defer cancel()
+	// Consultar o status DEPOIS de assinar: na ordem inversa, a transição que
+	// acontecesse entre as duas chamadas se perderia e a espera iria até o
+	// timeout com o banco já no ar.
+	if st, ok := s.d.Sup.Status(MySQLSpecID); ok && st.State == supervisor.Ready {
+		return nil
+	}
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("mysql não ficou pronto: %w", ctx.Err())
+		case ev := <-ch:
+			if ev.Status.ID != MySQLSpecID {
+				continue
+			}
+			switch ev.Status.State {
+			case supervisor.Ready:
+				return nil
+			case supervisor.Failed:
+				return fmt.Errorf("mysql falhou: %s", ev.Status.LastError)
+			}
+		}
+	}
+}
+
+// addWarnings acrescenta avisos gerados fora do Reconcile e republica a lista.
+// O próximo Reconcile recalcula tudo e descarta estes — é o comportamento
+// desejado: são avisos sobre o estado de agora.
+func (s *Stack) addWarnings(w []Warning) {
+	s.stateMu.Lock()
+	s.warnings = append(s.warnings, w...)
+	all := append([]Warning(nil), s.warnings...)
+	s.stateMu.Unlock()
+	s.d.Emit("stack:warnings", all)
 }

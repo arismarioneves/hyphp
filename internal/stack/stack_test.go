@@ -1,10 +1,13 @@
 package stack
 
 import (
+	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -211,51 +214,6 @@ func TestDesiredReleasesUnusedMajor(t *testing.T) {
 	}
 }
 
-func TestDesiredProcesses(t *testing.T) {
-	p := proj("app81", `C:\DEV\app81`, "8.1")
-	p.Processes = map[string]string{
-		"queue":     "php artisan queue:work --tries=3",
-		"scheduler": "php artisan schedule:work",
-		"vite":      `npm run dev -- --host "127.0.0.1"`,
-	}
-	out, err := desired(baseInput(p))
-	if err != nil {
-		t.Fatal(err)
-	}
-	procs := map[string]supervisor.Spec{}
-	for _, s := range out.Specs {
-		if strings.HasPrefix(s.ID, "proc:") {
-			procs[s.ID] = s
-		}
-	}
-	if len(procs) != 3 {
-		t.Fatalf("procs = %v", procs)
-	}
-	q := procs["proc:app81:queue"]
-	if q.Group != "proc" || q.Dir != `C:\DEV\app81` {
-		t.Fatalf("queue = %+v", q)
-	}
-	if q.Exe != `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64\php.exe` {
-		t.Fatalf("php deve resolver para o php.exe do major: %q", q.Exe)
-	}
-	if !reflect.DeepEqual(q.Args, []string{"artisan", "queue:work", "--tries=3"}) {
-		t.Fatalf("Args = %q", q.Args)
-	}
-	if len(q.Env) != 1 || !strings.HasPrefix(q.Env[0], `PATH=C:\rt\bin\php\php-8.1.10-Win32-vs16-x64;`) {
-		t.Fatalf("Env = %q", q.Env)
-	}
-	if ap, ok := q.Probe.(*supervisor.AliveProbe); !ok || ap.Grace <= 0 {
-		t.Fatalf("Probe = %#v", q.Probe)
-	}
-	if !q.Restart.Enabled || q.Restart.MaxRetries != 0 {
-		t.Fatalf("Restart = %+v", q.Restart)
-	}
-	v := procs["proc:app81:vite"]
-	if v.Exe != "npm" || !reflect.DeepEqual(v.Args, []string{"run", "dev", "--", "--host", "127.0.0.1"}) {
-		t.Fatalf("vite = %q %q", v.Exe, v.Args)
-	}
-}
-
 func TestDesiredHtaccessUnderNginx(t *testing.T) {
 	p := proj("legacy", `C:\DEV\legacy`, "8.1")
 	p.HasHtaccess = true
@@ -318,26 +276,6 @@ func TestDesiredExtensionsUnion(t *testing.T) {
 	}
 	if !reflect.DeepEqual(out.Extensions["8.1"], []string{"gd", "intl", "mbstring", "pdo_mysql"}) {
 		t.Fatalf("Extensions = %v", out.Extensions)
-	}
-}
-
-func TestSplitArgs(t *testing.T) {
-	cases := []struct {
-		in   string
-		want []string
-	}{
-		{"php artisan queue:work", []string{"php", "artisan", "queue:work"}},
-		{`  a   b  `, []string{"a", "b"}},
-		{`node "C:\Program Files\x.js" --flag`, []string{"node", `C:\Program Files\x.js`, "--flag"}},
-		{`x 'single quoted arg' y`, []string{"x", "single quoted arg", "y"}},
-		{"", nil},
-	}
-	for _, c := range cases {
-		t.Run(c.in, func(t *testing.T) {
-			if got := splitArgs(c.in); !reflect.DeepEqual(got, c.want) {
-				t.Fatalf("splitArgs(%q) = %q, want %q", c.in, got, c.want)
-			}
-		})
 	}
 }
 
@@ -461,5 +399,168 @@ func TestDesiredSemMailpit(t *testing.T) {
 	}
 	if _, ok := specByID(out.Specs, "mailpit"); ok {
 		t.Fatal("sem runtime Mailpit não pode haver spec mailpit")
+	}
+}
+
+// stubLookPath troca a resolução de executáveis por uma tabela fixa, para o
+// teste não depender do PATH da máquina.
+func stubLookPath(t *testing.T, table map[string]string) func() {
+	t.Helper()
+	old := lookPathIn
+	lookPathIn = func(_ string, file string) (string, error) {
+		if p, ok := table[file]; ok {
+			return p, nil
+		}
+		return "", fmt.Errorf("stack: %s não encontrado no PATH", file)
+	}
+	return func() { lookPathIn = old }
+}
+
+func TestDesiredProcesses(t *testing.T) {
+	restore := stubLookPath(t, map[string]string{
+		"npm": `C:\Program Files\nodejs\npm.cmd`,
+	})
+	defer restore()
+
+	p := proj("app81", `C:\DEV\app81`, "8.1")
+	p.Processes = map[string]string{
+		"queue":     "php artisan queue:work --tries=3",
+		"scheduler": "php artisan schedule:work",
+		"vite":      `npm run dev -- --host "127.0.0.1"`,
+	}
+	out, err := desired(baseInput(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	procs := map[string]supervisor.Spec{}
+	for _, s := range out.Specs {
+		if strings.HasPrefix(s.ID, "proc:") {
+			procs[s.ID] = s
+		}
+	}
+	if len(procs) != 3 {
+		t.Fatalf("procs = %v", procs)
+	}
+	q := procs["proc:app81:queue"]
+	if q.Group != "proc" || q.Dir != `C:\DEV\app81` {
+		t.Fatalf("queue = %+v", q)
+	}
+	if q.Exe != `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64\php.exe` {
+		t.Fatalf("php deve resolver para o php.exe do major: %q", q.Exe)
+	}
+	if !reflect.DeepEqual(q.Args, []string{"artisan", "queue:work", "--tries=3"}) {
+		t.Fatalf("Args = %q", q.Args)
+	}
+	if len(q.Env) != 1 || !strings.HasPrefix(q.Env[0], `PATH=C:\rt\bin\php\php-8.1.10-Win32-vs16-x64;`) {
+		t.Fatalf("Env = %q", q.Env)
+	}
+	if ap, ok := q.Probe.(*supervisor.AliveProbe); !ok || ap.Grace != 2*time.Second {
+		t.Fatalf("Probe = %#v", q.Probe)
+	}
+	if !q.Restart.Enabled || q.Restart.MaxRetries != 0 || q.Restart.BaseDelay != time.Second || q.Restart.MaxDelay != 30*time.Second {
+		t.Fatalf("Restart = %+v", q.Restart)
+	}
+	if q.LogPath != `C:\rt\log\proc-app81-queue.log` {
+		t.Fatalf("LogPath = %q", q.LogPath)
+	}
+	v := procs["proc:app81:vite"]
+	if v.Exe != `C:\Program Files\nodejs\npm.cmd` {
+		t.Fatalf("vite.Exe = %q", v.Exe)
+	}
+	if !reflect.DeepEqual(v.Args, []string{"run", "dev", "--", "--host", "127.0.0.1"}) {
+		t.Fatalf("vite.Args = %q", v.Args)
+	}
+	if len(out.Warnings) != 0 {
+		t.Fatalf("warnings = %+v", out.Warnings)
+	}
+}
+
+func TestDesiredProcExeMissing(t *testing.T) {
+	restore := stubLookPath(t, nil)
+	defer restore()
+
+	p := proj("app81", `C:\DEV\app81`, "8.1")
+	p.Processes = map[string]string{"vite": "npm run dev"}
+	out, err := desired(baseInput(p))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ids := specIDs(out.Specs, "proc:"); len(ids) != 0 {
+		t.Fatalf("não pode criar spec com exe inexistente: %v", ids)
+	}
+	if len(out.Warnings) != 1 || out.Warnings[0].Code != "proc-exe-missing" || out.Warnings[0].ProjectID != "app81" {
+		t.Fatalf("warnings = %+v", out.Warnings)
+	}
+	if !strings.Contains(out.Warnings[0].Message, "npm") {
+		t.Fatalf("mensagem = %q", out.Warnings[0].Message)
+	}
+}
+
+func TestSplitCommand(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want []string
+	}{
+		{"artisan", "php artisan queue:work --tries=3", []string{"php", "artisan", "queue:work", "--tries=3"}},
+		{"espaços extras", "  a   b  ", []string{"a", "b"}},
+		{"caminho entre aspas", `node "C:\Program Files\x.js" --flag`, []string{"node", `C:\Program Files\x.js`, "--flag"}},
+		{"barras preservadas sem aspas", `cmd C:\temp\a.txt`, []string{"cmd", `C:\temp\a.txt`}},
+		{"aspas simples", `x 'single quoted arg' y`, []string{"x", "single quoted arg", "y"}},
+		{"aspas escapadas", `php -r "echo \"oi\";"`, []string{"php", "-r", `echo "oi";`}},
+		{"barra dupla antes de aspas", `a "C:\dir\\" b`, []string{"a", `C:\dir\`, "b"}},
+		{"argumento vazio", `a "" b`, []string{"a", "", "b"}},
+		{"vazio", "", nil},
+		{"só espaços", "   ", nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := splitCommand(c.in); !reflect.DeepEqual(got, c.want) {
+				t.Fatalf("splitCommand(%q) = %q, want %q", c.in, got, c.want)
+			}
+		})
+	}
+}
+
+// TestSplitCommandRoundTrip prova que splitCommand é o inverso de
+// syscall.EscapeArg — o mesmo escape que o os/exec usa para montar a linha de
+// comando no Windows. É o teste que pega regressão de contagem de barras.
+func TestSplitCommandRoundTrip(t *testing.T) {
+	cases := [][]string{
+		{"php", "artisan", "queue:work", "--tries=3"},
+		{"node", `C:\Program Files\nodejs\x.js`, "--flag"},
+		{"cmd", `C:\temp\`, "fim"},
+		{"echo", `aspas "no meio"`},
+		{"echo", ""},
+		{"a b", "c\td"},
+		{`barra\dupla\\`, "x"},
+	}
+	for _, args := range cases {
+		parts := make([]string, len(args))
+		for i, a := range args {
+			parts[i] = syscall.EscapeArg(a)
+		}
+		line := strings.Join(parts, " ")
+		if got := splitCommand(line); !reflect.DeepEqual(got, args) {
+			t.Fatalf("splitCommand(%q) = %q, want %q", line, got, args)
+		}
+	}
+}
+
+func TestDefaultLookPathIn(t *testing.T) {
+	dir := t.TempDir()
+	bat := filepath.Join(dir, "tool.bat")
+	if err := os.WriteFile(bat, []byte("@echo off\r\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := defaultLookPathIn(dir, "tool")
+	if err != nil || got != bat {
+		t.Fatalf("defaultLookPathIn = %q, %v; want %q", got, err, bat)
+	}
+	if _, err := defaultLookPathIn(dir, "inexistente"); err == nil {
+		t.Fatal("esperava erro para arquivo inexistente")
+	}
+	if got, err := defaultLookPathIn("", bat); err != nil || got != bat {
+		t.Fatalf("caminho absoluto = %q, %v", got, err)
 	}
 }

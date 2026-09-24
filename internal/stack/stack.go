@@ -53,6 +53,7 @@ type Stack struct {
 	started  bool                       // StartAll já rodou → specs novos sobem no Reconcile
 	warnings []Warning
 	caReady  bool // mkcert -install já confirmado nesta sessão
+	dbSync   bool // plano 07: sincronização de databases em voo
 }
 
 func New(d Deps) *Stack {
@@ -216,7 +217,11 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 		return s.finish(warnings), err
 	}
 
-	// 8. publicar
+	// 8. (plano 07) databases dos manifestos, em background: espera o mysql
+	// ficar ready sem segurar o Reconcile.
+	s.syncDatabases(rts, projs)
+
+	// 9. publicar
 	return s.finish(warnings), nil
 }
 

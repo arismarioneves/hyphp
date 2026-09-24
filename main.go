@@ -212,6 +212,12 @@ func main() {
 	app.RegisterService(application.NewService(rtSvc))
 	app.RegisterService(application.NewService(services.NewSettingsService(stk, emit)))
 	app.RegisterService(application.NewService(services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})))
+	app.RegisterService(application.NewService(services.NewDatabaseService(services.DatabaseDeps{
+		Sup:      sup,
+		Stack:    stk,
+		Runtimes: rtSvc.Installed, // method value: Scan cacheado do RuntimesService
+		Logger:   logger,
+	})))
 	services.RegisterLogStreams(app, sup)
 	stopFwd = services.ForwardServiceEvents(app, sup)
 
