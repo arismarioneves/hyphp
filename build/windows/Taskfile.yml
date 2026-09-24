@@ -56,6 +56,7 @@ tasks:
         platforms: [windows]
       - cmd: rm -f *.syso
         platforms: [linux, darwin]
+      - task: build:helper
     vars:
       BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui"{{end}}'
     env:
@@ -193,3 +194,16 @@ tasks:
       INSTALL_SCOPE: '{{.INSTALL_SCOPE | default "machine"}}'
     cmds:
       - wails3 tool sign --input "build/windows/nsis/{{.APP_NAME}}-installer.exe" {{if .SIGN_CERTIFICATE}}--certificate "{{.SIGN_CERTIFICATE}}"{{end}} {{if .SIGN_THUMBPRINT}}--thumbprint "{{.SIGN_THUMBPRINT}}"{{end}} {{if .TIMESTAMP_SERVER}}--timestamp "{{.TIMESTAMP_SERVER}}"{{end}}
+
+  generate:syso:helper:
+    summary: Gera o .syso do helper (manifest requireAdministrator + ícone)
+    cmds:
+      - wails3 generate syso -arch amd64 -manifest cmd/hyphp-helper/hyphp-helper.exe.manifest -icon build/windows/icon.ico -out cmd/hyphp-helper/rsrc_windows_amd64.syso
+
+  build:helper:
+    summary: Builds the elevated helper (bin/hyphp-helper.exe)
+    deps:
+      - task: generate:syso:helper
+    cmds:
+      - go build -ldflags="-w -s" -o bin/hyphp-helper.exe ./cmd/hyphp-helper
+      - powershell -NoProfile -Command "Remove-Item cmd\hyphp-helper\rsrc_windows_amd64.syso -ErrorAction SilentlyContinue"

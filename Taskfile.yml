@@ -41,7 +41,13 @@ tasks:
     env:
       HYPHP_ROOT: '{{.ROOT_DIR}}/.runtime'
     cmds:
+      - task: build:helper
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
+
+  build:helper:
+    summary: Builds the elevated helper (hyphp-helper.exe)
+    cmds:
+      - task: "{{.GOOS}}:build:helper"
 
   install:msix:tools:
     summary: Installs tools required for Windows MSIX packaging

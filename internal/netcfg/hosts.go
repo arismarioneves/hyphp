@@ -3,7 +3,7 @@ package netcfg
 import (
 	"errors"
 	"fmt"
-	"regexp"
+	"net"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -16,7 +16,21 @@ const blockEnd = "# hyphp:end"
 // maxHostsSize limita o tamanho aceito por ValidateHostsContent (1 MiB).
 const maxHostsSize = 1 << 20
 
-var hostsLineRe = regexp.MustCompile(`^\s*\S+\s+\S+`)
+// validHostsLine aceita uma linha de dados do hosts: <ip> <host> [host...] [#comentário].
+// Exige que o PRIMEIRO campo seja um IP de verdade — não basta "dois tokens". O helper
+// elevado é a única coisa que escreve no hosts do sistema, e sem esta checagem um
+// arquivo de texto qualquer com duas palavras (um .md, um log) passaria pela guarda
+// e sobrescreveria o hosts.
+func validHostsLine(line string) bool {
+	if i := strings.IndexByte(line, '#'); i >= 0 {
+		line = line[:i]
+	}
+	fields := strings.Fields(line)
+	if len(fields) < 2 {
+		return false
+	}
+	return net.ParseIP(fields[0]) != nil
+}
 
 // detectEOL devolve o terminador de linha do arquivo: o primeiro encontrado.
 // Sem nenhum terminador (arquivo vazio ou de uma linha) assume CRLF, o padrão do Windows.
@@ -185,7 +199,7 @@ func ValidateHostsContent(content string) error {
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		if !hostsLineRe.MatchString(line) {
+		if !validHostsLine(line) {
 			return fmt.Errorf("linha %d não tem formato \"<ip> <host>\": %q", n+1, line)
 		}
 	}

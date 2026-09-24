@@ -130,6 +130,13 @@ func TestValidateHostsContent(t *testing.T) {
 		{"sem bloco (bloco removido) continua válido", "127.0.0.1 localhost\r\n", false},
 		{"vazio", "", true},
 		{"lixo: linha com um só campo", "banana\r\n", true},
+		// O helper elevado é a única coisa que escreve no hosts: um arquivo de texto
+		// qualquer com dois tokens não pode passar pela guarda.
+		{"lixo: dois campos, primeiro não é IP", "lixo qualquer sem bloco\r\n", true},
+		{"lixo: texto em prosa", "Este arquivo nao e um hosts\r\n", true},
+		{"IPv6 é aceito", "::1 app.test\r\n", false},
+		{"host com vários aliases", "127.0.0.1 a.test b.test c.test\r\n", false},
+		{"comentário no fim da linha não invalida", "127.0.0.1 a.test # nota\r\n", false},
 		{"NUL", "127.0.0.1 a\x00b\r\n", true},
 		{"não UTF-8", "127.0.0.1 a\xff\r\n", true},
 	}
