@@ -6,8 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 
 	"hyphp/internal/project"
 	"hyphp/internal/stack"
@@ -24,13 +27,42 @@ var phpMajorRe = regexp.MustCompile(`^\d+\.\d+$`)
 // Reconcile. Serializado por mu: a UI pode disparar cliques em sequência.
 type ProjectsService struct {
 	mu      sync.Mutex
+	app     *application.App
 	stk     *stack.Stack
 	watcher *project.Watcher // pode ser nil
 	emit    func(name string, data any)
 }
 
-func NewProjectsService(stk *stack.Stack, watcher *project.Watcher, emit func(name string, data any)) *ProjectsService {
-	return &ProjectsService{stk: stk, watcher: watcher, emit: emit}
+func NewProjectsService(app *application.App, stk *stack.Stack, watcher *project.Watcher, emit func(name string, data any)) *ProjectsService {
+	return &ProjectsService{app: app, stk: stk, watcher: watcher, emit: emit}
+}
+
+// dialogCancelledMsg é a mensagem de cfd.ErrorCancelled, devolvida pelo
+// diálogo do Windows quando o usuário fecha sem escolher. O pacote cfd é
+// interno ao Wails (v3/internal/go-common-file-dialog), então não há sentinela
+// importável para errors.Is — resta comparar a mensagem.
+//
+// Acoplamento a texto de terceiro, e portanto frágil: se um upgrade do Wails
+// reescrever a mensagem, cancelar o diálogo passa a exibir um erro na tela de
+// Projetos em vez de simplesmente não fazer nada. Esse é o sintoma a procurar;
+// a correção é reconferir internal/go-common-file-dialog/cfd/errors.go.
+const dialogCancelledMsg = "cancelled by user"
+
+// PickRoot abre o diálogo nativo de seleção de pasta e devolve o caminho
+// escolhido. Devolve "" quando o usuário cancela.
+func (p *ProjectsService) PickRoot() (string, error) {
+	dir, err := p.app.Dialog.OpenFile().
+		SetTitle("Selecionar diretório de projetos").
+		CanChooseDirectories(true).
+		CanChooseFiles(false).
+		PromptForSingleSelection()
+	if err != nil {
+		if strings.Contains(err.Error(), dialogCancelledMsg) {
+			return "", nil
+		}
+		return "", fmt.Errorf("diálogo de pasta: %w", err)
+	}
+	return dir, nil
 }
 
 func (p *ProjectsService) List() ([]project.Project, error) {

@@ -206,7 +206,7 @@ func main() {
 		logger.Warn("watcher indisponível; use Rescan manual", "err", err)
 		watcher = nil
 	}
-	projSvc = services.NewProjectsService(stk, watcher, emit)
+	projSvc = services.NewProjectsService(app, stk, watcher, emit)
 	if watcher != nil {
 		if err := watcher.SetRoots(st.Roots); err != nil {
 			logger.Warn("observar roots", "err", err)

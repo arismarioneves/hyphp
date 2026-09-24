@@ -33,6 +33,14 @@ export function List(): $CancellablePromise<project$0.Project[]> {
     });
 }
 
+/**
+ * PickRoot abre o diálogo nativo de seleção de pasta e devolve o caminho
+ * escolhido. Devolve "" quando o usuário cancela.
+ */
+export function PickRoot(): $CancellablePromise<string> {
+    return $Call.ByID(834233367);
+}
+
 export function RemoveRoot(dir: string): $CancellablePromise<void> {
     return $Call.ByID(3127625210, dir);
 }
