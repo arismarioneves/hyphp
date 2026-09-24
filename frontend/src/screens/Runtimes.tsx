@@ -239,7 +239,9 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
             {pkg.compiler && <Badge mono>{pkg.compiler}</Badge>}
             {pkg.arch && <Badge mono>{pkg.arch}</Badge>}
           </div>
-          {pkg.notes && <span className="text-xs text-fg-muted">{pkg.notes}</span>}
+          {/* `notes` do catálogo é anotação de manutenção — procedência do
+              SHA-256, layout do zip, aviso de 404 do php.net. Não é texto de
+              usuário: quem vê a lista quer versão, compilador e arquitetura. */}
           <span className="selectable truncate font-mono text-xs text-fg-faint" title={pkg.url}>
             {pkg.url}
           </span>

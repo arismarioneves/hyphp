@@ -74,7 +74,7 @@ func (r *LogRing) flush() {
 }
 
 func (r *LogRing) pushPartialLocked() {
-	line := string(bytes.TrimSuffix(r.partial, []byte{'\r'}))
+	line := decodeLine(bytes.TrimSuffix(r.partial, []byte{'\r'}))
 	r.partial = r.partial[:0]
 	r.lines[r.head] = line
 	r.head = (r.head + 1) % r.capacity
