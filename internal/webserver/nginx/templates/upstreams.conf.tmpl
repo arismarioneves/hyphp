@@ -1,0 +1,14 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/nginx/templates/upstreams.conf.tmpl
+#
+# least_conn cumpre no nginx o papel do lbmethod=bybusyness do Apache: cada
+# worker php-cgi atende UM request por vez (spec §6.3), então o critério tem
+# de ser conexões abertas, não round-robin.
+{{range .Pools}}
+upstream {{.Name}} {
+    least_conn;
+{{- range .Ports}}
+    server 127.0.0.1:{{.}};
+{{- end}}
+}
+{{end}}

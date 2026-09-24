@@ -1,0 +1,52 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/nginx/templates/site.conf.tmpl
+# Projeto: app81 (app81.test) → upstream php81
+
+server {
+    listen 8080;
+    server_name app81.test *.app81.test;
+    root "C:/DEV/app81/public";
+    index index.php index.html;
+
+    access_log "C:/hyphp/log/app81-access.log";
+    error_log "C:/hyphp/log/app81-error.log";
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php81;
+        fastcgi_index index.php;
+        include "C:/hyphp/bin/nginx/nginx-1.22.0/conf/fastcgi_params";
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_read_timeout 300;
+    }
+}
+
+server {
+    listen 8443 ssl;
+    server_name app81.test *.app81.test;
+    root "C:/DEV/app81/public";
+    index index.php index.html;
+
+    ssl_certificate "C:/hyphp/var/certs/app81.pem";
+    ssl_certificate_key "C:/hyphp/var/certs/app81-key.pem";
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    access_log "C:/hyphp/log/app81-access.log";
+    error_log "C:/hyphp/log/app81-error.log";
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php81;
+        fastcgi_index index.php;
+        include "C:/hyphp/bin/nginx/nginx-1.22.0/conf/fastcgi_params";
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param HTTPS on;
+        fastcgi_read_timeout 300;
+    }
+}

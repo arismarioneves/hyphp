@@ -1,0 +1,25 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/nginx/templates/site.conf.tmpl
+# Projeto: app72 (app72.test) → upstream php72
+
+server {
+    listen 8080;
+    server_name app72.test;
+    root "C:/DEV/app72";
+    index index.php index.html;
+
+    access_log "C:/hyphp/log/app72-access.log";
+    error_log "C:/hyphp/log/app72-error.log";
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass php72;
+        fastcgi_index index.php;
+        include "C:/hyphp/bin/nginx/nginx-1.22.0/conf/fastcgi_params";
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_read_timeout 300;
+    }
+}

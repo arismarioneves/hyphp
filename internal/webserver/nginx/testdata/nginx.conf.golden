@@ -1,0 +1,39 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/nginx/templates/nginx.conf.tmpl
+#
+# RELOCÁVEL: os includes são relativos e o nginx os resolve contra o prefixo
+# passado em -p. Por isso este mesmo arquivo serve para etc/nginx.next (onde é
+# validado) e para etc/nginx (onde é executado), sem reescrita.
+
+worker_processes 2;
+pid "C:/hyphp/log/nginx.pid";
+error_log "C:/hyphp/log/nginx-error.log";
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include "C:/hyphp/bin/nginx/nginx-1.22.0/conf/mime.types";
+    default_type application/octet-stream;
+    sendfile on;
+    client_max_body_size 64m;
+    access_log "C:/hyphp/log/nginx-access.log";
+
+    # Zona compartilhada declarada UMA vez: repetir o mesmo nome em cada site
+    # faria o nginx abortar com "shared memory zone already declared".
+    ssl_session_cache shared:hyphp_ssl:10m;
+    ssl_session_timeout 10m;
+
+    include upstreams.conf;
+    include sites/*.conf;
+
+    # Host default: responde por qualquer domínio que não casa com projeto.
+    # root relativo é resolvido contra -p, ou seja <etcDir>/html.
+    server {
+        listen 8080 default_server;
+        server_name _;
+        root html;
+        index index.html;
+    }
+}

@@ -1,0 +1,15 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/apache/templates/pools.conf.tmpl
+#
+# Um balancer por série de PHP ativa, um BalancerMember por worker php-cgi.
+# lbmethod=bybusyness e nunca o método por contagem de requisições: php-cgi no
+# Windows atende UM request por vez (spec §6.3), então o roteamento tem de
+# olhar ocupação, não contagem.
+{{range .Pools}}
+<Proxy "balancer://{{.Name}}">
+{{- range .Ports}}
+    BalancerMember "fcgi://127.0.0.1:{{.}}"
+{{- end}}
+    ProxySet lbmethod=bybusyness
+</Proxy>
+{{end}}

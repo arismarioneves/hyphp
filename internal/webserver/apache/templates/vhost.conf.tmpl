@@ -1,0 +1,54 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/apache/templates/vhost.conf.tmpl
+# Projeto: {{.Site.ID}} ({{.Site.Domain}}) → pool {{.Site.PoolName}}
+
+<VirtualHost *:{{.Ports.HTTP}}>
+    ServerName {{.Site.Domain}}
+{{- range .Site.Aliases}}
+    ServerAlias {{.}}
+{{- end}}
+    DocumentRoot "{{.Site.Docroot}}"
+    DirectoryIndex index.php index.html
+
+    <Directory "{{.Site.Docroot}}">
+        Require all granted
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+    </Directory>
+
+    # A barra final é obrigatória: sem ela o Apache cola a letra do drive na
+    # porta e devolve "400 Proxy Error: URI cannot be parsed" (spec §6.2).
+    <FilesMatch "\.php$">
+        SetHandler "proxy:balancer://{{.Site.PoolName}}/"
+    </FilesMatch>
+
+    ErrorLog "{{.LogDir}}/{{.Site.ID}}-error.log"
+    CustomLog "{{.LogDir}}/{{.Site.ID}}-access.log" combined
+</VirtualHost>
+{{if .Site.TLSCert}}
+<VirtualHost *:{{.Ports.HTTPS}}>
+    ServerName {{.Site.Domain}}
+{{- range .Site.Aliases}}
+    ServerAlias {{.}}
+{{- end}}
+    DocumentRoot "{{.Site.Docroot}}"
+    DirectoryIndex index.php index.html
+
+    <Directory "{{.Site.Docroot}}">
+        Require all granted
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+    </Directory>
+
+    <FilesMatch "\.php$">
+        SetHandler "proxy:balancer://{{.Site.PoolName}}/"
+    </FilesMatch>
+
+    SSLEngine on
+    SSLCertificateFile "{{.Site.TLSCert}}"
+    SSLCertificateKeyFile "{{.Site.TLSKey}}"
+
+    ErrorLog "{{.LogDir}}/{{.Site.ID}}-error.log"
+    CustomLog "{{.LogDir}}/{{.Site.ID}}-access.log" combined
+</VirtualHost>
+{{end}}

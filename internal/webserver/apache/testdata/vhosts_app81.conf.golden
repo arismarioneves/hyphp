@@ -1,0 +1,49 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/apache/templates/vhost.conf.tmpl
+# Projeto: app81 (app81.test) → pool php81
+
+<VirtualHost *:8080>
+    ServerName app81.test
+    ServerAlias *.app81.test
+    DocumentRoot "C:/DEV/app81/public"
+    DirectoryIndex index.php index.html
+
+    <Directory "C:/DEV/app81/public">
+        Require all granted
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+    </Directory>
+
+    # A barra final é obrigatória: sem ela o Apache cola a letra do drive na
+    # porta e devolve "400 Proxy Error: URI cannot be parsed" (spec §6.2).
+    <FilesMatch "\.php$">
+        SetHandler "proxy:balancer://php81/"
+    </FilesMatch>
+
+    ErrorLog "C:/hyphp/log/app81-error.log"
+    CustomLog "C:/hyphp/log/app81-access.log" combined
+</VirtualHost>
+
+<VirtualHost *:8443>
+    ServerName app81.test
+    ServerAlias *.app81.test
+    DocumentRoot "C:/DEV/app81/public"
+    DirectoryIndex index.php index.html
+
+    <Directory "C:/DEV/app81/public">
+        Require all granted
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+    </Directory>
+
+    <FilesMatch "\.php$">
+        SetHandler "proxy:balancer://php81/"
+    </FilesMatch>
+
+    SSLEngine on
+    SSLCertificateFile "C:/hyphp/var/certs/app81.pem"
+    SSLCertificateKeyFile "C:/hyphp/var/certs/app81-key.pem"
+
+    ErrorLog "C:/hyphp/log/app81-error.log"
+    CustomLog "C:/hyphp/log/app81-access.log" combined
+</VirtualHost>

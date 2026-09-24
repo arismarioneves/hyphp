@@ -1,0 +1,86 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/apache/templates/httpd.conf.tmpl
+#
+# RELOCÁVEL: o diretório de configuração NÃO aparece literalmente aqui. Ele
+# entra por -C "Define HYPHP_ETC <dir>" na linha de comando, o que permite ao
+# stack renderizar em etc/apache.next, validar lá e só então promover.
+
+ServerRoot "{{.ServerRoot}}"
+
+Listen {{.Ports.HTTP}}
+Listen {{.Ports.HTTPS}}
+
+LoadModule authn_core_module modules/mod_authn_core.so
+LoadModule authz_core_module modules/mod_authz_core.so
+LoadModule authz_host_module modules/mod_authz_host.so
+LoadModule access_compat_module modules/mod_access_compat.so
+LoadModule alias_module modules/mod_alias.so
+LoadModule dir_module modules/mod_dir.so
+LoadModule mime_module modules/mod_mime.so
+LoadModule log_config_module modules/mod_log_config.so
+LoadModule rewrite_module modules/mod_rewrite.so
+LoadModule headers_module modules/mod_headers.so
+LoadModule setenvif_module modules/mod_setenvif.so
+LoadModule env_module modules/mod_env.so
+LoadModule proxy_module modules/mod_proxy.so
+LoadModule proxy_fcgi_module modules/mod_proxy_fcgi.so
+LoadModule proxy_balancer_module modules/mod_proxy_balancer.so
+LoadModule slotmem_shm_module modules/mod_slotmem_shm.so
+LoadModule lbmethod_bybusyness_module modules/mod_lbmethod_bybusyness.so
+LoadModule socache_shmcb_module modules/mod_socache_shmcb.so
+LoadModule ssl_module modules/mod_ssl.so
+
+ServerName localhost
+ServerAdmin dev@localhost
+ServerSignature Off
+ServerTokens Prod
+
+# Fica em log/ e NÃO em ${HYPHP_ETC}: arquivo de runtime dentro do etcDir seria
+# apagado por render.WriteFiles no Reconcile seguinte — com o httpd vivo
+# segurando o handle, a remoção falharia e derrubaria o Reconcile inteiro.
+PidFile "{{.LogDir}}/httpd.pid"
+
+TypesConfig "{{.ServerRoot}}/conf/mime.types"
+DirectoryIndex index.php index.html
+
+<Directory />
+    AllowOverride None
+    Require all denied
+</Directory>
+
+LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %b" common
+ErrorLog "{{.LogDir}}/apache-error.log"
+CustomLog "{{.LogDir}}/apache-access.log" combined
+LogLevel warn
+
+<IfModule ssl_module>
+    SSLRandomSeed startup builtin
+    SSLRandomSeed connect builtin
+    SSLSessionCache "shmcb:{{.LogDir}}/apache-ssl-scache(512000)"
+</IfModule>
+
+# Correção obrigatória do Windows (spec §6.2). A âncora na letra do drive é o
+# que torna a regra imune à forma do prefixo (fcgi:// ou balancer://). NÃO
+# trocar por alternância com "|": o caractere colide com o delimitador m|...|
+# e o Apache aborta com AH00526.
+ProxyFCGISetEnvIf "%{REQUEST_FILENAME} =~ m|([A-Za-z]:/.*)$|" SCRIPT_FILENAME "$1"
+
+Include "${HYPHP_ETC}/pools.conf"
+
+# Primeiro vhost da porta = host default do Apache. Responde por qualquer
+# domínio que não casa com nenhum projeto.
+<VirtualHost *:{{.Ports.HTTP}}>
+    ServerName hyphp.default
+    DocumentRoot "${HYPHP_ETC}/default"
+    DirectoryIndex index.html
+    <Directory "${HYPHP_ETC}/default">
+        Require all granted
+        Options -Indexes
+        AllowOverride None
+    </Directory>
+    ErrorLog "{{.LogDir}}/apache-default-error.log"
+    CustomLog "{{.LogDir}}/apache-default-access.log" combined
+</VirtualHost>
+
+IncludeOptional "${HYPHP_ETC}/vhosts/*.conf"

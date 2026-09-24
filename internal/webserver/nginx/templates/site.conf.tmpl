@@ -1,0 +1,53 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/nginx/templates/site.conf.tmpl
+# Projeto: {{.Site.ID}} ({{.Site.Domain}}) → upstream {{.Site.PoolName}}
+
+server {
+    listen {{.Ports.HTTP}};
+    server_name {{.Site.Domain}}{{range .Site.Aliases}} {{.}}{{end}};
+    root "{{.Site.Docroot}}";
+    index index.php index.html;
+
+    access_log "{{.LogDir}}/{{.Site.ID}}-access.log";
+    error_log "{{.LogDir}}/{{.Site.ID}}-error.log";
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass {{.Site.PoolName}};
+        fastcgi_index index.php;
+        include "{{.ServerRoot}}/conf/fastcgi_params";
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_read_timeout 300;
+    }
+}
+{{if .Site.TLSCert}}
+server {
+    listen {{.Ports.HTTPS}} ssl;
+    server_name {{.Site.Domain}}{{range .Site.Aliases}} {{.}}{{end}};
+    root "{{.Site.Docroot}}";
+    index index.php index.html;
+
+    ssl_certificate "{{.Site.TLSCert}}";
+    ssl_certificate_key "{{.Site.TLSKey}}";
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    access_log "{{.LogDir}}/{{.Site.ID}}-access.log";
+    error_log "{{.LogDir}}/{{.Site.ID}}-error.log";
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass {{.Site.PoolName}};
+        fastcgi_index index.php;
+        include "{{.ServerRoot}}/conf/fastcgi_params";
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param HTTPS on;
+        fastcgi_read_timeout 300;
+    }
+}
+{{end}}

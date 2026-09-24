@@ -1,0 +1,24 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/apache/templates/vhost.conf.tmpl
+# Projeto: app72 (app72.test) → pool php72
+
+<VirtualHost *:8080>
+    ServerName app72.test
+    DocumentRoot "C:/DEV/app72"
+    DirectoryIndex index.php index.html
+
+    <Directory "C:/DEV/app72">
+        Require all granted
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+    </Directory>
+
+    # A barra final é obrigatória: sem ela o Apache cola a letra do drive na
+    # porta e devolve "400 Proxy Error: URI cannot be parsed" (spec §6.2).
+    <FilesMatch "\.php$">
+        SetHandler "proxy:balancer://php72/"
+    </FilesMatch>
+
+    ErrorLog "C:/hyphp/log/app72-error.log"
+    CustomLog "C:/hyphp/log/app72-access.log" combined
+</VirtualHost>
