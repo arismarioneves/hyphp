@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -17,12 +17,6 @@ import * as $models from "./models.js";
 /**
  * Sources devolve um item por serviço registrado, na ordem de List().
  */
-export function Sources(): $CancellablePromise<$models.LogSource[]> {
-    return $Call.ByID(71870795).then(($result: any) => {
-        return $$createType1($result);
-    });
+export function Sources(): $CancellablePromise<$models.LogSource[] | null> {
+    return $Call.ByID(71870795);
 }
-
-// Private type creation functions
-const $$createType0 = $models.LogSource.createFrom;
-const $$createType1 = $Create.Array($$createType0);

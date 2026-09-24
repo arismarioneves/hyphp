@@ -106,6 +106,26 @@ manifesto `requireAdministrator` que executa as duas únicas ações elevadas
 (escrever no `hosts`, instalar o certificado raiz local); sem ele ao lado do
 executável principal, essas ações falham.
 
+### Instalação
+
+O instalador aceita os dois escopos do NSIS:
+
+```powershell
+wails3 task windows:package                      # máquina (Program Files, pede UAC)
+wails3 task windows:package INSTALL_SCOPE=user   # usuário (sem UAC)
+hyphp-amd64-installer.exe /S /D=C:\caminho       # silencioso, diretório à escolha
+```
+
+A raiz de dados (`bin/`, `etc/`, `var/`, `log/`) fica **ao lado do executável se
+esse diretório for gravável**, senão em `%LOCALAPPDATA%\HyPHP`. É o que permite
+instalar em Program Files sem que o app precise de privilégio para funcionar.
+`HYPHP_ROOT` sobrepõe a regra.
+
+A desinstalação remove o diretório de instalação, mas **não** desfaz o que o
+usuário aplicou no sistema: o bloco do `hosts`, a regra de DNS `.test` e a
+entrada de autostart saem pela própria interface (card **Permissões** em
+Configurações e o toggle de início automático), antes de desinstalar.
+
 ## Relação com o Laragon
 
 O HyPHP é implementação limpa. O Laragon não tem licença open-source (a API do GitHub
