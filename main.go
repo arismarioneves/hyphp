@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"embed"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -36,12 +37,21 @@ var trayIcon []byte
 const opTimeout = 60 * time.Second
 
 func main() {
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
-
+	// O log vai para stderr E para log/hyphp.log. Sob o Wails em modo GUI o
+	// stderr não é observável (não há console anexado), então sem o arquivo
+	// qualquer falha de bootstrap fica invisível — inclusive para a tela Logs.
+	logOut := io.Writer(os.Stderr)
 	if err := paths.EnsureLayout(); err != nil {
-		logger.Error("criar layout de runtime", "root", paths.Root(), "err", err)
+		slog.Error("criar layout de runtime", "root", paths.Root(), "err", err)
 		os.Exit(1)
 	}
+	if f, err := os.OpenFile(filepath.Join(paths.Log(), "hyphp.log"),
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
+		defer f.Close()
+		logOut = io.MultiWriter(os.Stderr, f)
+	}
+	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	logger.Info("hyphp iniciando", "root", paths.Root())
 	statePath := filepath.Join(paths.Var(), "state.json")
 	st, err := state.Load(statePath)
 	if err != nil {
