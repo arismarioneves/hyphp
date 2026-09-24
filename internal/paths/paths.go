@@ -55,28 +55,25 @@ func protegido(dir string) bool {
 
 // Root retorna a raiz de runtime, sempre absoluta e limpa.
 //
-// Ordem: $HYPHP_ROOT; raiz já existente em %LOCALAPPDATA%\HyPHP; diretório do
-// executável, se for gravável e não estiver sob Program Files ou Windows;
-// senão %LOCALAPPDATA%\HyPHP.
+// Ordem: $HYPHP_ROOT; diretório do executável, se der para escrever nele e não
+// for área do sistema; senão %LOCALAPPDATA%\HyPHP.
 //
-// As duas primeiras regras existem porque a resposta NÃO pode depender do
-// token do processo. Program Files é gravável para um processo elevado: com só
-// a sonda de escrita, abrir o app como administrador mudava a raiz para o
-// diretório de instalação e o usuário via projetos, runtimes e configurações
-// desaparecerem — havia dois ambientes, escolhidos pelo nível de privilégio.
+// A recusa de Program Files, Program Files (x86) e Windows é o que mantém a
+// resposta estável: esses diretórios são graváveis para um processo elevado, e
+// com só a sonda de escrita abrir o app como administrador mudava a raiz para
+// o diretório de instalação — o usuário via projetos, runtimes e configurações
+// desaparecerem, porque havia dois ambientes escolhidos pelo privilégio.
+//
+// Instalado fora dessas áreas (C:\HyPHP, por exemplo), a raiz é a própria
+// pasta da instalação. Preferir %LOCALAPPDATA% nesse caso, por causa de uma
+// instalação anterior, criaria o problema inverso: o usuário instala runtimes
+// numa raiz e o app lê a outra, vendo tudo vazio.
 func Root() string {
 	if v := os.Getenv(EnvRoot); v != "" {
 		if abs, err := filepath.Abs(v); err == nil {
 			return abs
 		}
 		return filepath.Clean(v)
-	}
-	// Raiz já usada antes vence: uma vez que os dados moram em LOCALAPPDATA,
-	// nenhuma mudança de contexto pode apontar para outro lugar.
-	if local := localRoot(); local != "" {
-		if _, err := os.Stat(filepath.Join(local, "var", "state.json")); err == nil {
-			return local
-		}
 	}
 	if exe, err := os.Executable(); err == nil {
 		dir := filepath.Dir(exe)
