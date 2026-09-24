@@ -131,6 +131,13 @@ func main() {
 					logger.Warn("parar stack no shutdown", "err", err)
 				}
 			}
+			if stk != nil {
+				// O resolvedor DNS precisa soltar a porta 53; se ficasse preso,
+				// a próxima execução falharia no bind.
+				if err := stk.Close(); err != nil {
+					logger.Warn("fechar stack", "err", err)
+				}
+			}
 			if err := sup.Close(); err != nil {
 				logger.Warn("fechar supervisor", "err", err)
 			}

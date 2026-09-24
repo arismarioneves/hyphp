@@ -57,6 +57,11 @@ type Stack struct {
 	// lastSites guarda os sites do último Reconcile para o ApplyHosts saber
 	// quais domínios gravar sem recalcular o desired().
 	lastSites []webserver.Site
+	// resolver é o servidor DNS local; nil quando nenhum projeto usa wildcard.
+	resolver *netcfg.Resolver
+	// nrptDone marca que a regra NRPT desta sessão já foi registrada, para o
+	// Reconcile parar de avisar.
+	nrptDone bool
 }
 
 func New(d Deps) *Stack {
@@ -222,6 +227,9 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 		return s.finish(warnings), err
 	}
 
+	// 7b. DNS wildcard: o resolvedor sobe sem privilégio; a regra NRPT, que
+	// exige UAC, fica para ApplyWildcardDNS.
+	warnings = append(warnings, s.syncWildcard(projs)...)
 	// 8. (plano 07) databases dos manifestos, em background: espera o mysql
 	// ficar ready sem segurar o Reconcile.
 	s.syncDatabases(rts, projs)

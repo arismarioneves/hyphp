@@ -60,6 +60,31 @@ func (s *SettingsService) InstallCA() error {
 	return nil
 }
 
+// ApplyWildcardDNS registra a regra de DNS que faz *.dominio.test resolver.
+// Pede UAC, por isso é ação explícita: o Reconcile apenas reporta
+// "wildcard-pending".
+func (s *SettingsService) ApplyWildcardDNS() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := s.stk.ApplyWildcardDNS(ctx); err != nil {
+		return err
+	}
+	s.emit("stack:warnings", s.stk.Warnings())
+	return nil
+}
+
+// RemoveWildcardDNS desfaz a regra. Sem esta porta, quem parasse de usar
+// wildcard ficaria com o namespace .test apontando para um resolvedor morto.
+func (s *SettingsService) RemoveWildcardDNS() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := s.stk.RemoveWildcardDNS(ctx); err != nil {
+		return err
+	}
+	s.emit("stack:warnings", s.stk.Warnings())
+	return nil
+}
+
 // Set aplica os campos editáveis. SchemaVersion e PortAlloc pertencem ao Stack
 // e são ignorados. Mudança de WebServer é delegada a SwitchWebServer depois de
 // gravar o resto (para a troca já usar as portas/pool novos).
