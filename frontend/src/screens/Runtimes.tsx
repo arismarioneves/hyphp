@@ -294,7 +294,11 @@ export function Runtimes({ onNavigate }: ScreenProps) {
     .filter((i) => (i.kind as string) === tab)
     .sort((a, b) => compareVersionDesc(a.version, b.version))
   const installedVersions = new Set(installedOfKind.map((i) => i.version))
-  const availableOfKind = available.filter((p) => (p.kind as string) === tab && !installedVersions.has(p.version))
+  // Ordenar também os disponíveis: eles vinham na ordem do catálogo, onde o
+  // MySQL 8.4 aparece antes do 8.0, e a lista ficava fora de ordem só nesse kind.
+  const availableOfKind = available
+    .filter((p) => (p.kind as string) === tab && !installedVersions.has(p.version))
+    .sort((a, b) => compareVersionDesc(a.version, b.version))
   const tabLabel = TABS.find((t) => t.kind === tab)?.label ?? tab
 
   return (

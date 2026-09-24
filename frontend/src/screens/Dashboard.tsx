@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ArrowSquareOut, Play, Stop, Warning as WarningIcon } from '@phosphor-icons/react'
-import { AppService, ServicesService } from '../../bindings/hyphp/services'
+import { AppService, ServicesService, SettingsService } from '../../bindings/hyphp/services'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
@@ -19,16 +19,16 @@ import { useWarnings } from '../lib/useWarnings'
 
 type StackRow = { key: string; state: ServiceState; name: string; version: string; extra?: string }
 
-// Onde o usuário resolve cada pendência. Aviso sem saída é reclamação: o texto
-// diz o que falta, o botão leva a quem resolve. Código ausente aqui é aviso
-// informativo (conflito de porta, por exemplo), que não tem ação na UI.
-const ONDE_RESOLVER: Record<string, { tela: Screen; acao: string }> = {
+// Como resolver cada pendência. As que pedem UAC executam aqui mesmo: mandar o
+// usuário para outra tela para clicar num botão equivalente é um salto sem
+// motivo. As que dependem de download levam a Runtimes, onde a escolha existe.
+const ONDE_RESOLVER: Record<string, { tela?: Screen; run?: () => Promise<void>; acao: string }> = {
   'web-missing': { tela: 'runtimes', acao: 'Instalar web server' },
   'tls-unavailable': { tela: 'runtimes', acao: 'Instalar mkcert' },
   'php-missing': { tela: 'runtimes', acao: 'Instalar PHP' },
-  'hosts-pending': { tela: 'settings', acao: 'Aplicar domínios' },
-  'ca-pending': { tela: 'settings', acao: 'Instalar certificado' },
-  'wildcard-pending': { tela: 'settings', acao: 'Registrar regra de DNS' },
+  'hosts-pending': { run: SettingsService.ApplyHosts, acao: 'Aplicar domínios' },
+  'ca-pending': { run: SettingsService.InstallCA, acao: 'Instalar certificado' },
+  'wildcard-pending': { run: SettingsService.ApplyWildcardDNS, acao: 'Registrar regra de DNS' },
 }
 
 // `Installed.kind` é o enum gerado `runtime.Kind`; comparar com os literais de
@@ -91,6 +91,28 @@ export function Dashboard({ onNavigate }: ScreenProps) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(null)
+    }
+  }
+
+  const [resolvendo, setResolvendo] = useState<string | null>(null)
+  const resolver = async (code: string) => {
+    const alvo = ONDE_RESOLVER[code]
+    if (!alvo) return
+    if (alvo.tela) {
+      onNavigate(alvo.tela)
+      return
+    }
+    if (!alvo.run) return
+    setResolvendo(code)
+    setError(null)
+    try {
+      await alvo.run()
+    } catch (e) {
+      // Recusar o UAC chega como rejeição; sem isto o erro só existiria no
+      // console do WebView e o aviso continuaria na tela sem explicação.
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setResolvendo(null)
     }
   }
 
@@ -243,7 +265,9 @@ export function Dashboard({ onNavigate }: ScreenProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => onNavigate(ONDE_RESOLVER[w.code].tela)}
+                        loading={resolvendo === w.code}
+                        disabled={resolvendo !== null}
+                        onClick={() => void resolver(w.code)}
                       >
                         {ONDE_RESOLVER[w.code].acao}
                       </Button>
