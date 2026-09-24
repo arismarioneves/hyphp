@@ -93,6 +93,11 @@ Section
     
     !insertmacro wails.files
 
+    ; O helper elevado viaja junto: sem ele elevate.HelperPath() nao resolve e
+    ; as duas acoes que pedem UAC (aplicar dominios, instalar certificado)
+    ; ficam impossiveis numa instalacao limpa.
+    File "..\..\..\bin\hyphp-helper.exe"
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 

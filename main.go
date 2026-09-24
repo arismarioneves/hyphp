@@ -13,6 +13,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"github.com/wailsapp/wails/v3/pkg/events"
 
+	"hyphp/internal/autostart"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
 	"hyphp/internal/pkgmgr"
@@ -57,6 +58,28 @@ func main() {
 	if err != nil {
 		logger.Error("carregar state.json", "path", statePath, "err", err)
 		os.Exit(1)
+	}
+
+	// Reconciliar o autostart com o registro. Dois casos reais que de outro
+	// modo quebram calados:
+	//
+	// 1. O usuário desativa o HyPHP no Gerenciador de Tarefas > Inicializar.
+	//    A entrada some do registro, mas o state.json continuaria dizendo que
+	//    está ligado — e o toggle da tela mentiria. Aqui o sistema vence.
+	// 2. O app é reinstalado em outro diretório. A entrada aponta para o exe
+	//    antigo e o autostart simplesmente não abre nada; regravar com o
+	//    caminho atual conserta.
+	if on, aerr := autostart.Enabled(); aerr != nil {
+		logger.Warn("ler autostart do registro", "err", aerr)
+	} else if on != st.Autostart {
+		st.Autostart = on
+		if serr := state.Save(statePath, st); serr != nil {
+			logger.Warn("persistir autostart reconciliado", "err", serr)
+		}
+	} else if on {
+		if aerr := autostart.Apply(true); aerr != nil {
+			logger.Warn("atualizar caminho do autostart", "err", aerr)
+		}
 	}
 
 	// Job Object primeiro: todo filho nasce dentro dele (spec §7.1).

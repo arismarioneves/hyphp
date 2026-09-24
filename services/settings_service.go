@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"hyphp/internal/autostart"
 	"hyphp/internal/project"
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
@@ -75,6 +76,14 @@ func (s *SettingsService) Set(in state.State) error {
 		cur.MySQLPort != in.MySQLPort || cur.MailpitSMTPPort != in.MailpitSMTPPort ||
 		cur.MailpitHTTPPort != in.MailpitHTTPPort || !reflect.DeepEqual(cur.PHPExtensions, in.PHPExtensions)
 	rootsChanged := !sameSet(cur.Roots, in.Roots)
+
+	// O toggle "Iniciar o HyPHP no login" só valia como campo persistido; sem
+	// isto a tela promete um comportamento que não acontece. Aplicar antes de
+	// gravar mantém state.json honesto: se o registro recusar, nada é
+	// persistido e a UI não passa a exibir um estado que a máquina não tem.
+	if err := autostart.Apply(in.Autostart); err != nil {
+		return err
+	}
 
 	err := s.stk.UpdateState(func(st *state.State) {
 		st.DefaultPHP = in.DefaultPHP

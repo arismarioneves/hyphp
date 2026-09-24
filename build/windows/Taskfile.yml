@@ -118,6 +118,9 @@ tasks:
     dir: build/windows/nsis
     deps:
       - task: build
+      # O project.nsi copia bin/hyphp-helper.exe; sem esta dependencia o
+      # empacotamento falha (ou pior, embala um helper velho de outro build).
+      - task: build:helper
     preconditions:
       - sh: '[ "{{.INSTALL_SCOPE}}" = "user" ] || [ "{{.INSTALL_SCOPE}}" = "machine" ]'
         msg: "INSTALL_SCOPE must be 'user' or 'machine', got '{{.INSTALL_SCOPE}}'"

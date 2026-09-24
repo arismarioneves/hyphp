@@ -7,11 +7,6 @@ import (
 )
 
 func TestRoot(t *testing.T) {
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	exeDir := filepath.Dir(exe)
 	custom := t.TempDir()
 
 	tests := []struct {
@@ -20,7 +15,6 @@ func TestRoot(t *testing.T) {
 		want string
 	}{
 		{name: "HYPHP_ROOT definido vence", env: custom, want: custom},
-		{name: "HYPHP_ROOT vazio usa pasta do executavel", env: "", want: exeDir},
 		{name: "HYPHP_ROOT relativo vira absoluto", env: ".", want: mustAbs(t, ".")},
 	}
 	for _, tt := range tests {
@@ -30,6 +24,47 @@ func TestRoot(t *testing.T) {
 				t.Fatalf("Root() = %q, want %q", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestRootUsaLocalAppDataQuandoExeNaoEGravavel(t *testing.T) {
+	// A sonda de gravabilidade é o que decide; injetá-la mantém o teste
+	// determinístico sem precisar de um diretório realmente protegido.
+	orig := writable
+	t.Cleanup(func() { writable = orig })
+	writable = func(string) bool { return false }
+
+	t.Setenv(EnvRoot, "")
+	t.Setenv("LOCALAPPDATA", `C:\Users\teste\AppData\Local`)
+
+	if got, want := Root(), `C:\Users\teste\AppData\Local\HyPHP`; got != want {
+		t.Errorf("Root() = %q, quero %q", got, want)
+	}
+}
+
+func TestRootPrefereExeGravavel(t *testing.T) {
+	orig := writable
+	t.Cleanup(func() { writable = orig })
+	writable = func(string) bool { return true }
+
+	t.Setenv(EnvRoot, "")
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := Root(), filepath.Dir(exe); got != want {
+		t.Errorf("Root() = %q, quero %q", got, want)
+	}
+}
+
+func TestRootEnvVenceTudo(t *testing.T) {
+	orig := writable
+	t.Cleanup(func() { writable = orig })
+	writable = func(string) bool { return false }
+
+	t.Setenv(EnvRoot, `C:\hyphp-teste`)
+	if got, want := Root(), `C:\hyphp-teste`; got != want {
+		t.Errorf("Root() = %q, quero %q", got, want)
 	}
 }
 
