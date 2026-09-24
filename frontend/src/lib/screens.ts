@@ -30,3 +30,6 @@ export const SCREEN_LABELS: Record<Screen, string> = {
   logs: 'Logs',
   settings: 'Configurações',
 };
+
+/** Props de toda tela: navegação entre telas é a única dependência comum. */
+export type ScreenProps = { onNavigate: (screen: Screen) => void };

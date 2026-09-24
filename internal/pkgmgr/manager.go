@@ -12,11 +12,22 @@ import (
 	"hyphp/internal/runtime"
 )
 
+// Fases de Progress.Phase. A UI trata cada uma como união literal
+// (ProgressPhase em frontend/src/lib/types.ts); emitir uma fase fora desta
+// lista faz a tela Runtimes cair no default sem avisar.
+const (
+	PhaseDownload = "download"
+	PhaseVerify   = "verify"
+	PhaseExtract  = "extract"
+	PhaseDone     = "done"
+	PhaseError    = "error"
+)
+
 type Progress struct {
 	PackageID string `json:"packageId"`
 	Done      int64  `json:"done"`
 	Total     int64  `json:"total"` // -1 se desconhecido
-	Phase     string `json:"phase"` // "download" | "verify" | "extract" | "done" | "error"
+	Phase     string `json:"phase"` // uma das constantes Phase* acima
 	Error     string `json:"error"`
 }
 
@@ -45,7 +56,7 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 		onProgress(Progress{PackageID: pkg.ID, Done: done, Total: total, Phase: phase})
 	}
 	fail := func(err error) (runtime.Installed, error) {
-		onProgress(Progress{PackageID: pkg.ID, Phase: "error", Error: err.Error()})
+		onProgress(Progress{PackageID: pkg.ID, Phase: PhaseError, Error: err.Error()})
 		return runtime.Installed{}, err
 	}
 
@@ -55,18 +66,18 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 	tmp := filepath.Join(m.tmpDir, pkg.ID+".part")
 	defer os.Remove(tmp)
 
-	report("download", 0, -1)
-	sum, err := download(ctx, m.client, pkg.URL, tmp, func(done, total int64) { report("download", done, total) })
+	report(PhaseDownload, 0, -1)
+	sum, err := download(ctx, m.client, pkg.URL, tmp, func(done, total int64) { report(PhaseDownload, done, total) })
 	if err != nil {
 		return fail(fmt.Errorf("pkgmgr: %w", err))
 	}
 
-	report("verify", 0, 0)
+	report(PhaseVerify, 0, 0)
 	if err := verifySHA256(sum, pkg.SHA256); err != nil {
 		return fail(fmt.Errorf("pkgmgr: %s: %w", pkg.ID, err))
 	}
 
-	report("extract", 0, 0)
+	report(PhaseExtract, 0, 0)
 	destDir, err := m.place(pkg, tmp)
 	if err != nil {
 		return fail(fmt.Errorf("pkgmgr: %w", err))
@@ -76,7 +87,7 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 	if err != nil {
 		return fail(fmt.Errorf("pkgmgr: instalado em %s mas não detectado: %w", destDir, err))
 	}
-	report("done", 0, 0)
+	report(PhaseDone, 0, 0)
 	return inst, nil
 }
 
