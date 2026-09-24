@@ -52,20 +52,20 @@ func checkGolden(t *testing.T, name string, got []byte) {
 
 func TestRenderPHPIniGolden(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	got := RenderPHPIni(inst, runtime.DefaultExtensions, "C:/hyphp/var/tmp/php/8.1", "C:/hyphp/log")
+	got := RenderPHPIni(inst, runtime.DefaultExtensions, "C:/hyphp/var/tmp/php/8.1", "C:/hyphp/log", 1025)
 	got = bytes.ReplaceAll(got, []byte(filepath.ToSlash(inst.Dir)), []byte("__PHPDIR__"))
 	checkGolden(t, "php-8.1.ini.golden", got)
 }
 
 func TestRenderPHPIniDeterministico(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	a := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log")
-	b := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log")
+	a := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log", 1025)
+	b := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log", 1025)
 	if !bytes.Equal(a, b) {
 		t.Fatal("duas chamadas iguais produziram bytes diferentes")
 	}
 	// Ordem de entrada e duplicatas não podem mudar a saída.
-	c := RenderPHPIni(inst, []string{"intl", "curl", "gd", "curl"}, "C:/tmp", "C:/log")
+	c := RenderPHPIni(inst, []string{"intl", "curl", "gd", "curl"}, "C:/tmp", "C:/log", 1025)
 	if !bytes.Equal(a, c) {
 		t.Fatalf("saída depende da ordem de entrada:\n%s\n---\n%s", a, c)
 	}
@@ -76,7 +76,7 @@ func TestRenderPHPIniDeterministico(t *testing.T) {
 
 func TestRenderPHPIniIgnoraExtensaoSemDLL(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	out := string(RenderPHPIni(inst, runtime.DefaultExtensions, "C:/tmp", "C:/log"))
+	out := string(RenderPHPIni(inst, runtime.DefaultExtensions, "C:/tmp", "C:/log", 1025))
 	if strings.Contains(out, "extension=zip") {
 		t.Fatal("emitiu extension=zip sem php_zip.dll; isso vira warning no corpo da resposta")
 	}

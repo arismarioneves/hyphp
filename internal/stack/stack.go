@@ -54,6 +54,9 @@ type Stack struct {
 	warnings []Warning
 	caReady  bool // mkcert -install já confirmado nesta sessão
 	dbSync   bool // plano 07: sincronização de databases em voo
+	// lastSites guarda os sites do último Reconcile para o ApplyHosts saber
+	// quais domínios gravar sem recalcular o desired().
+	lastSites []webserver.Site
 }
 
 func New(d Deps) *Stack {
@@ -193,7 +196,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	iniChanged := map[string]bool{}
 	for _, pool := range out.Pools {
 		inst, _ := runtime.PHPByMajor(runtime.ByKind(rts, runtime.PHP), pool.Version)
-		changed, err := s.renderPHPIni(inst, pool.Version, out.Extensions[pool.Version])
+		changed, err := s.renderPHPIni(inst, pool.Version, out.Extensions[pool.Version], st.MailpitSMTPPort)
 		if err != nil {
 			return s.finish(warnings), err
 		}
@@ -210,7 +213,9 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 		return s.finish(warnings), err
 	}
 
-	// 7. hosts
+	// 7. hosts — só detecta a pendência; a escrita (e a UAC) é sob demanda,
+	// via ApplyHosts, disparada pela UI.
+	s.lastSites = append(s.lastSites[:0], out.Sites...)
 	hostWarns, err := s.syncHosts(out.Sites)
 	warnings = append(warnings, hostWarns...)
 	if err != nil {
@@ -311,7 +316,7 @@ func ensureWebDirs(etcDir string) {
 }
 
 // renderPHPIni grava etc/php/<major>/php.ini se o conteúdo mudou.
-func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string) (bool, error) {
+func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string, smtpPort int) (bool, error) {
 	dir := filepath.Join(paths.Etc(), "php", major)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", dir, err)
@@ -320,7 +325,7 @@ func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string)
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", tmpDir, err)
 	}
-	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()))
+	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort)
 	changed, err := render.WriteFiles(dir, map[string][]byte{"php.ini": content})
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar php.ini %s: %w", major, err)
@@ -460,11 +465,18 @@ func orderedIDs(specs []supervisor.Spec) []string {
 	return ids
 }
 
-// syncHosts compara o conjunto de domínios dos sites (sem "*." — hosts não
-// suporta wildcard) com o bloco atual e, se diferir, pede ao helper elevado
-// para gravar. Uma UAC por Reconcile no máximo; nenhuma se nada mudou.
-func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
-	want := make([]string, 0, len(sites))
+// pendingHosts compara os domínios dos sites com o bloco atual do hosts e
+// devolve o conteúdo a gravar. NÃO eleva e NÃO escreve: é chamada no Reconcile,
+// que roda no boot e a cada mudança de projeto.
+//
+// Por que separada de ApplyHosts: escrever no hosts exige UAC, e pedir UAC no
+// boot trava o app antes da primeira tela — quem só quer ver o estado dos
+// serviços não deveria precisar de privilégio de administrador (spec §11).
+// Pior: o Reconcile dispara várias vezes (watcher de projetos, de bin/), e cada
+// chamada enfileirava um diálogo novo — chegaram a empilhar três. Agora o
+// Reconcile só avisa, e a UI oferece a ação.
+func (s *Stack) pendingHosts(sites []webserver.Site) (rendered string, want []string, pending bool, err error) {
+	want = make([]string, 0, len(sites))
 	for _, site := range sites {
 		want = append(want, site.Domain)
 	}
@@ -472,41 +484,69 @@ func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
 
 	current, err := os.ReadFile(netcfg.HostsPath)
 	if err != nil {
-		return nil, fmt.Errorf("stack: ler hosts: %w", err)
+		return "", nil, false, fmt.Errorf("stack: ler hosts: %w", err)
 	}
 	have := netcfg.ParseHostsBlock(string(current))
 	sort.Strings(have)
 	if reflect.DeepEqual(have, want) {
+		return "", want, false, nil
+	}
+	rendered = netcfg.RenderHostsBlock(string(current), want)
+	if bytes.Equal([]byte(rendered), current) {
+		return "", want, false, nil
+	}
+	return rendered, want, true, nil
+}
+
+// syncHosts só REPORTA a pendência; a escrita acontece em ApplyHosts.
+func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
+	_, want, pending, err := s.pendingHosts(sites)
+	if err != nil {
+		return nil, err
+	}
+	if !pending {
 		return nil, nil
 	}
+	return []Warning{{
+		Code:    "hosts-pending",
+		Message: fmt.Sprintf("domínios ainda não estão no hosts: %s", strings.Join(want, ", ")),
+	}}, nil
+}
 
-	rendered := netcfg.RenderHostsBlock(string(current), want)
-	if bytes.Equal([]byte(rendered), current) {
-		return nil, nil
+// ApplyHosts grava o bloco do hosts pelo helper elevado. É a ÚNICA porta que
+// dispara UAC por causa de domínios, e só é chamada por ação explícita do
+// usuário (SettingsService.ApplyHosts → botão na UI).
+func (s *Stack) ApplyHosts(ctx context.Context) error {
+	s.mu.Lock()
+	sites := append([]webserver.Site(nil), s.lastSites...)
+	s.mu.Unlock()
+
+	rendered, want, pending, err := s.pendingHosts(sites)
+	if err != nil {
+		return err
+	}
+	if !pending {
+		return nil
 	}
 	if err := os.MkdirAll(paths.Run(), 0o755); err != nil {
-		return nil, fmt.Errorf("stack: criar %s: %w", paths.Run(), err)
+		return fmt.Errorf("stack: criar %s: %w", paths.Run(), err)
 	}
 	tmp := filepath.Join(paths.Run(), "hosts.next")
 	if err := os.WriteFile(tmp, []byte(rendered), 0o644); err != nil {
-		return nil, fmt.Errorf("stack: gravar %s: %w", tmp, err)
+		return fmt.Errorf("stack: gravar %s: %w", tmp, err)
 	}
 	helper, herr := elevate.HelperPath()
 	if herr != nil {
-		return nil, fmt.Errorf("stack: helper elevado indisponível: %w", herr)
+		return fmt.Errorf("stack: helper elevado indisponível: %w", herr)
 	}
-	err = elevate.RunElevated(helper, []string{"hosts-write", "--from", tmp})
-	switch {
+	switch err := elevate.RunElevated(helper, []string{"hosts-write", "--from", tmp}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return []Warning{{
-			Code:    "elevation-denied",
-			Message: fmt.Sprintf("hosts não atualizado (UAC cancelado); domínios pendentes: %s", strings.Join(want, ", ")),
-		}}, nil
+		return fmt.Errorf("hosts não atualizado (UAC cancelado); domínios pendentes: %s", strings.Join(want, ", "))
 	case err != nil:
-		return nil, fmt.Errorf("stack: helper hosts-write: %w", err)
+		return fmt.Errorf("stack: helper hosts-write: %w", err)
 	}
 	s.d.Logger.Info("stack: hosts atualizado", "domains", want)
-	return nil, nil
+	return nil
 }
 
 // ---- start/stop -----------------------------------------------------------

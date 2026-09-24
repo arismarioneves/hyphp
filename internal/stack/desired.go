@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -155,6 +156,14 @@ func highestMajor(phps []runtime.Installed) string {
 	return best
 }
 
+// unionSorted junta as extensões globais (state.PHPExtensions[major]) com as
+// declaradas nos manifestos dos projetos daquele major.
+//
+// Quando NADA foi configurado — nem no state, nem em manifesto algum — vale
+// runtime.DefaultExtensions (C18.4). Sem isso o php.ini sai sem uma única
+// linha `extension=`, e um `new PDO('mysql:...')` falha com "could not find
+// driver": um ambiente PHP sem pdo_mysql, curl, intl nem gd não serve para
+// nada, e o usuário não tem como adivinhar que precisa declarar cada uma.
 func unionSorted(global []string, projs []project.Project) []string {
 	set := map[string]bool{}
 	for _, e := range global {
@@ -164,6 +173,9 @@ func unionSorted(global []string, projs []project.Project) []string {
 		for _, e := range p.Extensions {
 			set[e] = true
 		}
+	}
+	if len(set) == 0 {
+		return slices.Clone(runtime.DefaultExtensions)
 	}
 	out := make([]string, 0, len(set))
 	for e := range set {

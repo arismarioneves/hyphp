@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"sort"
 	"sync"
+	"time"
 
 	"hyphp/internal/project"
 	"hyphp/internal/stack"
@@ -30,6 +31,20 @@ func (s *SettingsService) Get() state.State {
 
 func (s *SettingsService) Warnings() []stack.Warning {
 	return s.stk.Warnings()
+}
+
+// ApplyHosts grava os domínios dos projetos no arquivo hosts do Windows.
+// É a única ação do produto que pede UAC por causa de domínios, e existe como
+// ação explícita justamente para o app não exigir privilégio só para abrir:
+// o Reconcile apenas reporta o warning "hosts-pending", e a UI oferece o botão.
+func (s *SettingsService) ApplyHosts() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := s.stk.ApplyHosts(ctx); err != nil {
+		return err
+	}
+	s.emit("stack:warnings", s.stk.Warnings())
+	return nil
 }
 
 // Set aplica os campos editáveis. SchemaVersion e PortAlloc pertencem ao Stack

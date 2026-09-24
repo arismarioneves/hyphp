@@ -26,7 +26,7 @@ import (
 // filepath.ToSlash). tmpDir é por série: sys_temp_dir, upload_tmp_dir e
 // session.save_path apontam todos para lá, para que uma sessão criada sob 8.1
 // não seja lida por um worker 7.2.
-func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string) []byte {
+func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int) []byte {
 	extDir := filepath.ToSlash(filepath.Join(inst.Dir, "ext"))
 	tmp := slashDir(tmpDir)
 	log := slashDir(logDir)
@@ -74,6 +74,17 @@ func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir st
 	fmt.Fprintf(&b, "cgi.force_redirect = 0\n")
 	fmt.Fprintf(&b, "cgi.fix_pathinfo = 1\n")
 	fmt.Fprintf(&b, "fastcgi.impersonate = 0\n")
+
+	// Redireciona mail() para o Mailpit. É o ponto central da Fase 8: em
+	// desenvolvimento nenhum e-mail pode sair para o mundo — um teste de
+	// "recuperar senha" não deve alcançar o endereço real do cliente.
+	// sendmail_from é obrigatório no Windows: sem ele o PHP aborta com
+	// "Bad Message Return Path" antes mesmo de abrir a conexão SMTP.
+	fmt.Fprintf(&b, "\n[mail function]\n")
+	fmt.Fprintf(&b, "SMTP = 127.0.0.1\n")
+	fmt.Fprintf(&b, "smtp_port = %d\n", smtpPort)
+	fmt.Fprintf(&b, "sendmail_from = hyphp@localhost\n")
+	fmt.Fprintf(&b, "mail.add_x_header = On\n")
 
 	fmt.Fprintf(&b, "\n[opcache]\n")
 	fmt.Fprintf(&b, "opcache.enable = 1\n")
