@@ -8,8 +8,11 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"syscall"
+
+	"golang.org/x/sys/windows"
 
 	"golang.org/x/sys/windows/registry"
 
@@ -56,7 +59,7 @@ func (a *AppService) OpenExternal(rawURL string) error {
 	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 		return fmt.Errorf("app: url invalida: %q", rawURL)
 	}
-	return startHidden("rundll32.exe", "url.dll,FileProtocolHandler", rawURL)
+	return a.logged("abrir url", rawURL, shellOpen(rawURL))
 }
 
 // OpenFolder abre o diretório no Explorer.
@@ -64,7 +67,32 @@ func (a *AppService) OpenFolder(path string) error {
 	if err := mustDir(path); err != nil {
 		return err
 	}
-	return startHidden("explorer.exe", path)
+	return a.logged("abrir pasta", path, shellOpen(path))
+}
+
+// shellOpen delega ao shell do Windows, que é o que acontece quando o usuário
+// dá duplo clique: resolve o handler associado e abre na sessão interativa.
+//
+// A implementação anterior lançava `explorer.exe <path>` como processo filho.
+// O HyPHP roda sem console e dentro de um Job Object kill-on-close, e o filho
+// herda os dois — além de `SW_HIDE`, que o próprio processo herdeiro pode
+// respeitar. ShellExecute não cria filho nosso: pede ao shell que abra, e o
+// erro volta como código em vez de silêncio.
+func shellOpen(target string) error {
+	verb, err := syscall.UTF16PtrFromString("open")
+	if err != nil {
+		return fmt.Errorf("app: verbo invalido: %w", err)
+	}
+	// O shell exige separador nativo; um caminho com "/" abre a pasta errada
+	// ou não abre nada.
+	file, err := syscall.UTF16PtrFromString(filepath.FromSlash(target))
+	if err != nil {
+		return fmt.Errorf("app: caminho invalido %q: %w", target, err)
+	}
+	if err := windows.ShellExecute(0, verb, file, nil, nil, windows.SW_SHOWNORMAL); err != nil {
+		return fmt.Errorf("app: abrir %q: %w", target, err)
+	}
+	return nil
 }
 
 // OpenInEditor abre o caminho no editor configurado (state.Editor) ou no VS Code (`code`).
@@ -73,10 +101,18 @@ func (a *AppService) OpenInEditor(path string) error {
 		return fmt.Errorf("app: caminho inexistente: %w", err)
 	}
 	if editor := a.d.State.Editor; editor != "" {
-		return startHidden(editor, path)
+		return a.logged("abrir no editor", path, startHidden(editor, path))
 	}
 	// `code` é code.cmd no PATH; passa pelo cmd.exe para resolver o .cmd.
-	return startHidden("cmd.exe", "/c", "code", path)
+	return a.logged("abrir no editor", path, startHidden("cmd.exe", "/c", "code", path))
+}
+
+// isWindowsTerminal responde se o executável é o Windows Terminal, que precisa
+// de tratamento próprio: ele ignora o diretório de trabalho herdado e abre o
+// perfil na pasta configurada nele, então sem "-d" o terminal abre no lugar
+// errado — que é indistinguível de "o botão não funciona".
+func isWindowsTerminal(exe string) bool {
+	return strings.EqualFold(filepath.Base(exe), "wt.exe")
 }
 
 // OpenTerminal abre um terminal no diretório: state.Terminal, senão Windows Terminal, senão cmd.exe.
@@ -85,18 +121,31 @@ func (a *AppService) OpenTerminal(path string) error {
 		return err
 	}
 	if term := a.d.State.Terminal; term != "" {
+		if isWindowsTerminal(term) {
+			return a.logged("abrir terminal", path, start(exec.Command(term, "-d", path)))
+		}
 		cmd := exec.Command(term)
 		cmd.Dir = path
-		return start(cmd)
+		return a.logged("abrir terminal", path, start(cmd))
 	}
 	if wt, err := exec.LookPath("wt.exe"); err == nil {
-		return start(exec.Command(wt, "-d", path))
+		return a.logged("abrir terminal", path, start(exec.Command(wt, "-d", path)))
 	}
 	// `start` abre uma nova janela de console herdando o cwd do cmd /c (= path).
 	cmd := exec.Command("cmd.exe", "/c", "start", "", "cmd.exe")
 	cmd.Dir = path
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	return start(cmd)
+	return a.logged("abrir terminal", path, start(cmd))
+}
+
+// logged registra a falha antes de devolvê-la. Estas ações terminam em
+// programas externos, e quando uma delas não faz nada visível o log é a única
+// forma de saber se o HyPHP tentou, com qual caminho, e o que o Windows disse.
+func (a *AppService) logged(acao, path string, err error) error {
+	if err != nil {
+		a.d.Logger.Warn("app: "+acao, "path", path, "err", err)
+	}
+	return err
 }
 
 // pathComPHP devolve o PATH com dir à frente e se houve mudança. Comparação

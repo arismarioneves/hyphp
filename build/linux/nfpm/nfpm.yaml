@@ -3,26 +3,26 @@
 #
 # The lines below are called `modelines`. See `:help modeline`
 
-name: "hyphp.exe"
+name: "hyphp"
 arch: ${GOARCH}
 platform: "linux"
 version: "0.1.0"
 section: "default"
 priority: "extra"
 maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
-description: "A hyphp application"
-vendor: "My Company"
+description: "Ambiente de desenvolvimento PHP"
+vendor: "HyPHP"
 homepage: "https://wails.io"
 license: "MIT"
 release: "1"
 
 contents:
-  - src: "./bin/hyphp.exe"
-    dst: "/usr/local/bin/hyphp.exe"
+  - src: "./bin/hyphp"
+    dst: "/usr/local/bin/hyphp"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/hyphp.exe.png"
-  - src: "./build/linux/hyphp.exe.desktop"
-    dst: "/usr/share/applications/hyphp.exe.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/hyphp.png"
+  - src: "./build/linux/hyphp.desktop"
+    dst: "/usr/share/applications/hyphp.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:

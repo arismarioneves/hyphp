@@ -84,7 +84,10 @@ export function Dashboard({ onNavigate }: ScreenProps) {
 
   const showSkeleton = services.length === 0 && loading
   const rows = stackRows(services, installed)
-  const anyRunning = services.some((s) => s.state !== 'stopped')
+  const anyRunning = services.some((s) => (s.state as string) !== 'stopped')
+  // "Iniciar tudo" com tudo no ar não tem o que fazer; deixar o botão ativo
+  // convida ao clique que antes devolvia "serviço X já está ready".
+  const allRunning = services.length > 0 && services.every((s) => (s.state as string) !== 'stopped')
 
   const ports: Array<{ label: string; port: number }> = settings
     ? [
@@ -106,7 +109,7 @@ export function Dashboard({ onNavigate }: ScreenProps) {
           variant="primary"
           icon={<Play size={16} weight="fill" />}
           loading={busy === 'start'}
-          disabled={busy !== null}
+          disabled={busy !== null || allRunning}
           onClick={() => void run('start')}
         >
           Iniciar tudo

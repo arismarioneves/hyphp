@@ -6,7 +6,7 @@
 		"0000": {
 			"ProductVersion": "0.1.0",
 			"CompanyName": "HyPHP",
-			"FileDescription": "HyPHP - ambiente de desenvolvimento PHP",
+			"FileDescription": "Ambiente de desenvolvimento PHP",
 			"LegalCopyright": "(c) 2026, HyPHP contributors",
 			"ProductName": "HyPHP",
 			"Comments": "Multi-versão de PHP, Apache ou nginx, workers supervisionados"

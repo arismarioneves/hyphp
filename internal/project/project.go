@@ -111,11 +111,9 @@ func fileExists(path string) bool {
 	return err == nil && !st.IsDir()
 }
 
-const manifestHeader = `# hyphp.yaml — manifesto do projeto para o HyPHP.
-# Commite este arquivo: quem clonar o repositório sobe o mesmo ambiente.
-# Campos ausentes recebem defaults (name = pasta, domain = <name>.test, docroot = public se existir).
-# Referência: docs/superpowers/specs/2026-09-18-hyphp-design.md §9
-`
+// manifestHeader é curto de propósito: o arquivo vai para o repositório do
+// usuário, e caminho de spec interna e lição sobre versionar não têm lugar lá.
+const manifestHeader = "# Configuração do projeto no HyPHP.\n"
 
 // Write grava Root/hyphp.yaml a partir de p.Manifest, com cabeçalho comentado e
 // as chaves na ordem da struct (yaml.v3 preserva a ordem dos campos).

@@ -19,6 +19,11 @@ import (
 // ErrClosed é devolvido por Start e Add depois de Close().
 var ErrClosed = errors.New("supervisor fechado")
 
+// ErrNotStopped: Start foi pedido para um serviço que não está parado. É
+// sentinela porque StartAll precisa distinguir "já estava no ar" (que para uma
+// operação de convergência é sucesso) de uma falha real ao subir.
+var ErrNotStopped = errors.New("serviço não está parado")
+
 // entry é o estado interno de um serviço. Tudo aqui é lido e escrito com
 // s.mu preso, exceto spec e ring, que são imutáveis depois de Add.
 type entry struct {
@@ -148,7 +153,7 @@ func (s *Supervisor) Start(id string) error {
 	default:
 		cur := e.status.State
 		s.mu.Unlock()
-		return fmt.Errorf("serviço %s já está %s", id, cur)
+		return fmt.Errorf("%w: serviço %s já está %s", ErrNotStopped, id, cur)
 	}
 	// A transição é reservada ainda sob o lock: um Start concorrente cai no
 	// default acima em vez de criar um segundo processo.
@@ -228,11 +233,13 @@ func (s *Supervisor) Restart(id string) error {
 	return errors.Join(stopErr, startErr)
 }
 
-// StartAll inicia todos os serviços na ordem de Add.
+// StartAll sobe todos na ordem de Add. É convergência, não comando: serviço
+// que já está no ar não é erro — o botão "Iniciar tudo" clicado duas vezes,
+// ou com parte da stack no ar, deve terminar com tudo rodando e sem alarme.
 func (s *Supervisor) StartAll() error {
 	var errs []error
 	for _, id := range s.ids() {
-		if err := s.Start(id); err != nil {
+		if err := s.Start(id); err != nil && !errors.Is(err, ErrNotStopped) {
 			errs = append(errs, err)
 		}
 	}

@@ -164,8 +164,11 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	web := s.d.Web[st.WebServer]
 	if web == nil {
 		warnings = append(warnings, Warning{
-			Code:    "web-missing",
-			Message: fmt.Sprintf("web server %q não está instalado em bin/; nenhum site será servido", st.WebServer),
+			Code: "web-missing",
+			// O caminho completo é obrigatório na mensagem: "não está instalado
+			// em bin/" leva o usuário a olhar o bin/ errado quando existe outra
+			// ferramenta na máquina com um Apache próprio.
+			Message: fmt.Sprintf("web server %q não encontrado em %s; baixe ou importe em Runtimes, senão nenhum site será servido", st.WebServer, filepath.Join(paths.Bin(), string(st.WebServer))),
 		})
 	}
 
@@ -268,7 +271,7 @@ func (s *Stack) finish(w []Warning) []Warning {
 func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) {
 	mk := s.d.Mkcert
 	if mk.Exe == "" {
-		return nil, []Warning{{Code: "tls-unavailable", Message: "mkcert não encontrado em bin/mkcert/mkcert.exe; sites só em HTTP"}}
+		return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("mkcert não encontrado em %s; baixe em Runtimes, senão os sites ficam só em HTTP", filepath.Join(paths.Bin(), "mkcert"))}}
 	}
 	if !s.caReady {
 		ok, err := mk.CAInstalled()

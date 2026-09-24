@@ -166,7 +166,9 @@ func TestWriteRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(raw)
-	if !strings.HasPrefix(s, "# hyphp.yaml") {
+	// O contrato é haver um comentário no topo, não o texto dele: fixar a
+	// frase transformava qualquer ajuste de redação em teste vermelho.
+	if !strings.HasPrefix(s, "#") {
 		t.Fatalf("faltou cabeçalho comentado:\n%s", s)
 	}
 	if !strings.Contains(s, "php: \"8.1\"") {

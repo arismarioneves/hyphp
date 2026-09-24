@@ -426,7 +426,7 @@ export function Settings({ onNavigate }: ScreenProps) {
           <span className="selectable font-mono text-sm text-fg">{runtimeRoot || '—'}</span>
         </Row>
         <Row label="Tema">
-          <span className="text-sm text-fg-muted">Escuro (fixo na v1)</span>
+          <span className="text-sm text-fg-muted">Escuro</span>
         </Row>
         <div>
           <Button variant="danger" size="sm" onClick={() => void AppService.Quit()}>
