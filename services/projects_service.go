@@ -192,7 +192,9 @@ func (p *ProjectsService) rescanLocked() error {
 	if p.watcher != nil {
 		_ = p.watcher.SetRoots(roots) // falha de watch não bloqueia; Rescan manual segue disponível
 	}
-	p.emit("project:changed", projs)
+	// A lista publicada tem de vir do Stack, não do Discover: só ela traz o
+	// PHPEffective resolvido, e é ela que a UI usa para exibir a série.
+	p.emit("project:changed", p.stk.Projects())
 
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
 	defer cancel()

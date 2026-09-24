@@ -173,7 +173,10 @@ export function Dashboard({ onNavigate }: ScreenProps) {
               {projects.map((p) => (
                 <li key={p.id} className="flex items-center gap-3 py-2">
                   <span className="text-sm text-fg">{p.name}</span>
-                  <Badge mono>PHP {p.php || settings?.defaultPhp || '—'}</Badge>
+                  {/* phpEffective já vem resolvido pelo Go (manifesto →
+                      padrão → maior instalada); repetir a regra aqui foi o que
+                      fazia todo projeto sem `php:` aparecer como "PHP —". */}
+                  <Badge mono>PHP {p.phpEffective || p.php || '—'}</Badge>
                   <button
                     type="button"
                     onClick={() => void AppService.OpenExternal(`https://${p.domain}`)}

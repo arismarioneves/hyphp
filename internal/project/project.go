@@ -19,6 +19,10 @@ type Project struct {
 	HasManifest bool   `json:"hasManifest"` // hyphp.yaml existia
 	HasHtaccess bool   `json:"hasHtaccess"` // .htaccess em Root ou em DocrootAbs
 	DocrootAbs  string `json:"docrootAbs"`  // Root ou Root/Docroot
+	// PHPEffective é a série que o projeto usa de fato, já resolvida pela
+	// precedência manifesto → DefaultPHP → maior instalada. Vazia até o Stack
+	// publicar os projetos. A UI lê daqui em vez de repetir a regra.
+	PHPEffective string `json:"phpEffective"`
 }
 
 // diretórios que nunca são projetos, mesmo com index.php dentro.

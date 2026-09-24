@@ -87,10 +87,20 @@ func (s *Stack) UpdateState(fn func(*state.State)) error {
 	return nil
 }
 
+// Projects devolve os projetos com PHPEffective já resolvido. A resolução é
+// feita aqui, e não na varredura, porque depende do estado (DefaultPHP) e dos
+// runtimes instalados — que mudam sem o projeto mudar.
 func (s *Stack) Projects() []project.Project {
 	s.stateMu.RLock()
-	defer s.stateMu.RUnlock()
-	return append([]project.Project(nil), s.d.Projects...)
+	out := append([]project.Project(nil), s.d.Projects...)
+	padrao := s.d.State.DefaultPHP
+	phps := runtime.ByKind(s.d.Runtimes, runtime.PHP)
+	s.stateMu.RUnlock()
+
+	for i := range out {
+		out[i].PHPEffective = ResolvePHPMajor(out[i].PHP, padrao, phps)
+	}
+	return out
 }
 
 func (s *Stack) SetProjects(p []project.Project) {

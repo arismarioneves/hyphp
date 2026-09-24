@@ -18,7 +18,7 @@ export {
     SettingsService
 };
 
-export type {
+export {
     Credentials,
     DBInfo,
     LogSource

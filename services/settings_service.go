@@ -138,7 +138,7 @@ func (s *SettingsService) Set(in state.State) error {
 			return err
 		}
 		s.stk.SetProjects(projs)
-		s.emit("project:changed", projs)
+		s.emit("project:changed", s.stk.Projects()) // resolvido, não o Discover cru
 	}
 
 	switch {

@@ -3,9 +3,13 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
+import { Create as $Create } from "@wailsio/runtime";
+
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
 import * as runtime$0 from "../runtime/models.js";
 
-export interface Package {
+export class Package {
     /**
      * "php-8.3.33-nts-vs16-x64"
      */
@@ -21,4 +25,42 @@ export interface Package {
     "compiler": string;
     "arch": string;
     "notes": string;
+
+    /** Creates a new Package instance. */
+    constructor($$source: Partial<Package> = {}) {
+        if (!("id" in $$source)) {
+            this["id"] = "";
+        }
+        if (!("kind" in $$source)) {
+            this["kind"] = runtime$0.Kind.$zero;
+        }
+        if (!("version" in $$source)) {
+            this["version"] = "";
+        }
+        if (!("url" in $$source)) {
+            this["url"] = "";
+        }
+        if (!("sha256" in $$source)) {
+            this["sha256"] = "";
+        }
+        if (!("compiler" in $$source)) {
+            this["compiler"] = "";
+        }
+        if (!("arch" in $$source)) {
+            this["arch"] = "";
+        }
+        if (!("notes" in $$source)) {
+            this["notes"] = "";
+        }
+
+        Object.assign(this, $$source);
+    }
+
+    /**
+     * Creates a new Package instance from a string or object.
+     */
+    static createFrom($$source: any = {}): Package {
+        let $$parsedSource = typeof $$source === 'string' ? JSON.parse($$source) : $$source;
+        return new Package($$parsedSource as Partial<Package>);
+    }
 }

@@ -119,7 +119,7 @@ export function Projects({ onNavigate }: ScreenProps) {
         <span className="truncate">{p.name}</span>
         <span className="truncate font-mono text-xs text-fg-muted">{p.domain}</span>
       </div>
-      <Badge mono>{p.php || settings?.defaultPhp || '—'}</Badge>
+      <Badge mono>{p.phpEffective || p.php || '—'}</Badge>
     </SplitPaneItem>
   ))
 
@@ -226,7 +226,7 @@ export function Projects({ onNavigate }: ScreenProps) {
             <div className="mt-3 flex items-center gap-4">
               <Select
                 aria-label="Versão de PHP do projeto"
-                value={selected.php || settings?.defaultPhp || ''}
+                value={selected.phpEffective || selected.php || ''}
                 options={phpOptions}
                 disabled={busy}
                 onChange={(v) => {

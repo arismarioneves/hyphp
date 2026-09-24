@@ -65,13 +65,7 @@ func desired(in desiredInput) (desiredOutput, error) {
 	var srv []served
 	byMajor := map[string][]project.Project{}
 	for _, p := range in.Projects {
-		major := p.PHP
-		if major == "" {
-			major = in.State.DefaultPHP
-		}
-		if major == "" {
-			major = HighestPHPMajor(phps)
-		}
+		major := ResolvePHPMajor(p.PHP, in.State.DefaultPHP, phps)
 		inst, ok := runtime.PHPByMajor(phps, major)
 		if !ok {
 			out.Warnings = append(out.Warnings, Warning{
@@ -137,6 +131,23 @@ func desired(in desiredInput) (desiredOutput, error) {
 		out.Warnings = append(out.Warnings, warns...)
 	}
 	return out, nil
+}
+
+// ResolvePHPMajor aplica a precedência de série do PHP: manifesto do projeto,
+// depois state.DefaultPHP, depois a maior instalada.
+//
+// Exportada porque a UI precisa mostrar a série que o projeto vai usar de fato.
+// Sem isto o frontend reimplementava os dois primeiros passos e parava antes do
+// terceiro, exibindo "PHP —" para todo projeto sem `php:` no manifesto quando
+// DefaultPHP está vazio — que é o caso padrão.
+func ResolvePHPMajor(doManifesto, doState string, phps []runtime.Installed) string {
+	if doManifesto != "" {
+		return doManifesto
+	}
+	if doState != "" {
+		return doState
+	}
+	return HighestPHPMajor(phps)
 }
 
 // HighestPHPMajor devolve o maior "major.minor" instalado ("" se nenhum).
