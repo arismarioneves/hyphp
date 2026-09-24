@@ -8,7 +8,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -17,8 +17,10 @@ import * as supervisor$0 from "../internal/supervisor/models.js";
 /**
  * List devolve todos os serviços ordenados por grupo e ID.
  */
-export function List(): $CancellablePromise<supervisor$0.Status[] | null> {
-    return $Call.ByID(694183796);
+export function List(): $CancellablePromise<supervisor$0.Status[]> {
+    return $Call.ByID(694183796).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 export function Restart(id: string): $CancellablePromise<void> {
@@ -47,3 +49,7 @@ export function Stop(id: string): $CancellablePromise<void> {
 export function StopAll(): $CancellablePromise<void> {
     return $Call.ByID(1769778623);
 }
+
+// Private type creation functions
+const $$createType0 = supervisor$0.Status.createFrom;
+const $$createType1 = $Create.Array($$createType0);

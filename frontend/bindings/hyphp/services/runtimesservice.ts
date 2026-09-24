@@ -3,7 +3,7 @@
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
-import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
+import { Call as $Call, CancellablePromise as $CancellablePromise, Create as $Create } from "@wailsio/runtime";
 
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: Unused imports
@@ -15,15 +15,19 @@ import * as runtime$0 from "../internal/runtime/models.js";
 /**
  * Available devolve os pacotes do catálogo cuja (Kind, Version) não está instalada.
  */
-export function Available(): $CancellablePromise<pkgmgr$0.Package[] | null> {
-    return $Call.ByID(2942582160);
+export function Available(): $CancellablePromise<pkgmgr$0.Package[]> {
+    return $Call.ByID(2942582160).then(($result: any) => {
+        return $$createType1($result);
+    });
 }
 
 /**
  * Extensions lista ext/*.dll do maior patch da série, marcando as habilitadas.
  */
-export function Extensions(major: string): $CancellablePromise<runtime$0.Extension[] | null> {
-    return $Call.ByID(2025234643, major);
+export function Extensions(major: string): $CancellablePromise<runtime$0.Extension[]> {
+    return $Call.ByID(2025234643, major).then(($result: any) => {
+        return $$createType3($result);
+    });
 }
 
 /**
@@ -37,8 +41,10 @@ export function Install(packageID: string): $CancellablePromise<void> {
 /**
  * Installed devolve o cache da última varredura (varre na primeira chamada).
  */
-export function Installed(): $CancellablePromise<runtime$0.Installed[] | null> {
-    return $Call.ByID(1071807753);
+export function Installed(): $CancellablePromise<runtime$0.Installed[]> {
+    return $Call.ByID(1071807753).then(($result: any) => {
+        return $$createType5($result);
+    });
 }
 
 /**
@@ -69,3 +75,11 @@ export function SetDefaultPHP(major: string): $CancellablePromise<void> {
 export function SetExtension(major: string, name: string, on: boolean): $CancellablePromise<void> {
     return $Call.ByID(3681623404, major, name, on);
 }
+
+// Private type creation functions
+const $$createType0 = pkgmgr$0.Package.createFrom;
+const $$createType1 = $Create.Array($$createType0);
+const $$createType2 = runtime$0.Extension.createFrom;
+const $$createType3 = $Create.Array($$createType2);
+const $$createType4 = runtime$0.Installed.createFrom;
+const $$createType5 = $Create.Array($$createType4);
