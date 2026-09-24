@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"hyphp/internal/netcfg"
 	"hyphp/internal/project"
@@ -337,5 +338,128 @@ func TestSplitArgs(t *testing.T) {
 				t.Fatalf("splitArgs(%q) = %q, want %q", c.in, got, c.want)
 			}
 		})
+	}
+}
+
+func mysqlInstalled() runtime.Installed {
+	dir := `C:\rt\bin\mysql\mysql-8.0.30-winx64`
+	return runtime.Installed{
+		Kind: runtime.MySQL, Version: "8.0.30", Major: "8.0.30", Dir: dir,
+		Exe: filepath.Join(dir, "bin", "mysqld.exe"), Arch: "x64",
+	}
+}
+
+func specByID(specs []supervisor.Spec, id string) (supervisor.Spec, bool) {
+	for _, s := range specs {
+		if s.ID == id {
+			return s, true
+		}
+	}
+	return supervisor.Spec{}, false
+}
+
+func TestDesiredMySQLSpec(t *testing.T) {
+	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in.Runtimes = append(in.Runtimes, mysqlInstalled())
+	in.State.MySQLPort = 3307 // a porta vem do state, nunca é constante
+
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, ok := specByID(out.Specs, "mysql")
+	if !ok {
+		t.Fatal("esperava spec mysql")
+	}
+	if sp.Group != "db" || sp.Port != 3307 {
+		t.Fatalf("spec = %+v", sp)
+	}
+	if sp.Exe != `C:\rt\bin\mysql\mysql-8.0.30-winx64\bin\mysqld.exe` {
+		t.Fatalf("Exe = %q", sp.Exe)
+	}
+	wantArgs := []string{`--defaults-file=C:\rt\etc\mysql\my.ini`, "--console"}
+	if !reflect.DeepEqual(sp.Args, wantArgs) {
+		t.Fatalf("Args = %q, want %q", sp.Args, wantArgs)
+	}
+	p, ok := sp.Probe.(*supervisor.MySQLProbe)
+	if !ok || p.Addr != "127.0.0.1:3307" {
+		t.Fatalf("Probe = %#v", sp.Probe)
+	}
+	if sp.ProbeTimeout != 60*time.Second {
+		t.Fatalf("ProbeTimeout = %s, want 60s", sp.ProbeTimeout)
+	}
+	if !sp.Restart.Enabled {
+		t.Fatal("Restart deve estar ligado")
+	}
+	if sp.LogPath != `C:\rt\log\mysql.log` {
+		t.Fatalf("LogPath = %q", sp.LogPath)
+	}
+}
+
+func TestDesiredSemMySQL(t *testing.T) {
+	out, err := desired(baseInput(proj("app81", `C:\DEV\app81`, "8.1")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := specByID(out.Specs, "mysql"); ok {
+		t.Fatal("sem runtime MySQL não pode haver spec mysql")
+	}
+	if len(out.Warnings) != 0 {
+		t.Fatalf("MySQL é opcional; nenhum warning esperado: %+v", out.Warnings)
+	}
+}
+
+func mailpitInstalled() runtime.Installed {
+	dir := `C:\rt\bin\mailpit`
+	return runtime.Installed{
+		Kind: runtime.Mailpit, Version: "1.31.1", Major: "1.31.1", Dir: dir,
+		Exe: filepath.Join(dir, "mailpit.exe"),
+	}
+}
+
+func TestDesiredMailpitSpec(t *testing.T) {
+	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in.Runtimes = append(in.Runtimes, mailpitInstalled())
+	in.State.MailpitSMTPPort = 1026
+	in.State.MailpitHTTPPort = 8026
+
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, ok := specByID(out.Specs, "mailpit")
+	if !ok {
+		t.Fatal("esperava spec mailpit")
+	}
+	if sp.Group != "mail" || sp.Port != 8026 {
+		t.Fatalf("spec = %+v", sp)
+	}
+	if sp.Exe != `C:\rt\bin\mailpit\mailpit.exe` {
+		t.Fatalf("Exe = %q", sp.Exe)
+	}
+	wantArgs := []string{
+		"--smtp", "127.0.0.1:1026",
+		"--listen", "127.0.0.1:8026",
+		"--database", `C:\rt\var\mailpit.db`,
+	}
+	if !reflect.DeepEqual(sp.Args, wantArgs) {
+		t.Fatalf("Args = %q, want %q", sp.Args, wantArgs)
+	}
+	p, ok := sp.Probe.(*supervisor.TCPProbe)
+	if !ok || p.Addr != "127.0.0.1:8026" {
+		t.Fatalf("Probe = %#v", sp.Probe)
+	}
+	if !sp.Restart.Enabled || sp.LogPath != `C:\rt\log\mailpit.log` {
+		t.Fatalf("spec = %+v", sp)
+	}
+}
+
+func TestDesiredSemMailpit(t *testing.T) {
+	out, err := desired(baseInput(proj("app81", `C:\DEV\app81`, "8.1")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := specByID(out.Specs, "mailpit"); ok {
+		t.Fatal("sem runtime Mailpit não pode haver spec mailpit")
 	}
 }

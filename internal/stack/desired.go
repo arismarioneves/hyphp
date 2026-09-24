@@ -121,7 +121,15 @@ func desired(in desiredInput) (desiredOutput, error) {
 		out.Specs = append(out.Specs, webSpec(in.Web, in.State, in.EtcDir, in.LogDir))
 	}
 
-	// 5. processes dos projetos
+	// 5. banco e e-mail (plano 07) — antes dos procs, que dependem deles
+	if sp, ok := mysqlSpec(in); ok {
+		out.Specs = append(out.Specs, sp)
+	}
+	if sp, ok := mailpitSpec(in); ok {
+		out.Specs = append(out.Specs, sp)
+	}
+
+	// 6. processes dos projetos
 	for _, s := range srv {
 		out.Specs = append(out.Specs, procSpecs(s.p, s.inst, in.LogDir)...)
 	}
@@ -311,4 +319,73 @@ func splitArgs(s string) []string {
 		out = append(out, cur.String())
 	}
 	return out
+}
+
+// ---------------------------------------------------------------- plano 07
+
+// MySQLSpecID e MailpitSpecID são os IDs fixos do contrato (C3/C11).
+const (
+	MySQLSpecID   = "mysql"
+	MailpitSpecID = "mailpit"
+)
+
+// mysqlSpec devolve o spec do MySQL, ou ok=false quando não há MySQL em bin/.
+// A ausência não gera warning: MySQL é opcional (o projeto pode usar SQLite).
+//
+// ProbeTimeout de 60s, não os 20s do default: medido nesta máquina, o primeiro
+// start depois do --initialize gasta ~10s abrindo os arquivos do InnoDB antes
+// de aceitar conexão, e num disco lento passa disso.
+func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
+	list := runtime.ByKind(in.Runtimes, runtime.MySQL)
+	if len(list) == 0 {
+		return supervisor.Spec{}, false
+	}
+	inst := list[0]
+	addr := fmt.Sprintf("127.0.0.1:%d", in.State.MySQLPort)
+	return supervisor.Spec{
+		ID:    MySQLSpecID,
+		Name:  "MySQL " + inst.Version,
+		Group: "db",
+		Exe:   filepath.Join(inst.Dir, "bin", "mysqld.exe"),
+		Args: []string{
+			"--defaults-file=" + MyIniPath(in.EtcDir),
+			"--console",
+		},
+		Dir:          inst.Dir,
+		Port:         in.State.MySQLPort,
+		Probe:        &supervisor.MySQLProbe{Addr: addr},
+		ProbeTimeout: 60 * time.Second,
+		Restart:      defaultRestart(),
+		LogPath:      filepath.Join(in.LogDir, "mysql.log"),
+	}, true
+}
+
+// mailpitSpec devolve o spec do Mailpit, ou ok=false quando não há Mailpit em
+// bin/. Flags conferidas no cmd/root.go do Mailpit v1.31.1: --smtp, --listen e
+// --database. O binário fica direto em bin/mailpit/mailpit.exe (C18.5), então
+// inst.Exe já é o caminho final.
+func mailpitSpec(in desiredInput) (supervisor.Spec, bool) {
+	list := runtime.ByKind(in.Runtimes, runtime.Mailpit)
+	if len(list) == 0 {
+		return supervisor.Spec{}, false
+	}
+	inst := list[0]
+	httpAddr := fmt.Sprintf("127.0.0.1:%d", in.State.MailpitHTTPPort)
+	return supervisor.Spec{
+		ID:    MailpitSpecID,
+		Name:  "Mailpit " + inst.Version,
+		Group: "mail",
+		Exe:   inst.Exe,
+		Args: []string{
+			"--smtp", fmt.Sprintf("127.0.0.1:%d", in.State.MailpitSMTPPort),
+			"--listen", httpAddr,
+			"--database", filepath.Join(in.VarDir, "mailpit.db"),
+		},
+		Dir:          inst.Dir,
+		Port:         in.State.MailpitHTTPPort,
+		Probe:        &supervisor.TCPProbe{Addr: httpAddr},
+		ProbeTimeout: 20 * time.Second,
+		Restart:      defaultRestart(),
+		LogPath:      filepath.Join(in.LogDir, "mailpit.log"),
+	}, true
 }

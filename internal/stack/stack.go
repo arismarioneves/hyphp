@@ -163,6 +163,11 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	tlsFn, tlsWarns := s.tlsIssuer()
 	warnings = append(warnings, tlsWarns...)
 
+	// 0. (plano 07) my.ini + datadir do MySQL antes de desired(): sem datadir
+	// inicializado o runtime sai da lista e nenhum spec mysql é emitido.
+	rts, myIniChanged, dbWarns := s.ensureMySQL(ctx, rts, st)
+	warnings = append(warnings, dbWarns...)
+
 	// 1. desejado
 	out, err := desired(desiredInput{
 		State: st, Runtimes: rts, Projects: projs, Alloc: s.d.Alloc, Web: web, TLS: tlsFn,
@@ -195,7 +200,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	}
 
 	// 5. diff de specs
-	if err := s.applySpecs(out.Specs, webChanged, iniChanged); err != nil {
+	if err := s.applySpecs(out.Specs, webChanged, iniChanged, myIniChanged); err != nil {
 		return s.finish(warnings), err
 	}
 
@@ -341,8 +346,9 @@ func (s *Stack) portConflicts(st state.State, webID string) []Warning {
 
 // applySpecs faz o diff entre applied e want. Um spec "mudou" quando Exe, Args,
 // Env, Dir ou Port diferem (Probe é função; não comparável). Specs novos sobem
-// imediatamente se StartAll já rodou.
-func (s *Stack) applySpecs(want []supervisor.Spec, webChanged bool, iniChanged map[string]bool) error {
+// imediatamente se StartAll já rodou. dbChanged (plano 07) reinicia o mysql
+// quando o my.ini muda — a linha de comando é a mesma, só o arquivo mudou.
+func (s *Stack) applySpecs(want []supervisor.Spec, webChanged bool, iniChanged map[string]bool, dbChanged bool) error {
 	wantByID := make(map[string]supervisor.Spec, len(want))
 	for _, sp := range want {
 		wantByID[sp.ID] = sp
@@ -400,6 +406,9 @@ func (s *Stack) applySpecs(want []supervisor.Spec, webChanged bool, iniChanged m
 				if len(parts) == 3 && iniChanged[parts[1]] {
 					restart = true
 				}
+			}
+			if sp.ID == MySQLSpecID && dbChanged {
+				restart = true
 			}
 			if restart && s.isRunning(id) {
 				if err := s.d.Sup.Restart(id); err != nil {
