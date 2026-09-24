@@ -133,6 +133,12 @@ func main() {
 		Logger:    logger,
 		Emit:      emit,
 		OnChange: func(list []runtime.Installed) {
+			// O primeiro Installed() acontece ANTES de stack.New (o Stack precisa
+			// da lista de runtimes para escolher o web server). Nesse instante não
+			// há nada a reconciliar: o Reconcile inicial roda depois, no bootstrap.
+			if stk == nil {
+				return
+			}
 			stk.SetRuntimes(list)
 			reconcile("runtime:changed")
 		},
