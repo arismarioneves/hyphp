@@ -83,15 +83,28 @@ O HyPHP não redistribui esses binários: baixa sob demanda, verifica o SHA-256 
 
 ## Desenvolvimento
 
-Requer Go 1.27+, Node/npm e a CLI do Wails v3:
+Requer Go 1.26+, Node/npm e a CLI do Wails v3:
 
 ```bash
 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.23
 wails3 doctor     # verifica o ambiente
 wails3 dev        # desenvolvimento com hot reload
 wails3 build      # binário em bin/
-wails3 package    # instalador
 ```
+
+Gerar o instalador exige o [NSIS](https://nsis.sourceforge.io/) no `PATH`
+(`winget install NSIS.NSIS` instala em `C:\Program Files (x86)\NSIS`, que o
+instalador não acrescenta ao `PATH` automaticamente):
+
+```powershell
+$env:PATH = 'C:\Program Files (x86)\NSIS;' + $env:PATH
+wails3 task windows:package   # bin/hyphp-amd64-installer.exe
+```
+
+O instalador leva `hyphp.exe` e `hyphp-helper.exe`. O helper é o binário com
+manifesto `requireAdministrator` que executa as duas únicas ações elevadas
+(escrever no `hosts`, instalar o certificado raiz local); sem ele ao lado do
+executável principal, essas ações falham.
 
 ## Relação com o Laragon
 

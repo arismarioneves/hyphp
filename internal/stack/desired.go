@@ -70,7 +70,7 @@ func desired(in desiredInput) (desiredOutput, error) {
 			major = in.State.DefaultPHP
 		}
 		if major == "" {
-			major = highestMajor(phps)
+			major = HighestPHPMajor(phps)
 		}
 		inst, ok := runtime.PHPByMajor(phps, major)
 		if !ok {
@@ -139,9 +139,13 @@ func desired(in desiredInput) (desiredOutput, error) {
 	return out, nil
 }
 
-// highestMajor devolve o maior "major.minor" instalado ("" se nenhum).
+// HighestPHPMajor devolve o maior "major.minor" instalado ("" se nenhum).
 // Comparação numérica por componente, não lexicográfica (8.10 > 8.9).
-func highestMajor(phps []runtime.Installed) string {
+//
+// Exportada porque a regra "state.DefaultPHP vazio = maior instalada" também
+// vale fora do Reconcile (AppService.AddDefaultPHPToUserPath); duplicá-la faria
+// o PATH do usuário divergir da versão que a stack realmente serve.
+func HighestPHPMajor(phps []runtime.Installed) string {
 	best := ""
 	var bm, bn int
 	for _, p := range phps {

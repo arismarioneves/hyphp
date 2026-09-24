@@ -284,6 +284,7 @@ export function Runtimes({ onNavigate }: ScreenProps) {
   const [tab, setTab] = useState<RuntimeKind>('php')
   const [error, setError] = useState<string | null>(null)
   const [runtimeRoot, setRuntimeRoot] = useState('')
+  const [importing, setImporting] = useState(false)
 
   useEffect(() => {
     void AppService.RuntimeRoot().then(setRuntimeRoot)
@@ -328,19 +329,39 @@ export function Runtimes({ onNavigate }: ScreenProps) {
       )}
 
       {tab === 'php' && (
-        <div className="flex items-center justify-between text-sm text-fg-muted">
+        <div className="flex items-center justify-between gap-2 text-sm text-fg-muted">
           <span>Coloque qualquer build do php.net em bin/php e ela aparece aqui.</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={<FolderOpen size={14} />}
-            disabled={!runtimeRoot}
-            onClick={() =>
-              void AppService.OpenFolder(`${runtimeRoot}\\bin\\php`).catch((e: unknown) => setError(errorText(e)))
-            }
-          >
-            Abrir pasta bin/php
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<FolderOpen size={14} />}
+              disabled={!runtimeRoot}
+              onClick={() =>
+                void AppService.OpenFolder(`${runtimeRoot}\\bin\\php`).catch((e: unknown) => setError(errorText(e)))
+              }
+            >
+              Abrir pasta bin/php
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<FolderOpen size={14} />}
+              disabled={importing}
+              onClick={() => {
+                setImporting(true)
+                setError(null)
+                // PickImportDir devolve "" quando o usuário cancela: nesse caso
+                // não há nada a importar.
+                void RuntimesService.PickImportDir()
+                  .then((dir) => (dir === '' ? undefined : RuntimesService.ImportFrom(dir)))
+                  .catch((e: unknown) => setError(errorText(e)))
+                  .finally(() => setImporting(false))
+              }}
+            >
+              {importing ? 'Importando…' : 'Importar de outra pasta'}
+            </Button>
+          </div>
         </div>
       )}
 

@@ -31,6 +31,14 @@ export function Extensions(major: string): $CancellablePromise<runtime$0.Extensi
 }
 
 /**
+ * ImportFrom copia para bin/ toda build reconhecível sob dir. Quem já tem PHP,
+ * Apache ou MySQL na máquina não precisa rebaixar centenas de megabytes.
+ */
+export function ImportFrom(dir: string): $CancellablePromise<void> {
+    return $Call.ByID(2554744644, dir);
+}
+
+/**
  * Install dispara o download em goroutine. Progresso vai por download:progress;
  * ao terminar (com ou sem erro) faz Rescan, que emite runtime:changed.
  */
@@ -45,6 +53,15 @@ export function Installed(): $CancellablePromise<runtime$0.Installed[]> {
     return $Call.ByID(1071807753).then(($result: any) => {
         return $$createType5($result);
     });
+}
+
+/**
+ * PickImportDir abre o diálogo nativo de pasta. Cancelar devolve ("", nil) —
+ * mesma comparação de mensagem de ProjectsService.PickRoot, pelo mesmo motivo
+ * (cfd é interno ao Wails, não há sentinela importável).
+ */
+export function PickImportDir(): $CancellablePromise<string> {
+    return $Call.ByID(3553219612);
 }
 
 /**

@@ -157,6 +157,7 @@ func main() {
 		}
 	}
 	rtSvc := services.NewRuntimesService(services.RuntimesDeps{
+		App:       app,
 		BinDir:    paths.Bin(),
 		TmpDir:    tmpDir,
 		Manager:   pkgmgr.NewManager(paths.Bin(), tmpDir, http.DefaultClient),
@@ -239,6 +240,17 @@ func main() {
 	// hyphp: services
 	app.RegisterService(application.NewService(services.NewAppService(services.AppDeps{
 		Quit: app.Quit, State: &st, StatePath: statePath, Logger: logger,
+		// Mesma regra do Reconcile (stack/desired.go): state.DefaultPHP manda e,
+		// vazio, vale a maior série instalada. O PATH do usuário precisa apontar
+		// para o PHP que a stack de fato serve.
+		DefaultPHP: func() (runtime.Installed, bool) {
+			phps := runtime.ByKind(rtSvc.Installed(), runtime.PHP)
+			major := stk.State().DefaultPHP
+			if major == "" {
+				major = stack.HighestPHPMajor(phps)
+			}
+			return runtime.PHPByMajor(phps, major)
+		},
 	})))
 	app.RegisterService(application.NewService(projSvc))
 	app.RegisterService(application.NewService(services.NewServicesService(services.ServicesDeps{Sup: sup, Logger: logger})))

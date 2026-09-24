@@ -174,6 +174,9 @@ export function Settings({ onNavigate }: ScreenProps) {
   const [rootsError, setRootsError] = useState<string | null>(null)
   const [version, setVersion] = useState('')
   const [runtimeRoot, setRuntimeRoot] = useState('')
+  const [pathBusy, setPathBusy] = useState(false)
+  const [pathMsg, setPathMsg] = useState('')
+  const [pathError, setPathError] = useState<string | null>(null)
 
   // O backend reemite o state inteiro (settings:changed) a cada Reconcile e a
   // cada troca de web server; quando isso acontece o rascunho volta a espelhar
@@ -251,6 +254,22 @@ export function Settings({ onNavigate }: ScreenProps) {
       setRoots((await ProjectsService.Roots()) ?? [])
     } catch (e) {
       setRootsError(errorText(e))
+    }
+  }
+
+  // O aviso do terminal novo é obrigatório: processos já em execução herdaram
+  // o ambiente antigo e continuariam achando o php de outra instalação.
+  const addPHPToPath = async () => {
+    setPathBusy(true)
+    setPathMsg('')
+    setPathError(null)
+    try {
+      await AppService.AddDefaultPHPToUserPath()
+      setPathMsg('PHP adicionado ao PATH do usuário. Abra um terminal novo para valer.')
+    } catch (e) {
+      setPathError(errorText(e))
+    } finally {
+      setPathBusy(false)
     }
   }
 
@@ -373,6 +392,18 @@ export function Settings({ onNavigate }: ScreenProps) {
             onChange={(e) => set('terminal', e.target.value)}
             className={`${inputClass} w-96`}
           />
+        </Row>
+        <Row
+          label="PHP no PATH"
+          hint="Deixa `php` e `composer` do terminal na mesma versão que o HyPHP serve."
+        >
+          <div className="flex items-center gap-3">
+            <Button variant="secondary" size="sm" loading={pathBusy} onClick={() => void addPHPToPath()}>
+              Adicionar PHP ao PATH
+            </Button>
+            {pathMsg && <span className="text-sm text-fg-muted">{pathMsg}</span>}
+            {pathError && <span className="selectable text-sm text-err">{pathError}</span>}
+          </div>
         </Row>
       </Section>
 
