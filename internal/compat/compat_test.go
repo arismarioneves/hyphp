@@ -2,18 +2,20 @@ package compat
 
 import "testing"
 
-// O caso que motiva o pacote: quem tem só PHP 8.4 não roda o phpMyAdmin 5.2.
-func TestPhpMyAdmin52NaoAceitaPHP83OuMaior(t *testing.T) {
+// A faixa vem do `require.php` do pacote ("^7.2.5 || ^8.0"), não de suposição:
+// a primeira versão desta tabela cortava em 8.3 e recusava o phpMyAdmin em
+// quem tinha PHP 8.3+, com a combinação funcionando.
+func TestPhpMyAdmin52AceitaTodoPHP8(t *testing.T) {
 	f, ok := PHPParaPhpMyAdmin("5.2.3")
 	if !ok {
 		t.Fatal("5.2.3 deveria ter faixa conhecida")
 	}
-	for _, v := range []string{"7.2.5", "7.4", "8.0", "8.1", "8.2"} {
+	for _, v := range []string{"7.2.5", "7.4.33", "8.0", "8.1", "8.2", "8.3", "8.4.26", "8.5.11"} {
 		if !f.Contem(v) {
 			t.Errorf("PHP %s deveria servir ao phpMyAdmin 5.2", v)
 		}
 	}
-	for _, v := range []string{"7.2.4", "7.1", "8.3", "8.4", "8.5"} {
+	for _, v := range []string{"7.2.4", "7.1", "5.6", "9.0"} {
 		if f.Contem(v) {
 			t.Errorf("PHP %s NÃO deveria servir ao phpMyAdmin 5.2", v)
 		}

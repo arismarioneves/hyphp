@@ -25,15 +25,16 @@ type Faixa struct {
 }
 
 // phpParaPhpMyAdmin mapeia a série MAIOR.MENOR do phpMyAdmin para a faixa de
-// PHP que ela aceita. Fonte: requisitos publicados pelo próprio projeto.
+// PHP que ela aceita.
 //
-// O branch 5.2 é o último que roda em PHP 7; o 6.x exige 8.2+. Quem tem só PHP
-// 8.4 instalado não consegue usar o 5.2, e é exatamente esse caso que precisa
-// virar aviso em vez de erro de execução.
+// Fonte: o `require.php` do composer.json do próprio pacote — "^7.2.5 || ^8.0"
+// no 5.2.x, que é >= 7.2.5 e < 9. Ler a constraint declarada é o que evita
+// inventar teto: a primeira versão desta tabela cortava em 8.3 por suposição,
+// e o efeito era recusar o phpMyAdmin em quem tinha PHP 8.3+ instalado, com a
+// combinação funcionando perfeitamente.
 var phpParaPhpMyAdmin = map[string]Faixa{
-	"5.2": {Min: "7.2.5", Max: "8.3"},
-	"6.0": {Min: "8.2"},
-	"6.1": {Min: "8.2"},
+	"5.2": {Min: "7.2.5", Max: "9"},
+	"4.9": {Min: "5.5", Max: "8"},
 }
 
 // PHPParaPhpMyAdmin devolve a faixa de PHP exigida por uma versão do

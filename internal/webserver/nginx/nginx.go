@@ -104,6 +104,9 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 	// de erro e os diretórios temporários antes de ler a config. O ".keep"
 	// cria o diretório sem que render.WriteFiles passe a varrer o que o nginx
 	// escreve lá dentro.
+	// Mesmo motivo do apache: "include sites/*.conf" falha se o diretório não
+	// existir, e sem projeto nenhum ele não existiria.
+	files["sites/.keep"] = nil
 	files["logs/.keep"] = nil
 	files["temp/.keep"] = nil
 	return files, nil

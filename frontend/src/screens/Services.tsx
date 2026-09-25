@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowClockwise, Play, Scroll, Stop, X } from '@phosphor-icons/react';
+import { ArrowClockwise, Play, Pulse, Scroll, Stop, X } from '@phosphor-icons/react';
 import { ServicesService } from '../../bindings/hyphp/services';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
@@ -72,6 +72,7 @@ export function Services({ onNavigate }: ScreenProps) {
   if (services.length === 0) {
     return (
       <EmptyState
+        icon={<Pulse size={24} />}
         title="Nenhum serviço"
         description="Instale um web server e PHP em Runtimes e adicione um projeto."
         action={

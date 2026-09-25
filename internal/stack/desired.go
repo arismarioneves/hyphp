@@ -81,7 +81,18 @@ func desired(in desiredInput) (desiredOutput, error) {
 		byMajor[inst.Major] = append(byMajor[inst.Major], p)
 	}
 
-	// 2. pools: só majors com projeto (spec §15.5); libera ranges órfãos (§6.3)
+	// 2. pools: majors com projeto, mais a série que o phpMyAdmin precisa.
+	//
+	// Sem esse acréscimo a ferramenta ficava inutilizável em ambiente sem
+	// projeto: os pools nasciam só dos projetos, o phpMyAdmin não achava
+	// nenhuma série para rodar e o aviso saía com a lista vazia
+	// ("instaladas: "), acusando ausência de PHP com o PHP instalado.
+	if major := phpParaFerramenta(in, phps); major != "" && byMajor[major] == nil {
+		// Slice vazia, nunca nil: o laço abaixo libera ranges cujo major virou
+		// órfão comparando com nil, e um nil aqui faria o pool ser liberado logo
+		// depois de criado.
+		byMajor[major] = []project.Project{}
+	}
 	for key := range in.Alloc.Snapshot() {
 		major, isPHP := strings.CutPrefix(key, "php:")
 		if isPHP && byMajor[major] == nil {
@@ -579,16 +590,27 @@ func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool
 		faixa = compat.Faixa{}
 	}
 
-	majors := make([]string, 0, len(pools))
-	for _, p := range pools {
-		majors = append(majors, p.Version)
+	// A lista vem dos PHP INSTALADOS, não dos pools: pool só existe quando há
+	// projeto usando a série, e a mensagem precisa dizer o que está instalado
+	// na máquina. Com pools, ela saía como "(instaladas: )" — acusando
+	// ausência de PHP num ambiente com PHP instalado.
+	instaladas := make([]string, 0, len(in.Runtimes))
+	for _, p := range runtime.ByKind(in.Runtimes, runtime.PHP) {
+		instaladas = append(instaladas, p.Major)
 	}
-	escolhida := compat.MelhorPHP(majors, faixa)
+	sort.Strings(instaladas)
+	instaladas = slices.Compact(instaladas)
+
+	escolhida := majorCompativel(runtime.ByKind(in.Runtimes, runtime.PHP), faixa)
 	if escolhida == "" {
+		tem := "nenhuma série de PHP instalada"
+		if len(instaladas) > 0 {
+			tem = "instaladas: " + strings.Join(instaladas, ", ")
+		}
 		return nil, []Warning{{
 			Code: "pma-sem-php",
-			Message: fmt.Sprintf("phpMyAdmin %s precisa de %s; nenhuma série instalada serve (instaladas: %s)",
-				pma.Version, faixa, strings.Join(majors, ", ")),
+			Message: fmt.Sprintf("phpMyAdmin %s precisa de %s (%s)",
+				pma.Version, faixa, tem),
 		}}
 	}
 	return &webserver.Tool{
@@ -597,4 +619,37 @@ func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool
 		Docroot:  filepath.ToSlash(pma.Dir),
 		PoolName: webserver.PoolName(escolhida),
 	}, nil
+}
+
+// phpParaFerramenta devolve a série de PHP que o phpMyAdmin instalado exige,
+// ou "" quando ele não está instalado ou nenhuma série serve.
+//
+// Olha os PHP INSTALADOS, não os pools: é justamente o caso em que ainda não
+// há pool nenhum — ambiente sem projeto — que precisa criar um.
+func phpParaFerramenta(in desiredInput, phps []runtime.Installed) string {
+	pmas := runtime.ByKind(in.Runtimes, runtime.PhpMyAdmin)
+	if len(pmas) == 0 {
+		return ""
+	}
+	faixa, ok := compat.PHPParaPhpMyAdmin(pmas[0].Version)
+	if !ok {
+		faixa = compat.Faixa{}
+	}
+	return majorCompativel(phps, faixa)
+}
+
+// majorCompativel devolve o major do PHP instalado mais novo que cabe na faixa.
+//
+// O teste usa a versão COMPLETA e o resultado é o major, porque o pool é por
+// série. Comparar o major contra a faixa rejeitava indevidamente: o piso do
+// phpMyAdmin 5.2 é 7.2.5, e o major "7.2" é menor que isso — o PHP 7.2.34
+// instalado, que atende de sobra, era descartado.
+func majorCompativel(phps []runtime.Installed, f compat.Faixa) string {
+	versoes := make([]string, 0, len(phps))
+	porVersao := make(map[string]string, len(phps))
+	for _, p := range phps {
+		versoes = append(versoes, p.Version)
+		porVersao[p.Version] = p.Major
+	}
+	return porVersao[compat.MelhorPHP(versoes, f)]
 }

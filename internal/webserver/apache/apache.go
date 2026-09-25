@@ -106,6 +106,14 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 		files["tools/"+tool.Name+".conf"] = conf
 	}
 
+	// IncludeOptional cobre ARQUIVO ausente, não DIRETÓRIO ausente: sem nenhum
+	// projeto a pasta vhosts/ não existiria e o httpd -t recusaria a config
+	// inteira com "Could not open directory". Isso derrubava o Reconcile no
+	// boot e nenhum serviço chegava a ser criado — nem MySQL, nem Mailpit, nem
+	// o próprio Apache. O ".keep" garante o diretório sem gerar config.
+	files["vhosts/.keep"] = nil
+	files["tools/.keep"] = nil
+
 	files["default/index.html"] = webserver.DefaultIndexHTML()
 	return files, nil
 }

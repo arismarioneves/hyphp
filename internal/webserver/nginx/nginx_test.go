@@ -86,7 +86,7 @@ func TestRenderGolden(t *testing.T) {
 	sort.Strings(keys)
 	want := []string{
 		"html/index.html", "logs/.keep", "nginx.conf",
-		"sites/app72.conf", "sites/app81.conf", "temp/.keep", "upstreams.conf",
+		"sites/.keep", "sites/app72.conf", "sites/app81.conf", "temp/.keep", "upstreams.conf",
 	}
 	if strings.Join(keys, ",") != strings.Join(want, ",") {
 		t.Fatalf("chaves = %v, quero %v", keys, want)
@@ -172,5 +172,17 @@ func TestProbe(t *testing.T) {
 	}
 	if http.URL != "http://127.0.0.1:8080/" {
 		t.Fatalf("Probe().URL = %q", http.URL)
+	}
+}
+
+// Mesmo motivo do apache: "include sites/*.conf" falha se o diretório não
+// existir, e sem projeto nenhum ele não existiria.
+func TestRenderSemProjetosMantemDiretorioSites(t *testing.T) {
+	files, err := New(testInstalled()).Render(nil, nil, testPorts, testLogDir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := files["sites/.keep"]; !ok {
+		t.Error("falta sites/.keep; o nginx recusaria a config")
 	}
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Scroll } from '@phosphor-icons/react'
 import { LogsService } from '../../bindings/hyphp/services'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
@@ -58,6 +59,7 @@ export function Logs({ onNavigate }: ScreenProps) {
   if (sources.length === 0) {
     return (
       <EmptyState
+        icon={<Scroll size={24} />}
         title="Nenhuma fonte de log"
         description="Adicione um projeto ou instale um runtime."
         action={

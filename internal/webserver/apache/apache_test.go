@@ -90,12 +90,16 @@ func TestRenderGolden(t *testing.T) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	want := []string{"default/index.html", "httpd.conf", "pools.conf", "vhosts/app72.conf", "vhosts/app81.conf"}
+	want := []string{"default/index.html", "httpd.conf", "pools.conf", "tools/.keep", "vhosts/.keep", "vhosts/app72.conf", "vhosts/app81.conf"}
 	if strings.Join(keys, ",") != strings.Join(want, ",") {
 		t.Fatalf("chaves = %v, quero %v", keys, want)
 	}
 
 	for _, key := range keys {
+		// ".keep" existe só para o diretório existir; não tem conteúdo a comparar.
+		if strings.HasSuffix(key, "/.keep") {
+			continue
+		}
 		t.Run(key, func(t *testing.T) {
 			path := filepath.Join("testdata", goldenName(key))
 			wantBytes, err := os.ReadFile(path)
@@ -199,5 +203,21 @@ func TestProbe(t *testing.T) {
 	}
 	if http.URL != "http://127.0.0.1:8080/" {
 		t.Fatalf("Probe().URL = %q", http.URL)
+	}
+}
+
+// Sem nenhum projeto o diretório vhosts/ precisa existir mesmo assim.
+// IncludeOptional cobre arquivo ausente, não diretório ausente: sem isso o
+// httpd -t recusa a config inteira, o Reconcile falha no boot e NENHUM serviço
+// é criado — nem o MySQL, nem o Mailpit, que não têm relação com vhost.
+func TestRenderSemProjetosMantemDiretoriosDeInclude(t *testing.T) {
+	files, err := New(testInstalled()).Render(nil, nil, testPorts, testLogDir, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, chave := range []string{"vhosts/.keep", "tools/.keep"} {
+		if _, ok := files[chave]; !ok {
+			t.Errorf("falta %q; o Apache recusaria a config", chave)
+		}
 	}
 }
