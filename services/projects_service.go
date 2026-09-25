@@ -162,6 +162,12 @@ func (p *ProjectsService) editManifest(id string, fn func(*project.Manifest)) er
 		return err
 	}
 	fn(&fresh.Manifest)
+	// Fixa a série em uso quando o manifesto ainda não a declara. O arquivo
+	// descreve o ambiente: deixar `php` implícito faz quem clona rodar noutra
+	// versão sem perceber, porque o padrão do HyPHP dele pode ser outro.
+	if fresh.PHP == "" {
+		fresh.PHP = cur.PHPEffective
+	}
 	if err := project.Validate(fresh.Manifest); err != nil {
 		return err
 	}

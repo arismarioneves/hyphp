@@ -1,7 +1,6 @@
 package project
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -119,28 +118,13 @@ func fileExists(path string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// manifestHeader é curto de propósito: o arquivo vai para o repositório do
-// usuário, e caminho de spec interna e lição sobre versionar não têm lugar lá.
-const manifestHeader = "# Configuração do projeto no HyPHP.\n"
-
-// Write grava Root/hyphp.yaml a partir de p.Manifest, com cabeçalho comentado e
-// as chaves na ordem da struct (yaml.v3 preserva a ordem dos campos).
-// Escrita atômica: tmp + rename.
+// Write grava Root/hyphp.yaml. Escrita atômica: tmp + rename.
 func (p Project) Write() error {
-	var buf bytes.Buffer
-	buf.WriteString(manifestHeader)
-	enc := yaml.NewEncoder(&buf)
-	enc.SetIndent(2)
-	if err := enc.Encode(p.Manifest); err != nil {
-		return fmt.Errorf("project: serializar manifesto de %s: %w", p.ID, err)
-	}
-	if err := enc.Close(); err != nil {
-		return fmt.Errorf("project: fechar encoder: %w", err)
-	}
+	buf := Render(p.Manifest)
 
 	dst := filepath.Join(p.Root, ManifestFile)
 	tmp := dst + ".tmp"
-	if err := os.WriteFile(tmp, buf.Bytes(), 0o644); err != nil {
+	if err := os.WriteFile(tmp, buf, 0o644); err != nil {
 		return fmt.Errorf("project: gravar %s: %w", tmp, err)
 	}
 	if err := os.Rename(tmp, dst); err != nil {

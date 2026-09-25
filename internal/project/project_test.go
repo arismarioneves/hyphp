@@ -171,7 +171,9 @@ func TestWriteRoundTrip(t *testing.T) {
 	if !strings.HasPrefix(s, "#") {
 		t.Fatalf("faltou cabeçalho comentado:\n%s", s)
 	}
-	if !strings.Contains(s, "php: \"8.1\"") {
+	// O contrato é a série vir entre aspas: sem elas "8.10" viraria o número
+	// 8.1 e o projeto passaria a rodar noutra versão.
+	if !strings.Contains(s, `"8.1"`) {
 		t.Fatalf("php deve ser string entre aspas:\n%s", s)
 	}
 	// ordem das chaves segue a struct: name antes de domain antes de php
