@@ -239,6 +239,13 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 		iniChanged[pool.Version] = changed
 	}
 
+	// 4b. config.inc.php da ferramenta, dentro da própria instalação
+	if out.Tool != nil {
+		if err := s.renderPhpMyAdmin(out.Tool, st); err != nil {
+			warnings = append(warnings, Warning{Code: "pma-config-failed", Message: err.Error()})
+		}
+	}
+
 	// 5. diff de specs
 	if err := s.applySpecs(out.Specs, webChanged, iniChanged, myIniChanged); err != nil {
 		return s.finish(warnings), err
@@ -367,7 +374,7 @@ func (s *Stack) InstallCA(ctx context.Context) error {
 func (s *Stack) renderWeb(web webserver.WebServer, out desiredOutput, st state.State) (bool, error) {
 	name := string(web.Name())
 	ports := webserver.Ports{HTTP: st.HTTPPort, HTTPS: st.HTTPSPort}
-	files, err := web.Render(out.Sites, out.Pools, ports, filepath.ToSlash(paths.Log()))
+	files, err := web.Render(out.Sites, out.Pools, ports, filepath.ToSlash(paths.Log()), out.Tool)
 	if err != nil {
 		return false, fmt.Errorf("stack: renderizar %s: %w", name, err)
 	}
@@ -817,4 +824,44 @@ func (s *Stack) rollbackWeb(oldSpec supervisor.Spec, hadOld, oldRunning bool, ca
 		}
 	}
 	return fmt.Errorf("troca de web server desfeita: %w", cause)
+}
+
+// renderPhpMyAdmin grava o config.inc.php dentro da instalação do phpMyAdmin.
+//
+// O arquivo mora junto do código, e não em etc/, porque é lá que o phpMyAdmin
+// o procura — ele não aceita caminho externo sem variável de ambiente, que o
+// FastCGI não carregaria. Some junto com a ferramenta quando ela é removida,
+// o que também evita config órfã.
+//
+// O blowfish_secret nasce na primeira gravação e fica no state: gerar outro a
+// cada Reconcile derrubaria a sessão aberta do usuário a cada mudança de
+// projeto.
+func (s *Stack) renderPhpMyAdmin(tool *webserver.Tool, st state.State) error {
+	secret := st.PhpMyAdminSecret
+	if len(secret) != 32 {
+		novo, err := render.NewBlowfishSecret()
+		if err != nil {
+			return fmt.Errorf("stack: segredo do phpMyAdmin: %w", err)
+		}
+		secret = novo
+		if err := s.UpdateState(func(cur *state.State) { cur.PhpMyAdminSecret = novo }); err != nil {
+			return fmt.Errorf("stack: persistir segredo do phpMyAdmin: %w", err)
+		}
+	}
+
+	tmp := filepath.Join(paths.Var(), "tmp", "phpmyadmin")
+	if err := os.MkdirAll(tmp, 0o755); err != nil {
+		return fmt.Errorf("stack: criar %s: %w", tmp, err)
+	}
+	conf := render.PhpMyAdminConfig(st.MySQLPort, secret, filepath.ToSlash(tmp))
+	// os.WriteFile direto, NUNCA render.WriteFiles: aquela função sincroniza o
+	// diretório inteiro e apaga o que não está no mapa. Usada aqui, ela apagou
+	// a instalação do phpMyAdmin e deixou só o config recém-escrito. Ela serve
+	// a diretórios que o HyPHP possui por completo (etc/apache, etc/nginx);
+	// este pertence ao pacote baixado.
+	alvo := filepath.Join(filepath.FromSlash(tool.Docroot), "config.inc.php")
+	if err := os.WriteFile(alvo, conf, 0o644); err != nil {
+		return fmt.Errorf("stack: gravar %s: %w", alvo, err)
+	}
+	return nil
 }

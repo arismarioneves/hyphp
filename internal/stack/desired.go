@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"hyphp/internal/compat"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/project"
 	"hyphp/internal/runtime"
@@ -47,6 +48,7 @@ type desiredOutput struct {
 	Sites      []webserver.Site
 	Pools      []webserver.PHPPool
 	Extensions map[string][]string // major → extensões habilitadas (state ∪ manifestos)
+	Tool       *webserver.Tool     // phpMyAdmin quando instalado e com PHP compatível
 	Warnings   []Warning
 }
 
@@ -130,6 +132,12 @@ func desired(in desiredInput) (desiredOutput, error) {
 		out.Specs = append(out.Specs, specs...)
 		out.Warnings = append(out.Warnings, warns...)
 	}
+
+	// 7. ferramentas servidas pelo web server (phpMyAdmin)
+	tool, toolWarns := toolPhpMyAdmin(in, out.Pools)
+	out.Tool = tool
+	out.Warnings = append(out.Warnings, toolWarns...)
+
 	return out, nil
 }
 
@@ -547,4 +555,46 @@ func mailpitSpec(in desiredInput) (supervisor.Spec, bool) {
 		Restart:      defaultRestart(),
 		LogPath:      filepath.Join(in.LogDir, "mailpit.log"),
 	}, true
+}
+
+// toolPhpMyAdmin monta o vhost do phpMyAdmin quando ele está instalado e
+// existe uma série de PHP compatível.
+//
+// A escolha da série não pode ser a padrão do projeto: o phpMyAdmin 5.2 não
+// roda em PHP 8.3+, e quem tem 8.4 como padrão veria a ferramenta abrir numa
+// tela de erro de sintaxe. Aqui ele é servido pela maior série instalada dentro
+// da faixa, ainda que nenhum projeto use essa série — o pool já existe porque
+// todo PHP instalado ganha o seu.
+func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool, []Warning) {
+	pmas := runtime.ByKind(in.Runtimes, runtime.PhpMyAdmin)
+	if len(pmas) == 0 {
+		return nil, nil
+	}
+	pma := pmas[0]
+
+	faixa, ok := compat.PHPParaPhpMyAdmin(pma.Version)
+	if !ok {
+		// Versão fora da tabela: servir assim mesmo é melhor do que recusar
+		// uma combinação que pode funcionar. O aviso registra a incerteza.
+		faixa = compat.Faixa{}
+	}
+
+	majors := make([]string, 0, len(pools))
+	for _, p := range pools {
+		majors = append(majors, p.Version)
+	}
+	escolhida := compat.MelhorPHP(majors, faixa)
+	if escolhida == "" {
+		return nil, []Warning{{
+			Code: "pma-sem-php",
+			Message: fmt.Sprintf("phpMyAdmin %s precisa de %s; nenhuma série instalada serve (instaladas: %s)",
+				pma.Version, faixa, strings.Join(majors, ", ")),
+		}}
+	}
+	return &webserver.Tool{
+		Name:     "phpmyadmin",
+		Port:     in.State.PhpMyAdminPort,
+		Docroot:  filepath.ToSlash(pma.Dir),
+		PoolName: webserver.PoolName(escolhida),
+	}, nil
 }

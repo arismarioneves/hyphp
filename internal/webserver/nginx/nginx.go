@@ -43,6 +43,12 @@ type upstreamsData struct {
 	Pools []webserver.PHPPool
 }
 
+type toolData struct {
+	Tool       webserver.Tool
+	LogDir     string
+	ServerRoot string
+}
+
 type siteData struct {
 	Site       webserver.Site
 	Ports      webserver.Ports
@@ -50,7 +56,7 @@ type siteData struct {
 	ServerRoot string
 }
 
-func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports webserver.Ports, logDir string) (map[string][]byte, error) {
+func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports webserver.Ports, logDir string, tool *webserver.Tool) (map[string][]byte, error) {
 	root := slashDir(s.inst.Dir)
 	log := slashDir(logDir)
 
@@ -83,6 +89,14 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 			return nil, fmt.Errorf("nginx: dois sites com o mesmo ID %q", site.ID)
 		}
 		files[key] = conf
+	}
+
+	if tool != nil {
+		conf, err := render("tool.conf.tmpl", toolData{Tool: *tool, LogDir: log, ServerRoot: root})
+		if err != nil {
+			return nil, fmt.Errorf("nginx: ferramenta %s: %w", tool.Name, err)
+		}
+		files["sites/zz-tool-"+tool.Name+".conf"] = conf
 	}
 
 	files["html/index.html"] = webserver.DefaultIndexHTML()

@@ -1,0 +1,26 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/apache/templates/tool.conf.tmpl
+# Ferramenta: {{.Tool.Name}} → pool {{.Tool.PoolName}}
+
+<VirtualHost 127.0.0.1:{{.Tool.Port}}>
+    ServerName {{.Tool.Name}}.local
+    DocumentRoot "{{.Tool.Docroot}}"
+    DirectoryIndex index.php
+
+    <Directory "{{.Tool.Docroot}}">
+        Require local
+        Options -Indexes +FollowSymLinks
+        AllowOverride None
+    </Directory>
+
+    # Mesma receita dos sites: barra final contra o "URI cannot be parsed" do
+    # Windows, e SCRIPT_FILENAME explícito porque o valor que o mod_proxy_fcgi
+    # deriva sozinho mudou entre builds do Apache.
+    <FilesMatch "\.php$">
+        SetHandler "proxy:balancer://{{.Tool.PoolName}}/"
+        ProxyFCGISetEnvIf "true" SCRIPT_FILENAME "%{reqenv:DOCUMENT_ROOT}%{reqenv:SCRIPT_NAME}"
+    </FilesMatch>
+
+    ErrorLog "{{.LogDir}}/{{.Tool.Name}}-error.log"
+    CustomLog "{{.LogDir}}/{{.Tool.Name}}-access.log" combined
+</VirtualHost>

@@ -9,6 +9,11 @@ ServerRoot "{{.ServerRoot}}"
 
 Listen {{.Ports.HTTP}}
 Listen {{.Ports.HTTPS}}
+{{- if .Tool}}
+# Ferramenta interna (phpMyAdmin): porta própria e só em 127.0.0.1, para não
+# ficar acessível na rede local — ela fala com o banco sem senha.
+Listen 127.0.0.1:{{.Tool.Port}}
+{{- end}}
 
 LoadModule authn_core_module modules/mod_authn_core.so
 LoadModule authz_core_module modules/mod_authz_core.so
@@ -84,3 +89,4 @@ Include "${HYPHP_ETC}/pools.conf"
 </VirtualHost>
 
 IncludeOptional "${HYPHP_ETC}/vhosts/*.conf"
+IncludeOptional "${HYPHP_ETC}/tools/*.conf"

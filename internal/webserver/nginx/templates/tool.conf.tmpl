@@ -1,0 +1,27 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/nginx/templates/tool.conf.tmpl
+# Ferramenta: {{.Tool.Name}} → upstream {{.Tool.PoolName}}
+
+server {
+    # 127.0.0.1 explícito, nunca a porta solta: a ferramenta fala com o banco
+    # sem senha, e escutar em todas as interfaces entregaria isso à rede local.
+    listen 127.0.0.1:{{.Tool.Port}};
+    server_name {{.Tool.Name}}.local;
+    root "{{.Tool.Docroot}}";
+    index index.php;
+
+    access_log "{{.LogDir}}/{{.Tool.Name}}-access.log";
+    error_log "{{.LogDir}}/{{.Tool.Name}}-error.log";
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location ~ \.php$ {
+        fastcgi_pass {{.Tool.PoolName}};
+        fastcgi_index index.php;
+        include "{{.ServerRoot}}/conf/fastcgi_params";
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_read_timeout 300;
+    }
+}

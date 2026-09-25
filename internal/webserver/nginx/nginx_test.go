@@ -63,7 +63,7 @@ var testPorts = webserver.Ports{HTTP: 8080, HTTPS: 8443}
 
 func renderFixture(t *testing.T) map[string][]byte {
 	t.Helper()
-	files, err := New(testInstalled()).Render(testSites(), testPools(), testPorts, testLogDir)
+	files, err := New(testInstalled()).Render(testSites(), testPools(), testPorts, testLogDir, nil)
 	if err != nil {
 		t.Fatalf("Render erro = %v", err)
 	}

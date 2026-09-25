@@ -84,3 +84,4 @@ Include "${HYPHP_ETC}/pools.conf"
 </VirtualHost>
 
 IncludeOptional "${HYPHP_ETC}/vhosts/*.conf"
+IncludeOptional "${HYPHP_ETC}/tools/*.conf"

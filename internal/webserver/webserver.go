@@ -31,6 +31,20 @@ type PHPPool struct {
 	Ports   []int  // [9000, 9001, 9002, 9003]
 }
 
+// Tool é uma ferramenta servida pelo próprio web server — hoje só o
+// phpMyAdmin. Fica numa porta própria e em 127.0.0.1, nunca em "*": é uma
+// ferramenta administrativa com acesso ao banco sem senha, e expor isso na
+// rede local entregaria o banco a quem estiver no mesmo wi-fi.
+//
+// Não é um Site porque não tem domínio, nem TLS, nem .htaccess do usuário, e
+// não deve aparecer na lista de projetos.
+type Tool struct {
+	Name     string // "phpmyadmin" — vira o nome do arquivo de config
+	Port     int    // porta dedicada (state.PhpMyAdminPort)
+	Docroot  string // absoluto, com "/" como separador
+	PoolName string // pool da série compatível
+}
+
 // TLS descreve o estado global de TLS. Mantido por C6; o detalhe por site vive
 // em Site.TLSCert/TLSKey.
 type TLS struct {
@@ -65,7 +79,7 @@ type WebServer interface {
 	Name() state.WebServerName
 	// Render devolve caminho-relativo-ao-etcDir (sempre com "/") → conteúdo.
 	// Determinístico: mesma entrada, mesmos bytes.
-	Render(sites []Site, pools []PHPPool, ports Ports, logDir string) (map[string][]byte, error)
+	Render(sites []Site, pools []PHPPool, ports Ports, logDir string, tool *Tool) (map[string][]byte, error)
 	// Validate roda o validador nativo apontando para etcDir. Erro traz a
 	// saída completa do validador.
 	Validate(etcDir string) error

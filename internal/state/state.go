@@ -19,15 +19,19 @@ const (
 
 // State é o conteúdo de state.json. Campos ausentes no arquivo mantêm o valor de Default().
 type State struct {
-	SchemaVersion    int                 `json:"schemaVersion"`           // 1
-	WebServer        WebServerName       `json:"webServer"`               // default "apache"
-	DefaultPHP       string              `json:"defaultPhp"`              // "8.1"; vazio = maior instalada
-	PoolSize         int                 `json:"poolSize"`                // default 4
-	HTTPPort         int                 `json:"httpPort"`                // 80
-	HTTPSPort        int                 `json:"httpsPort"`               // 443
-	MySQLPort        int                 `json:"mysqlPort"`               // 3306
-	MailpitSMTPPort  int                 `json:"mailpitSmtpPort"`         // 1025
-	MailpitHTTPPort  int                 `json:"mailpitHttpPort"`         // 8025
+	SchemaVersion   int           `json:"schemaVersion"`   // 1
+	WebServer       WebServerName `json:"webServer"`       // default "apache"
+	DefaultPHP      string        `json:"defaultPhp"`      // "8.1"; vazio = maior instalada
+	PoolSize        int           `json:"poolSize"`        // default 4
+	HTTPPort        int           `json:"httpPort"`        // 80
+	HTTPSPort       int           `json:"httpsPort"`       // 443
+	MySQLPort       int           `json:"mysqlPort"`       // 3306
+	MailpitSMTPPort int           `json:"mailpitSmtpPort"` // 1025
+	MailpitHTTPPort int           `json:"mailpitHttpPort"` // 8025
+	PhpMyAdminPort  int           `json:"phpMyAdminPort"`  // 8036
+	// PhpMyAdminSecret é gerado uma vez e persistido: regerar a cada Reconcile
+	// invalidaria a sessão aberta do usuário a cada mudança de projeto.
+	PhpMyAdminSecret string              `json:"phpMyAdminSecret"`
 	Roots            []string            `json:"roots"`                   // diretórios-raiz de projetos
 	PortAlloc        map[string][]int    `json:"portAlloc"`               // "php:8.1" → portas reservadas
 	PHPExtensions    map[string][]string `json:"phpExtensions,omitempty"` // série "8.1" → extensões habilitadas; ausente = runtime.DefaultExtensions
@@ -49,6 +53,7 @@ func Default() State {
 		MySQLPort:       3306,
 		MailpitSMTPPort: 1025,
 		MailpitHTTPPort: 8025,
+		PhpMyAdminPort:  8036,
 		Roots:           []string{},
 		PortAlloc:       map[string][]int{},
 	}

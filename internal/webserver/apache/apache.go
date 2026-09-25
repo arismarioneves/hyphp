@@ -45,6 +45,12 @@ type confData struct {
 	ServerRoot string
 	LogDir     string
 	Ports      webserver.Ports
+	Tool       *webserver.Tool // nil quando nenhuma ferramenta está instalada
+}
+
+type toolData struct {
+	Tool   webserver.Tool
+	LogDir string
 }
 
 type poolsData struct {
@@ -57,13 +63,13 @@ type vhostData struct {
 	LogDir string
 }
 
-func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports webserver.Ports, logDir string) (map[string][]byte, error) {
+func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports webserver.Ports, logDir string, tool *webserver.Tool) (map[string][]byte, error) {
 	root := slashDir(s.inst.Dir)
 	log := slashDir(logDir)
 
 	files := make(map[string][]byte, len(sites)+3)
 
-	main, err := render("httpd.conf.tmpl", confData{ServerRoot: root, LogDir: log, Ports: ports})
+	main, err := render("httpd.conf.tmpl", confData{ServerRoot: root, LogDir: log, Ports: ports, Tool: tool})
 	if err != nil {
 		return nil, err
 	}
@@ -90,6 +96,14 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 			return nil, fmt.Errorf("apache: dois sites com o mesmo ID %q", site.ID)
 		}
 		files[key] = conf
+	}
+
+	if tool != nil {
+		conf, err := render("tool.conf.tmpl", toolData{Tool: *tool, LogDir: log})
+		if err != nil {
+			return nil, fmt.Errorf("apache: ferramenta %s: %w", tool.Name, err)
+		}
+		files["tools/"+tool.Name+".conf"] = conf
 	}
 
 	files["default/index.html"] = webserver.DefaultIndexHTML()
