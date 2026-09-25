@@ -23,6 +23,9 @@ const TABS: Array<{ kind: RuntimeKind; label: string }> = [
   // mkcert estava no catálogo mas não tinha aba: não havia como instalá-lo
   // pela UI, e o aviso tls-unavailable apontava para uma ação inexistente.
   { kind: 'mkcert', label: 'mkcert' },
+  // phpMyAdmin não é runtime nem serviço: é código PHP servido numa porta
+  // dedicada. A aba existe porque instalar/remover é a única ação que ele tem.
+  { kind: 'phpmyadmin', label: 'phpMyAdmin' },
 ]
 
 /** Espelha as constantes `Phase*` de internal/pkgmgr/manager.go. */
@@ -379,10 +382,17 @@ export function Runtimes({ onNavigate }: ScreenProps) {
         ) : installedOfKind.length === 0 ? (
           <EmptyState
             title={`Nenhum ${tabLabel} instalado`}
-            description="Baixe uma versão do catálogo abaixo; o serviço correspondente só aparece em Serviços depois da instalação."
+            description={
+              // phpMyAdmin não vira serviço: depois de instalado ele é servido
+              // numa porta dedicada e se abre pela tela Banco. Mandar o usuário
+              // a Serviços aqui seria apontar para uma tela onde nada aparece.
+              tab === 'phpmyadmin'
+                ? 'Baixe o pacote do catálogo abaixo; depois da instalação ele é servido numa porta local e se abre pela tela Banco.'
+                : 'Baixe uma versão do catálogo abaixo; o serviço correspondente só aparece em Serviços depois da instalação.'
+            }
             action={
-              <Button variant="secondary" onClick={() => onNavigate('services')}>
-                Ver serviços
+              <Button variant="secondary" onClick={() => onNavigate(tab === 'phpmyadmin' ? 'database' : 'services')}>
+                {tab === 'phpmyadmin' ? 'Ir para Banco' : 'Ver serviços'}
               </Button>
             }
           />

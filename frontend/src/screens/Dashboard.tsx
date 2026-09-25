@@ -29,6 +29,10 @@ const ONDE_RESOLVER: Record<string, { tela?: Screen; run?: () => Promise<void>; 
   'hosts-pending': { run: SettingsService.ApplyHosts, acao: 'Aplicar domínios' },
   'ca-pending': { run: SettingsService.InstallCA, acao: 'Instalar certificado' },
   'wildcard-pending': { run: SettingsService.ApplyWildcardDNS, acao: 'Registrar regra de DNS' },
+  // Incompatibilidade de versão se resolve instalando a série que falta, e é
+  // em Runtimes que ela está.
+  'pma-sem-php': { tela: 'runtimes', acao: 'Instalar PHP compatível' },
+  'docroot-sem-indice': { tela: 'projects', acao: 'Revisar projeto' },
 }
 
 // `Installed.kind` é o enum gerado `runtime.Kind`; comparar com os literais de

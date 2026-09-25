@@ -46,6 +46,15 @@ export function Drop(name: string): $CancellablePromise<void> {
 }
 
 /**
+ * PhpMyAdminURL é a URL do vhost dedicado da ferramenta, ou "" quando ela não
+ * está instalada. É "" em vez de erro porque a ausência não é falha: a UI usa
+ * a string vazia para oferecer a instalação no lugar do botão de abrir.
+ */
+export function PhpMyAdminURL(): $CancellablePromise<string> {
+    return $Call.ByID(3334924489);
+}
+
+/**
  * Status devolve o status do spec mysql. Se ele não existe (MySQL não
  * instalado), devolve um status stopped em vez de zero value — a UI precisa do
  * ID e do nome para desenhar a tela vazia.

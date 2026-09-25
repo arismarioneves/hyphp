@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"hyphp/internal/mysqlcli"
@@ -109,6 +110,16 @@ func (d *DatabaseService) Drop(name string) error {
 // só em loopback; a senha vazia é decisão registrada, não descuido.
 func (d *DatabaseService) Credentials() Credentials {
 	return Credentials{User: "root", Password: "", Host: "127.0.0.1", Port: d.stk.State().MySQLPort}
+}
+
+// PhpMyAdminURL é a URL do vhost dedicado da ferramenta, ou "" quando ela não
+// está instalada. É "" em vez de erro porque a ausência não é falha: a UI usa
+// a string vazia para oferecer a instalação no lugar do botão de abrir.
+func (d *DatabaseService) PhpMyAdminURL() string {
+	if len(runtime.ByKind(d.runtimes(), runtime.PhpMyAdmin)) == 0 {
+		return ""
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", d.stk.State().PhpMyAdminPort)
 }
 
 // client exige MySQL instalado e ready.

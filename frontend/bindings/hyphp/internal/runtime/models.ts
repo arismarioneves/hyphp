@@ -70,4 +70,5 @@ export enum Kind {
     MySQL = "mysql",
     Mailpit = "mailpit",
     Mkcert = "mkcert",
+    PhpMyAdmin = "phpmyadmin",
 };

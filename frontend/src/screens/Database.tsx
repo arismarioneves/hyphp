@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Copy, Database as DatabaseIcon, Plus, Trash } from '@phosphor-icons/react'
-import { DatabaseService } from '../../bindings/hyphp/services'
+import { ArrowSquareOut, Copy, Database as DatabaseIcon, DownloadSimple, Plus, Trash } from '@phosphor-icons/react'
+import { AppService, DatabaseService } from '../../bindings/hyphp/services'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { EmptyState } from '../components/EmptyState'
@@ -41,6 +41,7 @@ export function Database({ onNavigate }: ScreenProps) {
   const state = (mysql?.state ?? 'stopped') as ServiceState
 
   const [creds, setCreds] = useState<Credentials | null>(null)
+  const [pmaURL, setPmaURL] = useState<string | null>(null)
   const [dbs, setDbs] = useState<DBInfo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [newName, setNewName] = useState('')
@@ -61,6 +62,12 @@ export function Database({ onNavigate }: ScreenProps) {
 
   useEffect(() => {
     void DatabaseService.Credentials().then(setCreds)
+  }, [])
+
+  // "" significa phpMyAdmin não instalado; null é "ainda não perguntei ao Go",
+  // e nesse intervalo nenhum dos dois botões deve aparecer piscando.
+  useEffect(() => {
+    void DatabaseService.PhpMyAdminURL().then(setPmaURL)
   }, [])
 
   // sem servidor no ar não há schema para listar: volta ao skeleton em vez de manter dados velhos.
@@ -107,7 +114,38 @@ export function Database({ onNavigate }: ScreenProps) {
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <SectionLabel>MYSQL</SectionLabel>
+        <div className="flex items-center justify-between gap-3">
+          <SectionLabel>MYSQL</SectionLabel>
+          {pmaURL === null ? null : pmaURL === '' ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<DownloadSimple size={14} />}
+              onClick={() => onNavigate('runtimes')}
+            >
+              Instalar phpMyAdmin
+            </Button>
+          ) : (
+            // Com o MySQL parado o phpMyAdmin abre direto numa tela de erro de
+            // conexão: desabilitar e dizer o porquê é mais honesto do que
+            // mandar o usuário ao navegador para ver a falha lá.
+            <span title={state === 'ready' ? undefined : 'Inicie o MySQL antes: sem servidor o phpMyAdmin abre com erro de conexão.'}>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<ArrowSquareOut size={14} />}
+                disabled={state !== 'ready'}
+                onClick={() =>
+                  void AppService.OpenExternal(pmaURL).catch((e: unknown) =>
+                    setError(e instanceof Error ? e.message : String(e)),
+                  )
+                }
+              >
+                Abrir phpMyAdmin
+              </Button>
+            </span>
+          )}
+        </div>
         <div className="mt-3 flex items-center gap-3">
           <StatusDot state={state} />
           <span className="text-sm text-fg">{mysql?.name ?? 'MySQL'}</span>

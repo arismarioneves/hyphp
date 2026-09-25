@@ -51,6 +51,17 @@ export interface State {
     "mailpitHttpPort": number;
 
     /**
+     * 8036
+     */
+    "phpMyAdminPort": number;
+
+    /**
+     * PhpMyAdminSecret é gerado uma vez e persistido: regerar a cada Reconcile
+     * invalidaria a sessão aberta do usuário a cada mudança de projeto.
+     */
+    "phpMyAdminSecret": string;
+
+    /**
      * diretórios-raiz de projetos
      */
     "roots": string[] | null;
