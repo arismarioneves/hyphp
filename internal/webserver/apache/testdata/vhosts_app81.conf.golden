@@ -14,10 +14,17 @@
         AllowOverride All
     </Directory>
 
-    # A barra final é obrigatória: sem ela o Apache cola a letra do drive na
-    # porta e devolve "400 Proxy Error: URI cannot be parsed" (spec §6.2).
+    # A barra final evita "400 Proxy Error: URI cannot be parsed" no Windows,
+    # onde sem ela o Apache cola a letra do drive na porta (spec §6.2).
+    #
+    # ProxyFCGISetEnvIf é obrigatório: o SCRIPT_FILENAME que o mod_proxy_fcgi
+    # deriva sozinho mudou entre builds — o Apache 2.4.68 entrega ao php-cgi um
+    # caminho que não existe, e TODO projeto responde "No input file
+    # specified.", inclusive uma pasta com um único index.php. Montar o valor a
+    # partir de DOCUMENT_ROOT + SCRIPT_NAME não depende da build.
     <FilesMatch "\.php$">
         SetHandler "proxy:balancer://php81/"
+        ProxyFCGISetEnvIf "true" SCRIPT_FILENAME "%{reqenv:DOCUMENT_ROOT}%{reqenv:SCRIPT_NAME}"
     </FilesMatch>
 
     ErrorLog "C:/hyphp/log/app81-error.log"
@@ -38,6 +45,7 @@
 
     <FilesMatch "\.php$">
         SetHandler "proxy:balancer://php81/"
+        ProxyFCGISetEnvIf "true" SCRIPT_FILENAME "%{reqenv:DOCUMENT_ROOT}%{reqenv:SCRIPT_NAME}"
     </FilesMatch>
 
     SSLEngine on
