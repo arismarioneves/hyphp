@@ -13,7 +13,7 @@ import (
 // "zip" NÃO entra: no PHP 8.x para Windows ela é estática (aparece em `php -n -m`,
 // sem php_zip.dll em ext/), então `extension=zip` seria redundante e gera warning
 // que, com display_errors=On, vaza no corpo da resposta.
-var DefaultExtensions = []string{"curl", "fileinfo", "gd", "intl", "mbstring", "openssl", "pdo_mysql", "pdo_sqlite", "sqlite3", "exif", "soap", "sodium"}
+var DefaultExtensions = []string{"curl", "fileinfo", "gd", "intl", "mbstring", "mysqli", "openssl", "pdo_mysql", "pdo_sqlite", "sqlite3", "exif", "soap", "sodium"}
 
 type Extension struct {
 	Name    string `json:"name"` // "pdo_mysql"

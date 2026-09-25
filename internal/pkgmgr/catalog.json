@@ -140,6 +140,16 @@
       "compiler": "",
       "arch": "x64",
       "notes": "Executavel solto, nao e zip: copiado como bin/mkcert/mkcert.exe. GitHub nao publica digest para esta release (2022); SHA-256 calculado localmente em 2026-09-20, tamanho 4896256 bytes confere com o campo size da API."
+    },
+    {
+      "id": "phpmyadmin-5.2.3",
+      "kind": "phpmyadmin",
+      "version": "5.2.3",
+      "url": "https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.zip",
+      "sha256": "2d2e13c735366d318425c78e4ee2cc8fc648d77faba3ddea2cd516e43885733f",
+      "compiler": "",
+      "arch": "",
+      "notes": "Nao e runtime: e codigo PHP servido pelo proprio web server. SHA-256 publicado pelo projeto em https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.zip.sha256 e conferido no download de 2026-09-25 (16 MB). Versao corrente em https://www.phpmyadmin.net/home_page/version.json. Raiz unica phpMyAdmin-5.2.3-all-languages/ -> bin/phpmyadmin/phpMyAdmin-5.2.3-all-languages/ (a raiz contem a versao, entao place() usa o nome da raiz, nao o id)."
     }
   ]
 }

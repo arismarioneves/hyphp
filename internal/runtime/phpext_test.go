@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -49,4 +50,13 @@ func TestDefaultExtensionsExistemNoPHP81(t *testing.T) {
 		}
 	}
 	_ = os.Getenv // mantém o import usado caso o teste acima seja removido
+}
+
+// O phpMyAdmin usa mysqli, não PDO; sem a extensão ele abre numa tela de erro
+// em vez da lista de bancos. mysqli é padrão nas builds do php.net, então nada
+// justifica deixá-la de fora.
+func TestDefaultExtensionsTemMysqli(t *testing.T) {
+	if !slices.Contains(DefaultExtensions, "mysqli") {
+		t.Errorf("DefaultExtensions = %v, falta mysqli", DefaultExtensions)
+	}
 }

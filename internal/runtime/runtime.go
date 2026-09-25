@@ -19,12 +19,13 @@ import (
 type Kind string
 
 const (
-	PHP     Kind = "php"
-	Apache  Kind = "apache"
-	Nginx   Kind = "nginx"
-	MySQL   Kind = "mysql"
-	Mailpit Kind = "mailpit"
-	Mkcert  Kind = "mkcert"
+	PHP        Kind = "php"
+	Apache     Kind = "apache"
+	Nginx      Kind = "nginx"
+	MySQL      Kind = "mysql"
+	Mailpit    Kind = "mailpit"
+	Mkcert     Kind = "mkcert"
+	PhpMyAdmin Kind = "phpmyadmin"
 )
 
 type Installed struct {
@@ -42,22 +43,25 @@ type Installed struct {
 // detectTimeout limita cada execução de binário durante a detecção.
 const detectTimeout = 5 * time.Second
 
-// mainExe é o executável principal de cada Kind, relativo à pasta do runtime.
-var mainExe = map[Kind]string{
-	PHP:     "php.exe",
-	Apache:  filepath.Join("bin", "httpd.exe"),
-	Nginx:   "nginx.exe",
-	MySQL:   filepath.Join("bin", "mysqld.exe"),
-	Mailpit: "mailpit.exe",
-	Mkcert:  "mkcert.exe",
+// mainFile é o arquivo que prova que uma pasta contém o Kind, relativo à pasta
+// do runtime: o executável principal para os runtimes e, no phpMyAdmin, o
+// index.php — ele não tem binário, é código PHP servido pelo web server.
+var mainFile = map[Kind]string{
+	PHP:        "php.exe",
+	Apache:     filepath.Join("bin", "httpd.exe"),
+	Nginx:      "nginx.exe",
+	MySQL:      filepath.Join("bin", "mysqld.exe"),
+	Mailpit:    "mailpit.exe",
+	Mkcert:     "mkcert.exe",
+	PhpMyAdmin: "index.php",
 }
 
 // versioned marca os Kinds com uma subpasta por versão (bin/<kind>/<pasta>/).
 // Mailpit e mkcert ficam direto em bin/<kind>/.
-var versioned = map[Kind]bool{PHP: true, Apache: true, Nginx: true, MySQL: true}
+var versioned = map[Kind]bool{PHP: true, Apache: true, Nginx: true, MySQL: true, PhpMyAdmin: true}
 
 // scanOrder fixa a ordem de saída de Scan.
-var scanOrder = []Kind{PHP, Apache, Nginx, MySQL, Mailpit, Mkcert}
+var scanOrder = []Kind{PHP, Apache, Nginx, MySQL, Mailpit, Mkcert, PhpMyAdmin}
 
 // Scan varre bin/<kind>/* e detecta cada runtime que tenha o executável esperado.
 // Pastas sem o executável são ignoradas em silêncio. Falhas de detecção (exe presente
@@ -85,7 +89,7 @@ func Scan(binDir string) ([]Installed, error) {
 			dirs = []string{kindDir}
 		}
 		for _, dir := range dirs {
-			if _, err := os.Stat(filepath.Join(dir, mainExe[kind])); err != nil {
+			if _, err := os.Stat(filepath.Join(dir, mainFile[kind])); err != nil {
 				continue
 			}
 			inst, err := Detect(kind, dir)
@@ -99,9 +103,10 @@ func Scan(binDir string) ([]Installed, error) {
 	return list, errors.Join(errs...)
 }
 
-// Detect executa o binário principal de kind em dir e devolve o runtime descrito.
+// Detect descreve o runtime instalado em dir: executa o binário principal do kind
+// para ler a versão, exceto no phpMyAdmin, que não tem binário para executar.
 func Detect(kind Kind, dir string) (Installed, error) {
-	rel, ok := mainExe[kind]
+	rel, ok := mainFile[kind]
 	if !ok {
 		return Installed{}, fmt.Errorf("runtime: kind desconhecido %q", kind)
 	}
@@ -126,6 +131,14 @@ func Detect(kind Kind, dir string) (Installed, error) {
 		return detectMySQL(ctx, abs, exe)
 	case Mailpit:
 		return detectMailpit(ctx, abs, exe)
+	case PhpMyAdmin:
+		// Sem processo: o "exe" aqui é o index.php, que só serve de prova de
+		// presença. A versão sai de um arquivo de texto da própria árvore.
+		inst, ok := detectPhpMyAdmin(abs)
+		if !ok {
+			return Installed{}, fmt.Errorf("runtime: %s tem index.php mas não é uma árvore do phpMyAdmin", abs)
+		}
+		return inst, nil
 	default:
 		return detectMkcert(ctx, abs, exe)
 	}
