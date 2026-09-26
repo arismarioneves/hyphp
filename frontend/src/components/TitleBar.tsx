@@ -1,5 +1,6 @@
 import { Window } from '@wailsio/runtime';
 import { Minus, Square, X } from '@phosphor-icons/react';
+import { Logo } from './Logo';
 
 async function toggleMaximise() {
   if (await Window.IsMaximised()) {
@@ -19,7 +20,8 @@ export function TitleBar() {
       onDoubleClick={toggleMaximise}
     >
       <div className="flex items-center gap-2 pl-4">
-        <span className="inline-block h-3 w-3 rounded-sm bg-accent" aria-hidden="true" />
+        {/* 16px: uma unidade do viewBox por pixel, os mini quadrados ficam nítidos. */}
+        <Logo size={16} className="text-accent" />
         <span className="font-mono text-sm font-semibold tracking-tight text-fg">HyPHP</span>
       </div>
       <div className="flex" onDoubleClick={(e) => e.stopPropagation()}>

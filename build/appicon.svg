@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 24 24">
+  <!-- Fonte de appicon.png e tray.png. O glifo é o de logo.svg, em branco,
+       escalado para 15/16 e centrado no ladrilho. -->
+  <rect width="24" height="24" rx="5.5" fill="#3b82f6"/>
+  <g transform="translate(4.5 4.5) scale(.9375)" fill="#ffffff">
+    <path d="M0 1a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H1a1 1 0 0 1-1-1zm9 0a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1z"/>
+    <rect x="9" y="9" width="3" height="3" rx=".6"/>
+    <rect x="13" y="9" width="3" height="3" rx=".6"/>
+    <rect x="9" y="13" width="3" height="3" rx=".6"/>
+    <rect x="13" y="13" width="3" height="3" rx=".6"/>
+  </g>
+</svg>
