@@ -22,6 +22,8 @@ import (
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
+	"hyphp/internal/update"
+	"hyphp/internal/version"
 	"hyphp/internal/webserver"
 	"hyphp/internal/webserver/apache"
 	"hyphp/internal/webserver/nginx"
@@ -38,6 +40,13 @@ var trayIcon []byte
 const opTimeout = 60 * time.Second
 
 func main() {
+	// Modo do atualizador (spec do update §3): roda de uma cópia em
+	// var/update/, antes de log, paths e Wails. Tratado aqui em cima porque
+	// qualquer uma dessas coisas calcularia a raiz a partir da pasta da cópia.
+	if len(os.Args) > 1 && os.Args[1] == update.ApplyFlag {
+		os.Exit(update.RunApply(os.Args[2:]))
+	}
+
 	// O log vai para log/hyphp.log e, havendo console, também para stderr.
 	// Sob o Wails em modo GUI não há console, então sem o arquivo qualquer
 	// falha de bootstrap fica invisível — inclusive para a tela Logs.
@@ -95,6 +104,8 @@ func main() {
 		stk     *stack.Stack
 		watcher *project.Watcher
 		stopFwd func()
+		stopUpd context.CancelFunc
+		updItem *application.MenuItem
 	)
 
 	app := application.New(application.Options{
@@ -118,6 +129,9 @@ func main() {
 		},
 		OnShutdown: func() {
 			// hyphp: shutdown — ordem inversa do boot
+			if stopUpd != nil {
+				stopUpd()
+			}
 			if watcher != nil {
 				_ = watcher.Close()
 			}
@@ -238,6 +252,27 @@ func main() {
 		}
 	}
 
+	// hyphp: 11 — auto-update. Em build de dev fica "inativo" (BuildEnabled).
+	updURL, err := update.DefaultURL()
+	if err != nil {
+		logger.Warn("URL de update inválida; usando a oficial", "err", err)
+		updURL = update.ManifestURL
+	}
+	upd := update.New(update.Config{
+		Current:   version.Current,
+		URL:       updURL,
+		Dir:       filepath.Join(paths.Var(), "update"),
+		Key:       update.PublicKey,
+		Client:    &http.Client{Timeout: 30 * time.Minute},
+		Enabled:   update.BuildEnabled,
+		AutoCheck: func() bool { return !stk.State().AutoUpdateOff },
+		OnStatus: func(s update.Status) {
+			emit("update:status", s)
+			syncUpdateItem(updItem, s)
+		},
+		Logger: logger,
+	})
+
 	// hyphp: services
 	app.RegisterService(application.NewService(services.NewAppService(services.AppDeps{
 		Quit: app.Quit, State: &st, StatePath: statePath, Logger: logger,
@@ -264,6 +299,7 @@ func main() {
 		Runtimes: rtSvc.Installed, // method value: Scan cacheado do RuntimesService
 		Logger:   logger,
 	})))
+	app.RegisterService(application.NewService(services.NewUpdateService(upd, app.Quit)))
 	services.RegisterLogStreams(app, sup)
 	stopFwd = services.ForwardServiceEvents(app, sup)
 
@@ -311,6 +347,14 @@ func main() {
 			}
 		}()
 	})
+	// Oculto até haver versão pronta; syncUpdateItem mostra e rotula.
+	updItem = menu.Add("Atualizar e reiniciar").SetHidden(true).OnClick(func(*application.Context) {
+		go func() {
+			if err := upd.Apply(app.Quit); err != nil {
+				logger.Warn("aplicar atualização (tray)", "err", err)
+			}
+		}()
+	})
 	menu.AddSeparator()
 	menu.Add("Sair").OnClick(func(*application.Context) { app.Quit() })
 	tray.SetMenu(menu)
@@ -326,10 +370,35 @@ func main() {
 		}
 	}()
 
+	// O updater só começa depois que o Wails sobe: o primeiro OnStatus pode
+	// sair já no Start (resultado do update anterior), e syncUpdateItem usa
+	// InvokeAsync, que antes de app.Run() desreferencia um impl nil e derruba
+	// o processo — exatamente no boot que vem logo depois de um update.
+	updCtx, cancelUpd := context.WithCancel(context.Background())
+	stopUpd = cancelUpd
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
+		upd.Start(updCtx)
+	})
+
 	if err := app.Run(); err != nil {
 		logger.Error("app.Run", "err", err)
 		os.Exit(1)
 	}
+}
+
+// syncUpdateItem mostra o item do tray só com versão pronta. Roda na thread
+// de UI porque OnStatus dispara das goroutines de verificação e download.
+func syncUpdateItem(item *application.MenuItem, s update.Status) {
+	if item == nil {
+		return
+	}
+	application.InvokeAsync(func() {
+		ready := s.State == update.StateReady
+		item.SetHidden(!ready)
+		if ready {
+			item.SetLabel("Atualizar para " + s.Available + " e reiniciar")
+		}
+	})
 }
 
 // webServers monta o mapa de web servers a partir do que está instalado em

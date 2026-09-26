@@ -83,7 +83,7 @@ func TestShellExecuteWaitExitCode(t *testing.T) {
 		comspec = `C:\Windows\System32\cmd.exe`
 	}
 	// Verbo "open": mesma mecânica de RunElevated (ShellExecuteEx → espera → exit code), sem UAC.
-	code, err := shellExecuteWait("open", comspec, quoteArgs([]string{"/c", "exit 7"}))
+	code, err := shellExecuteWait("open", comspec, quoteArgs([]string{"/c", "exit 7"}), helperTimeoutMS)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestShellExecuteWaitExitCode(t *testing.T) {
 }
 
 func TestShellExecuteWaitArquivoInexistente(t *testing.T) {
-	_, err := shellExecuteWait("open", filepath.Join(t.TempDir(), "nao-existe.exe"), "")
+	_, err := shellExecuteWait("open", filepath.Join(t.TempDir(), "nao-existe.exe"), "", helperTimeoutMS)
 	if err == nil {
 		t.Fatal("esperava erro para executável inexistente")
 	}

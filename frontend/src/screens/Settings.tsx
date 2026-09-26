@@ -17,7 +17,10 @@ import type { ScreenProps } from '../lib/screens'
 import type { State, Warning } from '../lib/types'
 import { useRuntimes } from '../lib/useRuntimes'
 import { useSettings } from '../lib/useSettings'
+import { useUpdate } from '../lib/useUpdate'
 import { useWarnings } from '../lib/useWarnings'
+import { errorText } from '../lib/errors'
+import type { UpdateStatus } from '../lib/types'
 
 /** Códigos de `stack.Warning` que o card Permissões resolve (C18.42 e C18.45). */
 const HOSTS_PENDING = 'hosts-pending'
@@ -29,16 +32,72 @@ const WEB_SERVERS: Array<{ name: WebServerName; label: string }> = [
   { name: WebServerName.Nginx, label: 'nginx' },
 ]
 
-function errorText(e: unknown): string {
-  return e instanceof Error ? e.message : String(e)
-}
-
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
     <Card>
       <SectionLabel>{label}</SectionLabel>
       <div className="mt-3 flex flex-col gap-3">{children}</div>
     </Card>
+  )
+}
+
+// Texto de estado do auto-update; os estados vêm de internal/update.State.
+function updateLine(s: UpdateStatus) {
+  switch (s.state as string) {
+    case 'inativo':
+      return 'Desligado em builds de desenvolvimento.'
+    case 'ocioso':
+      return 'A primeira verificação acontece um minuto depois de abrir.'
+    case 'verificando':
+      return 'Verificando…'
+    case 'em-dia': {
+      const at = s.checkedAt ? new Date(s.checkedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
+      return `Em dia${at ? ` (verificado às ${at})` : ''}.`
+    }
+    case 'baixando':
+      return `Baixando a versão ${s.available}…`
+    case 'pronto':
+      return `Versão ${s.available} pronta para instalar.`
+    case 'aplicando':
+      return `Instalando a versão ${s.available}…`
+    default:
+      return `Falhou: ${s.error}`
+  }
+}
+
+function UpdateRow() {
+  const { status, busy, error, check, apply } = useUpdate()
+  if (!status) return <Skeleton className="h-9" />
+  const state = status.state as string
+  return (
+    <div className="flex flex-col gap-2">
+      <Row label="Estado">
+        <div className="flex items-center gap-3">
+          <span className={`selectable text-sm ${state === 'falhou' ? 'text-err' : 'text-fg-muted'}`}>
+            {updateLine(status)}
+          </span>
+          {state === 'pronto' ? (
+            <Button variant="primary" size="sm" loading={busy} onClick={() => void apply()}>
+              Atualizar e reiniciar
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              loading={busy || state === 'verificando' || state === 'baixando'}
+              disabled={state === 'inativo' || state === 'aplicando'}
+              onClick={() => void check()}
+            >
+              Verificar agora
+            </Button>
+          )}
+        </div>
+      </Row>
+      {state === 'baixando' && status.total > 0 && (
+        <ProgressBar value={status.done / status.total} label={`${Math.round((status.done / status.total) * 100)}%`} />
+      )}
+      {error && <span className="selectable text-sm text-err">{error}</span>}
+    </div>
   )
 }
 
@@ -415,6 +474,20 @@ export function Settings({ onNavigate }: ScreenProps) {
       <Section label="INICIAR COM O WINDOWS">
         <Row label="Iniciar o HyPHP no login" hint="Abre minimizado no tray.">
           <Toggle checked={draft.autostart} label="Iniciar com o Windows" onChange={(on) => set('autostart', on)} />
+        </Row>
+      </Section>
+
+      <Section label="ATUALIZAÇÕES">
+        <UpdateRow />
+        <Row
+          label="Verificar atualizações automaticamente"
+          hint="A cada 6 horas. O download é automático; a instalação espera o seu clique."
+        >
+          <Toggle
+            checked={!draft.autoUpdateOff}
+            label="Verificar atualizações automaticamente"
+            onChange={(on) => set('autoUpdateOff', !on)}
+          />
         </Row>
       </Section>
 

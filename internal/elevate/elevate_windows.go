@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
@@ -109,7 +110,7 @@ func RunElevated(exe string, args []string) error {
 	full = append(full, "--result", resultPath)
 	full = append(full, args...)
 
-	code, err := shellExecuteWait("runas", exe, quoteArgs(full))
+	code, err := shellExecuteWait("runas", exe, quoteArgs(full), helperTimeoutMS)
 	if err != nil {
 		return err
 	}
@@ -184,9 +185,25 @@ func readResultMessage(path string) string {
 	return res.Error
 }
 
-// shellExecuteWait chama ShellExecuteExW, espera o processo e devolve o exit code.
-// verb é "runas" em produção; os testes usam "open" para exercitar o caminho sem UAC.
-func shellExecuteWait(verb, exe, params string) (uint32, error) {
+// RunInstaller roda o instalador do HyPHP e espera o término, devolvendo o
+// exit code. params vai cru, sem quoteArgs: o /D= do NSIS precisa ser o
+// último argumento e sem aspas, mesmo com espaços no caminho.
+//
+// O verbo é "open", não "runas": o manifesto do instalador já exige admin e o
+// ShellExecuteEx pede o UAC por causa dele. "runas" forçaria elevação até num
+// instalador de escopo usuário, que é o que permite testar o fluxo de update
+// inteiro sem UAC com este mesmo código. UAC recusado → ErrElevationDenied.
+func RunInstaller(exe, params string, timeout time.Duration) (uint32, error) {
+	code, err := shellExecuteWait("open", exe, params, uint32(timeout/time.Millisecond))
+	if errors.Is(err, ErrHelperTimeout) {
+		return 0, fmt.Errorf("instalador não terminou em %s", timeout)
+	}
+	return code, err
+}
+
+// shellExecuteWait chama ShellExecuteExW, espera até timeoutMS e devolve o exit code.
+// verb é "runas" para o helper; os testes usam "open" para exercitar o caminho sem UAC.
+func shellExecuteWait(verb, exe, params string, timeoutMS uint32) (uint32, error) {
 	verbPtr, err := windows.UTF16PtrFromString(verb)
 	if err != nil {
 		return 0, fmt.Errorf("verbo %q: %w", verb, err)
@@ -229,14 +246,14 @@ func shellExecuteWait(verb, exe, params string) (uint32, error) {
 	}
 	defer windows.CloseHandle(info.hProcess)
 
-	event, err := windows.WaitForSingleObject(info.hProcess, helperTimeoutMS)
+	event, err := windows.WaitForSingleObject(info.hProcess, timeoutMS)
 	if err != nil {
 		return 0, fmt.Errorf("WaitForSingleObject: %w", err)
 	}
 	switch event {
 	case windows.WAIT_OBJECT_0:
 	case uint32(windows.WAIT_TIMEOUT): // WAIT_TIMEOUT é syscall.Errno em x/sys/windows
-		return 0, fmt.Errorf("%w (%d s)", ErrHelperTimeout, helperTimeoutMS/1000)
+		return 0, fmt.Errorf("%w (%d s)", ErrHelperTimeout, timeoutMS/1000)
 	default:
 		return 0, fmt.Errorf("WaitForSingleObject devolveu 0x%x", event)
 	}

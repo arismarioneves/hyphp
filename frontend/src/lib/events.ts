@@ -10,6 +10,7 @@ export const EVENTS = {
   downloadProgress: 'download:progress',
   stackWarnings: 'stack:warnings',
   settingsChanged: 'settings:changed',
+  updateStatus: 'update:status',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]

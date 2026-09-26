@@ -8,6 +8,7 @@ import * as ProjectsService from "./projectsservice.js";
 import * as RuntimesService from "./runtimesservice.js";
 import * as ServicesService from "./servicesservice.js";
 import * as SettingsService from "./settingsservice.js";
+import * as UpdateService from "./updateservice.js";
 export {
     AppService,
     DatabaseService,
@@ -15,7 +16,8 @@ export {
     ProjectsService,
     RuntimesService,
     ServicesService,
-    SettingsService
+    SettingsService,
+    UpdateService
 };
 
 export type {

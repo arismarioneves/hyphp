@@ -140,7 +140,7 @@ func TestDownloadCalculaSHAEProgresso(t *testing.T) {
 	var calls int
 	var lastDone, lastTotal int64
 	dst := filepath.Join(t.TempDir(), "x.part")
-	got, err := download(context.Background(), srv.Client(), srv.URL+"/x.zip", dst, func(done, total int64) {
+	got, err := Download(context.Background(), srv.Client(), srv.URL+"/x.zip", dst, func(done, total int64) {
 		calls++
 		lastDone, lastTotal = done, total
 	})
@@ -165,7 +165,7 @@ func TestDownloadRejeitaHTML(t *testing.T) {
 		_, _ = w.Write([]byte("<html>Oops</html>"))
 	}))
 	defer srv.Close()
-	_, err := download(context.Background(), srv.Client(), srv.URL+"/httpd.zip", filepath.Join(t.TempDir(), "x"), func(int64, int64) {})
+	_, err := Download(context.Background(), srv.Client(), srv.URL+"/httpd.zip", filepath.Join(t.TempDir(), "x"), func(int64, int64) {})
 	if err == nil || !strings.Contains(err.Error(), "text/html") {
 		t.Fatalf("esperava erro por text/html, veio %v", err)
 	}

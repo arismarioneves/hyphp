@@ -29,11 +29,11 @@ func (c *countingWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// download baixa url para dst (criado/truncado) em streaming, reportando progresso
+// Download baixa url para dst (criado/truncado) em streaming, reportando progresso
 // (total = -1 quando o servidor não informa Content-Length) e devolvendo o SHA-256
 // hex minúsculo do conteúdo. Respostas text/html são rejeitadas: Apache Lounge
 // responde 200 + HTML "Oops" quando uma build foi substituída.
-func download(ctx context.Context, client *http.Client, url, dst string, onProgress func(done, total int64)) (string, error) {
+func Download(ctx context.Context, client *http.Client, url, dst string, onProgress func(done, total int64)) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("download %s: %w", url, err)

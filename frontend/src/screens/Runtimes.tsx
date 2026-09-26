@@ -13,6 +13,7 @@ import type { ScreenProps } from '../lib/screens'
 import type { Extension, Installed, Package, Progress, RuntimeKind } from '../lib/types'
 import { useRuntimes } from '../lib/useRuntimes'
 import { useSettings } from '../lib/useSettings'
+import { errorText } from '../lib/errors'
 
 const TABS: Array<{ kind: RuntimeKind; label: string }> = [
   { kind: 'php', label: 'PHP' },
@@ -40,9 +41,6 @@ const PHASE_LABELS: Record<string, string> = {
 const KB = 1024
 const MB = 1024 * 1024
 
-function errorText(e: unknown): string {
-  return e instanceof Error ? e.message : String(e)
-}
 
 /**
  * Ordena da versão mais nova para a mais antiga comparando segmento a segmento:

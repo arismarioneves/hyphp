@@ -3,6 +3,7 @@ import '@wailsio/runtime';
 import { Sidebar } from './components/Sidebar';
 import { StatusDot, type ServiceState } from './components/StatusDot';
 import { TitleBar } from './components/TitleBar';
+import { UpdateBanner } from './components/UpdateBanner';
 import { SCREEN_LABELS, type Screen, type ScreenProps } from './lib/screens';
 import { aggregateState, summarize } from './lib/status';
 import { useServices } from './lib/useServices';
@@ -73,6 +74,7 @@ export default function App() {
           status={status}
         />
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <UpdateBanner />
           <header className="px-6 pb-3 pt-5">
             <h1 className="font-mono text-lg text-fg">{SCREEN_LABELS[screen]}</h1>
           </header>

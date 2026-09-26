@@ -59,6 +59,7 @@ processes:
 | Documento | Conteúdo |
 |---|---|
 | `docs/superpowers/specs/2026-09-18-hyphp-design.md` | Especificação: decisões, evidências dos experimentos, riscos abertos |
+| `docs/superpowers/specs/2026-09-26-hyphp-update-design.md` | Auto-update e publicação de versões |
 | `docs/superpowers/plans/2026-09-18-hyphp-00-index.md` | Contratos compartilhados (tipos, assinaturas, eventos) e ordem de execução |
 | `docs/superpowers/plans/2026-09-18-hyphp-0*.md` | Planos de implementação por subsistema |
 | `docs/superpowers/reference/wails3-api.md` | Referência da API do Wails v3 usada pelo projeto |
@@ -102,9 +103,10 @@ wails3 task windows:package   # bin/hyphp-amd64-installer.exe
 ```
 
 O instalador leva `hyphp.exe` e `hyphp-helper.exe`. O helper é o binário com
-manifesto `requireAdministrator` que executa as duas únicas ações elevadas
-(escrever no `hosts`, instalar o certificado raiz local); sem ele ao lado do
-executável principal, essas ações falham.
+manifesto `requireAdministrator` que executa as ações elevadas de rede
+(escrever no `hosts`, instalar o certificado raiz local, a regra de DNS
+curinga); sem ele ao lado do executável principal, essas ações falham. A
+quarta e última ação que pede UAC é instalar uma atualização.
 
 ### Instalação
 
@@ -125,6 +127,35 @@ A desinstalação remove o diretório de instalação, mas **não** desfaz o que
 usuário aplicou no sistema: o bloco do `hosts`, a regra de DNS `.test` e a
 entrada de autostart saem pela própria interface (card **Permissões** em
 Configurações e o toggle de início automático), antes de desinstalar.
+
+### Atualizações
+
+A partir da 1.0.0 o app verifica `https://ae8.com.br/hyphp/releases/latest.json`
+um minuto depois de abrir e a cada 6 horas (desligável em Configurações ›
+Atualizações), baixa o instalador novo em segundo plano e confere a assinatura
+ed25519 do manifesto e o SHA-256 do arquivo. A instalação só acontece no
+clique em **Atualizar e reiniciar**: os serviços param, o Windows pede
+permissão uma vez e o app volta sozinho na versão nova. Builds de
+desenvolvimento (sem `-tags production`) não participam.
+
+### Publicar uma versão
+
+A versão vive em quatro lugares, que o `hyphp-release` confere antes de
+publicar: `internal/version/version.go`, `info.version` em `build/config.yml`,
+`build/windows/info.json` e `INFO_PRODUCTVERSION` em
+`build/windows/nsis/wails_tools.nsh`.
+
+```powershell
+wails3 task windows:package
+go run ./cmd/hyphp-release -nota "O que mudou" -nota "Outra mudança"
+```
+
+O comando copia o instalador para `C:\DEV\hyphp-web\public\releases\<versão>\`,
+atualiza `index.json` e assina `latest.json` com a chave em
+`%USERPROFILE%\.hyphp\release-ed25519.key`. **Guarde um backup dessa chave fora
+da máquina**: sem ela, nenhuma versão instalada aceita update novo. Depois,
+commitar no `hyphp-web` e subir `releases/` para `public_html/hyphp/releases/`.
+O formato está em `C:\DEV\hyphp-web\docs\contrato-releases.md`.
 
 ## Relação com o Laragon
 

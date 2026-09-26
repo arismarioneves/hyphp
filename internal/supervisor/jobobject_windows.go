@@ -11,13 +11,19 @@ import (
 // newKillOnCloseJob cria um Job Object com JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE:
 // quando o último handle do job for fechado, o kernel mata todo processo
 // associado. O chamador é dono do handle.
+//
+// JOB_OBJECT_LIMIT_BREAKAWAY_OK existe para um único processo: o que aplica o
+// update. Ele precisa sobreviver ao app, porque espera o app morrer para rodar
+// o instalador; dentro do job, o kernel o mataria nesse mesmo instante. A flag
+// só libera quem pede CREATE_BREAKAWAY_FROM_JOB ao nascer; os serviços não
+// pedem, continuam presos, e a garantia de zero órfãos (spec §7.1) se mantém.
 func newKillOnCloseJob() (windows.Handle, error) {
 	job, err := windows.CreateJobObject(nil, nil)
 	if err != nil {
 		return 0, fmt.Errorf("CreateJobObject: %w", err)
 	}
 	var info windows.JOBOBJECT_EXTENDED_LIMIT_INFORMATION
-	info.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+	info.BasicLimitInformation.LimitFlags = windows.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | windows.JOB_OBJECT_LIMIT_BREAKAWAY_OK
 	if _, err := windows.SetInformationJobObject(
 		job,
 		windows.JobObjectExtendedLimitInformation,

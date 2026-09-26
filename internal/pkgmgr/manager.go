@@ -67,7 +67,7 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 	defer os.Remove(tmp)
 
 	report(PhaseDownload, 0, -1)
-	sum, err := download(ctx, m.client, pkg.URL, tmp, func(done, total int64) { report(PhaseDownload, done, total) })
+	sum, err := Download(ctx, m.client, pkg.URL, tmp, func(done, total int64) { report(PhaseDownload, done, total) })
 	if err != nil {
 		return fail(fmt.Errorf("pkgmgr: %w", err))
 	}

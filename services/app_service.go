@@ -19,10 +19,8 @@ import (
 	"hyphp/internal/paths"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
+	"hyphp/internal/version"
 )
-
-// Version é a versão do HyPHP exibida em Configurações › Sobre.
-const Version = "0.1.0"
 
 // AppDeps são as dependências injetadas por main.go.
 type AppDeps struct {
@@ -45,7 +43,7 @@ func NewAppService(d AppDeps) *AppService {
 }
 
 // Version retorna a versão do HyPHP.
-func (a *AppService) Version() string { return Version }
+func (a *AppService) Version() string { return version.Current }
 
 // RuntimeRoot retorna a raiz de runtime em uso (bin/, etc/, var/, log/).
 func (a *AppService) RuntimeRoot() string { return paths.Root() }

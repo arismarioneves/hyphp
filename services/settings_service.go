@@ -124,6 +124,7 @@ func (s *SettingsService) Set(in state.State) error {
 		st.Terminal = in.Terminal
 		st.SidebarCollapsed = in.SidebarCollapsed
 		st.Autostart = in.Autostart
+		st.AutoUpdateOff = in.AutoUpdateOff
 	})
 	if err != nil {
 		return err

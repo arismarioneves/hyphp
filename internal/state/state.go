@@ -39,6 +39,9 @@ type State struct {
 	Terminal         string              `json:"terminal"`                // "" = wt.exe se existir, senão cmd
 	SidebarCollapsed bool                `json:"sidebarCollapsed"`
 	Autostart        bool                `json:"autostart"`
+	// AutoUpdateOff desliga a verificação periódica de versões. Invertido de
+	// propósito: o zero-value (ausente em state.json antigo) significa ligado.
+	AutoUpdateOff bool `json:"autoUpdateOff"`
 }
 
 // Default é o estado da primeira execução.

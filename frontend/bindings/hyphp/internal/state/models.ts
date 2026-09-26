@@ -87,6 +87,12 @@ export interface State {
     "terminal": string;
     "sidebarCollapsed": boolean;
     "autostart": boolean;
+
+    /**
+     * AutoUpdateOff desliga a verificação periódica de versões. Invertido de
+     * propósito: o zero-value (ausente em state.json antigo) significa ligado.
+     */
+    "autoUpdateOff": boolean;
 }
 
 /**
