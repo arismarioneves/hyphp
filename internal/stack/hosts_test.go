@@ -36,3 +36,32 @@ func TestSyncHostsReportaSemElevar(t *testing.T) {
 		}
 	}
 }
+
+// Apagar o último projeto deixa o hosts com domínios que precisam sair; o
+// aviso tem de dizer isso, e não "domínios ainda não estão no hosts: " vazio.
+func TestHostsChangeDescreveOsDoisSentidos(t *testing.T) {
+	casos := []struct {
+		nome       string
+		have, want []string
+		contem     []string
+		naoContem  []string
+	}{
+		{"só remover", []string{"velho.test"}, nil, []string{"remover velho.test"}, []string{"adicionar"}},
+		{"só adicionar", nil, []string{"novo.test"}, []string{"adicionar novo.test"}, []string{"remover"}},
+		{"trocar", []string{"a.test", "b.test"}, []string{"b.test", "c.test"}, []string{"adicionar c.test", "remover a.test"}, []string{"b.test"}},
+		{"mesmo conjunto", []string{"a.test"}, []string{"a.test"}, []string{"reescrito"}, nil},
+	}
+	for _, c := range casos {
+		msg := hostsChange(c.have, c.want)
+		for _, s := range c.contem {
+			if !strings.Contains(msg, s) {
+				t.Errorf("%s: %q não contém %q", c.nome, msg, s)
+			}
+		}
+		for _, s := range c.naoContem {
+			if strings.Contains(msg, s) {
+				t.Errorf("%s: %q não deveria conter %q", c.nome, msg, s)
+			}
+		}
+	}
+}

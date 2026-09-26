@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -570,7 +571,7 @@ func orderedIDs(specs []supervisor.Spec) []string {
 // Pior: o Reconcile dispara várias vezes (watcher de projetos, de bin/), e cada
 // chamada enfileirava um diálogo novo — chegaram a empilhar três. Agora o
 // Reconcile só avisa, e a UI oferece a ação.
-func (s *Stack) pendingHosts(sites []webserver.Site) (rendered string, want []string, pending bool, err error) {
+func (s *Stack) pendingHosts(sites []webserver.Site) (rendered string, have, want []string, pending bool, err error) {
 	want = make([]string, 0, len(sites))
 	for _, site := range sites {
 		want = append(want, site.Domain)
@@ -579,23 +580,52 @@ func (s *Stack) pendingHosts(sites []webserver.Site) (rendered string, want []st
 
 	current, err := os.ReadFile(netcfg.HostsPath)
 	if err != nil {
-		return "", nil, false, fmt.Errorf("stack: ler hosts: %w", err)
+		return "", nil, nil, false, fmt.Errorf("stack: ler hosts: %w", err)
 	}
-	have := netcfg.ParseHostsBlock(string(current))
+	have = netcfg.ParseHostsBlock(string(current))
 	sort.Strings(have)
 	if reflect.DeepEqual(have, want) {
-		return "", want, false, nil
+		return "", have, want, false, nil
 	}
 	rendered = netcfg.RenderHostsBlock(string(current), want)
 	if bytes.Equal([]byte(rendered), current) {
-		return "", want, false, nil
+		return "", have, want, false, nil
 	}
-	return rendered, want, true, nil
+	return rendered, have, want, true, nil
+}
+
+// hostsChange descreve a pendência nos dois sentidos. Só "o que falta" não
+// basta: apagar o último projeto deixa want vazio e a mensagem saía
+// "domínios ainda não estão no hosts: " seguida de nada — um pedido de UAC
+// sem motivo visível.
+func hostsChange(have, want []string) string {
+	var add, rem []string
+	for _, d := range want {
+		if !slices.Contains(have, d) {
+			add = append(add, d)
+		}
+	}
+	for _, d := range have {
+		if !slices.Contains(want, d) {
+			rem = append(rem, d)
+		}
+	}
+	var parts []string
+	if len(add) > 0 {
+		parts = append(parts, "adicionar "+strings.Join(add, ", "))
+	}
+	if len(rem) > 0 {
+		parts = append(parts, "remover "+strings.Join(rem, ", "))
+	}
+	if len(parts) == 0 {
+		return "o bloco do HyPHP no hosts precisa ser reescrito"
+	}
+	return "o hosts precisa ser atualizado: " + strings.Join(parts, "; ")
 }
 
 // syncHosts só REPORTA a pendência; a escrita acontece em ApplyHosts.
 func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
-	_, want, pending, err := s.pendingHosts(sites)
+	_, have, want, pending, err := s.pendingHosts(sites)
 	if err != nil {
 		return nil, err
 	}
@@ -604,7 +634,7 @@ func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
 	}
 	return []Warning{{
 		Code:    "hosts-pending",
-		Message: fmt.Sprintf("domínios ainda não estão no hosts: %s", strings.Join(want, ", ")),
+		Message: hostsChange(have, want),
 	}}, nil
 }
 
@@ -616,7 +646,7 @@ func (s *Stack) ApplyHosts(ctx context.Context) error {
 	sites := append([]webserver.Site(nil), s.lastSites...)
 	s.mu.Unlock()
 
-	rendered, want, pending, err := s.pendingHosts(sites)
+	rendered, have, want, pending, err := s.pendingHosts(sites)
 	if err != nil {
 		return err
 	}
@@ -636,7 +666,7 @@ func (s *Stack) ApplyHosts(ctx context.Context) error {
 	}
 	switch err := elevate.RunElevated(helper, []string{"hosts-write", "--from", tmp}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return fmt.Errorf("hosts não atualizado (UAC cancelado); domínios pendentes: %s", strings.Join(want, ", "))
+		return fmt.Errorf("hosts não atualizado (UAC cancelado); %s", hostsChange(have, want))
 	case err != nil:
 		return fmt.Errorf("stack: helper hosts-write: %w", err)
 	}
