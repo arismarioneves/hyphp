@@ -38,9 +38,9 @@ var trayIcon []byte
 const opTimeout = 60 * time.Second
 
 func main() {
-	// O log vai para stderr E para log/hyphp.log. Sob o Wails em modo GUI o
-	// stderr não é observável (não há console anexado), então sem o arquivo
-	// qualquer falha de bootstrap fica invisível — inclusive para a tela Logs.
+	// O log vai para log/hyphp.log e, havendo console, também para stderr.
+	// Sob o Wails em modo GUI não há console, então sem o arquivo qualquer
+	// falha de bootstrap fica invisível — inclusive para a tela Logs.
 	logOut := io.Writer(os.Stderr)
 	if err := paths.EnsureLayout(); err != nil {
 		slog.Error("criar layout de runtime", "root", paths.Root(), "err", err)
@@ -49,7 +49,7 @@ func main() {
 	if f, err := os.OpenFile(filepath.Join(paths.Log(), "hyphp.log"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
 		defer f.Close()
-		logOut = io.MultiWriter(os.Stderr, f)
+		logOut = logOutput(os.Stderr, f)
 	}
 	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	logger.Info("hyphp iniciando", "root", paths.Root())
@@ -356,4 +356,15 @@ func newMkcert(logger *slog.Logger) netcfg.Mkcert {
 		return netcfg.Mkcert{}
 	}
 	return mk
+}
+
+// logOutput devolve o destino do log: o arquivo sempre, e stderr só quando
+// ele existe. No build de produção (-H windowsgui) o stderr é um handle
+// inválido, e io.MultiWriter para no primeiro writer que falha — com stderr
+// na frente, o arquivo nunca recebia nada e log/hyphp.log ficava com 0 bytes.
+func logOutput(stderr *os.File, file io.Writer) io.Writer {
+	if _, err := stderr.Stat(); err != nil {
+		return file
+	}
+	return io.MultiWriter(file, stderr)
 }
