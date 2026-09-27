@@ -157,6 +157,8 @@ com a chave em `%USERPROFILE%\.hyphp\release-ed25519.key`. **Guarde um backup
 dessa chave fora da máquina**: sem ela, nenhuma versão instalada aceita update
 novo. Depois, no `hyphp-web`, commitar `releases/` num commit só e dar push no
 `main`: a integração Git da Hostinger publica o repositório como está.
+Para trocar as notas de uma versão já publicada, sem mexer no instalador:
+`go run ./cmd/hyphp-release -editar-notas 1.0.0 -nota "…"` (reassina o manifesto).
 O formato está em `C:\DEV\hyphp-web\docs\contrato-releases.md`.
 
 ## Relação com o Laragon

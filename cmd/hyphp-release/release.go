@@ -85,24 +85,51 @@ func Publish(o Options) (update.Release, error) {
 		c, _ := update.Compare(b.Version, a.Version) // já validadas
 		return c
 	})
-	if err := writeJSON(filepath.Join(dir, "index.json"), idx); err != nil {
-		return update.Release{}, err
-	}
-	if err := writeReleasesJS(dir, idx); err != nil {
-		return update.Release{}, err
-	}
-	latest, err := marshal(update.Latest{Schema: update.SchemaVersion, Release: idx.Releases[0]})
-	if err != nil {
-		return update.Release{}, err
-	}
-	if err := os.WriteFile(filepath.Join(dir, "latest.json"), latest, 0o644); err != nil {
-		return update.Release{}, err
-	}
-	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(o.Key, latest)) + "\n"
-	if err := os.WriteFile(filepath.Join(dir, "latest.json.sig"), []byte(sig), 0o644); err != nil {
+	if err := writeManifests(dir, idx, o.Key); err != nil {
 		return update.Release{}, err
 	}
 	return rel, nil
+}
+
+// writeManifests grava tudo o que deriva do índice: index.json, releases.js,
+// latest.json e a assinatura. latest.json sai sempre de releases[0]; ed25519 é
+// determinístico, então reescrever um latest igual gera a mesma assinatura.
+func writeManifests(dir string, idx update.Index, key ed25519.PrivateKey) error {
+	if err := writeJSON(filepath.Join(dir, "index.json"), idx); err != nil {
+		return err
+	}
+	if err := writeReleasesJS(dir, idx); err != nil {
+		return err
+	}
+	latest, err := marshal(update.Latest{Schema: update.SchemaVersion, Release: idx.Releases[0]})
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "latest.json"), latest, 0o644); err != nil {
+		return err
+	}
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(key, latest)) + "\n"
+	return os.WriteFile(filepath.Join(dir, "latest.json.sig"), []byte(sig), 0o644)
+}
+
+// EditNotes troca as notas de uma versão já publicada e reassina o manifesto.
+// Só as notas mudam: instalador, tamanho, sha256 e data ficam como estão —
+// arquivo de versão publicada não se reescreve.
+func EditNotes(web, version string, notes []string, key ed25519.PrivateKey) error {
+	dir := releasesDir(web)
+	idx, err := readIndex(filepath.Join(dir, "index.json"))
+	if err != nil {
+		return err
+	}
+	i := slices.IndexFunc(idx.Releases, func(r update.Release) bool { return r.Version == version })
+	if i < 0 {
+		return fmt.Errorf("versão %s não está publicada em %s", version, filepath.Join(dir, "index.json"))
+	}
+	idx.Releases[i].Notes = append([]string{}, notes...)
+	if err := idx.Releases[i].Validate(); err != nil {
+		return err
+	}
+	return writeManifests(dir, idx, key)
 }
 
 // releasesDir é a pasta publicada. Fica na raiz do repositório do site porque

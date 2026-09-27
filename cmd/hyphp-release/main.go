@@ -4,6 +4,7 @@
 //	go run ./cmd/hyphp-release -gerar-chave
 //	go run ./cmd/hyphp-release -nota "Corrige X" -nota "Adiciona Y"
 //	go run ./cmd/hyphp-release -so-js
+//	go run ./cmd/hyphp-release -editar-notas 1.0.0 -nota "Nova nota"
 package main
 
 import (
@@ -37,13 +38,14 @@ func main() {
 func run() error {
 	home, _ := os.UserHomeDir()
 	var (
-		gerar = flag.Bool("gerar-chave", false, "gera o par ed25519 e imprime a chave pública")
-		soJS  = flag.Bool("so-js", false, "só reescreve releases/releases.js a partir do index.json")
-		web   = flag.String("web", `C:\DEV\hyphp-web`, "raiz do repositório do site")
-		inst  = flag.String("instalador", filepath.Join("bin", "hyphp-amd64-installer.exe"), "instalador gerado por wails3 task windows:package")
-		data  = flag.String("data", time.Now().Format(time.DateOnly), "data da publicação (AAAA-MM-DD)")
-		chave = flag.String("chave", filepath.Join(home, ".hyphp", "release-ed25519.key"), "chave privada (seed em hex)")
-		ns    notas
+		gerar   = flag.Bool("gerar-chave", false, "gera o par ed25519 e imprime a chave pública")
+		soJS    = flag.Bool("so-js", false, "só reescreve releases/releases.js a partir do index.json")
+		notasDe = flag.String("editar-notas", "", "troca as notas de uma versão já publicada pelas passadas em -nota e reassina")
+		web     = flag.String("web", `C:\DEV\hyphp-web`, "raiz do repositório do site")
+		inst    = flag.String("instalador", filepath.Join("bin", "hyphp-amd64-installer.exe"), "instalador gerado por wails3 task windows:package")
+		data    = flag.String("data", time.Now().Format(time.DateOnly), "data da publicação (AAAA-MM-DD)")
+		chave   = flag.String("chave", filepath.Join(home, ".hyphp", "release-ed25519.key"), "chave privada (seed em hex)")
+		ns      notas
 	)
 	flag.Var(&ns, "nota", "item das notas da versão (repetível)")
 	flag.Parse()
@@ -54,9 +56,6 @@ func run() error {
 	if *soJS {
 		return Regenerate(*web)
 	}
-	if err := checkVersions(".", version.Current); err != nil {
-		return err
-	}
 	priv, err := loadKey(*chave)
 	if err != nil {
 		return err
@@ -65,6 +64,16 @@ func run() error {
 	// que todo app instalado recusa — em silêncio, do lado do usuário.
 	if !priv.Public().(ed25519.PublicKey).Equal(update.PublicKey) {
 		return fmt.Errorf("a chave %s não corresponde a update.PublicKey embutida no app", *chave)
+	}
+	if *notasDe != "" {
+		if err := EditNotes(*web, *notasDe, ns, priv); err != nil {
+			return err
+		}
+		fmt.Printf("notas de %s trocadas e manifesto reassinado em %s\n", *notasDe, *web)
+		return nil
+	}
+	if err := checkVersions(".", version.Current); err != nil {
+		return err
 	}
 	rel, err := Publish(Options{WebDir: *web, Installer: *inst, Version: version.Current, Date: *data, Notes: ns, Key: priv})
 	if err != nil {

@@ -189,3 +189,57 @@ func TestReleasesJSEspelhaOIndice(t *testing.T) {
 		t.Errorf("releases.js regenerado diverge do index.json")
 	}
 }
+
+// Trocar as notas de uma versão publicada reescreve latest.json, que é
+// assinado: o app instalado só aceita o resultado se a assinatura for refeita.
+// O instalador e os demais campos da versão não podem mudar.
+func TestEditNotesReassinaSemTocarNoInstalador(t *testing.T) {
+	web, inst, pub, priv := ambiente(t)
+	for _, v := range []string{"1.0.0", "1.1.0"} {
+		if err := publicar(t, web, inst, v, priv); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir := filepath.Join(web, "releases")
+	exe := filepath.Join(dir, "1.1.0", "hyphp-1.1.0-windows-amd64-setup.exe")
+	antesExe, _ := os.ReadFile(exe)
+	antes := lerIndice(t, web)
+
+	if err := EditNotes(web, "1.1.0", []string{"Só isto."}, priv); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := os.ReadFile(filepath.Join(dir, "latest.json"))
+	sig, _ := os.ReadFile(filepath.Join(dir, "latest.json.sig"))
+	if err := update.Verify(pub, body, sig); err != nil {
+		t.Fatalf("manifesto editado não verifica: %v", err)
+	}
+	l, err := update.ParseLatest(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(l.Notes, []string{"Só isto."}) {
+		t.Errorf("notas do latest: %q", l.Notes)
+	}
+	depois := lerIndice(t, web)
+	esperado := antes.Releases[0]
+	esperado.Notes = []string{"Só isto."}
+	if !reflect.DeepEqual(depois.Releases[0], esperado) || !reflect.DeepEqual(depois.Releases[1], antes.Releases[1]) {
+		t.Errorf("mudou algo além das notas:\n%+v\n%+v", depois.Releases, antes.Releases)
+	}
+	if depoisExe, _ := os.ReadFile(exe); string(depoisExe) != string(antesExe) {
+		t.Error("o instalador foi reescrito")
+	}
+
+	// Editar uma versão antiga não altera o manifesto que o app lê.
+	latestAntes, _ := os.ReadFile(filepath.Join(dir, "latest.json"))
+	if err := EditNotes(web, "1.0.0", []string{"Antiga."}, priv); err != nil {
+		t.Fatal(err)
+	}
+	if latestDepois, _ := os.ReadFile(filepath.Join(dir, "latest.json")); string(latestDepois) != string(latestAntes) {
+		t.Error("editar a 1.0.0 mudou o latest.json da 1.1.0")
+	}
+
+	if err := EditNotes(web, "9.9.9", nil, priv); err == nil {
+		t.Error("editou versão que não existe")
+	}
+}
