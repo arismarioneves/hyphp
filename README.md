@@ -12,12 +12,13 @@ reproduzível por projeto.
 | Ferramenta | Limitação |
 |---|---|
 | **XAMPP** | `mod_php`: uma versão de PHP por instalação. Sem domínios locais, sem HTTPS local, órfãos após crash. |
-| **Laragon** | Arquitetura correta, mas fechado, sem fonte publicada e com licença exigida a partir da 7.x. Versão de PHP é global, não por projeto; workers não são supervisionados. |
-| **WampServer** | Multi-versão via `mod_php`: só uma versão atende por vez, e a troca reinicia tudo. |
+| **Laragon** | Arquitetura correta, mas fechado, sem fonte publicada e com licença exigida a partir da 7.x. A versão de PHP troca por menu ou por *Profile*, que vale para a instalação inteira, e não fica declarada no projeto. |
+| **WampServer** | PHP por VirtualHost via FCGI desde a 3.2.8 (changelog oficial), mas só Apache, e a configuração mora nos menus e arquivos da instalação, não no projeto. |
 | **DDEV / Devilbox / Lando** | Sólidos e open source, mas exigem Docker — 2–4 GB de RAM antes do primeiro request. |
 
-O HyPHP resolve o caso que nenhum deles resolve bem no Windows: **PHP 7.2 e 8.3 atendendo
-simultaneamente**, cada projeto declarando sua versão, sem Docker e sem `mod_php`.
+O HyPHP junta no Windows, sem Docker, o que os outros entregam separado: **vários PHP
+atendendo ao mesmo tempo**, a versão **declarada no próprio projeto** (`hyphp.yaml`,
+commitável), Apache ou nginx, e workers supervisionados.
 
 ## O que faz diferente
 
