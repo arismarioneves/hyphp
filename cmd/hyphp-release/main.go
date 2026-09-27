@@ -3,6 +3,7 @@
 //
 //	go run ./cmd/hyphp-release -gerar-chave
 //	go run ./cmd/hyphp-release -nota "Corrige X" -nota "Adiciona Y"
+//	go run ./cmd/hyphp-release -so-js
 package main
 
 import (
@@ -37,6 +38,7 @@ func run() error {
 	home, _ := os.UserHomeDir()
 	var (
 		gerar = flag.Bool("gerar-chave", false, "gera o par ed25519 e imprime a chave pública")
+		soJS  = flag.Bool("so-js", false, "só reescreve releases/releases.js a partir do index.json")
 		web   = flag.String("web", `C:\DEV\hyphp-web`, "raiz do repositório do site")
 		inst  = flag.String("instalador", filepath.Join("bin", "hyphp-amd64-installer.exe"), "instalador gerado por wails3 task windows:package")
 		data  = flag.String("data", time.Now().Format(time.DateOnly), "data da publicação (AAAA-MM-DD)")
@@ -48,6 +50,9 @@ func run() error {
 
 	if *gerar {
 		return generateKey(*chave)
+	}
+	if *soJS {
+		return Regenerate(*web)
 	}
 	if err := checkVersions(".", version.Current); err != nil {
 		return err
@@ -66,7 +71,7 @@ func run() error {
 		return err
 	}
 	fmt.Printf("publicada %s em %s\n  %s\n  %d bytes, sha256 %s\n", rel.Version, *web, rel.WindowsAMD64.Path, rel.WindowsAMD64.Size, rel.WindowsAMD64.SHA256)
-	fmt.Println("próximo passo: commitar public/releases/ no hyphp-web e subir dist/releases/ para public_html/hyphp/releases/")
+	fmt.Println("próximo passo: no hyphp-web, commitar releases/ e dar push no main; a Hostinger publica o main")
 	return nil
 }
 

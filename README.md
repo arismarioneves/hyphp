@@ -151,11 +151,12 @@ wails3 task windows:package
 go run ./cmd/hyphp-release -nota "O que mudou" -nota "Outra mudança"
 ```
 
-O comando copia o instalador para `C:\DEV\hyphp-web\public\releases\<versão>\`,
-atualiza `index.json` e assina `latest.json` com a chave em
-`%USERPROFILE%\.hyphp\release-ed25519.key`. **Guarde um backup dessa chave fora
-da máquina**: sem ela, nenhuma versão instalada aceita update novo. Depois,
-commitar no `hyphp-web` e subir `releases/` para `public_html/hyphp/releases/`.
+O comando copia o instalador para `C:\DEV\hyphp-web\releases\<versão>\`,
+atualiza `index.json` e `releases.js` (o que o site lê) e assina `latest.json`
+com a chave em `%USERPROFILE%\.hyphp\release-ed25519.key`. **Guarde um backup
+dessa chave fora da máquina**: sem ela, nenhuma versão instalada aceita update
+novo. Depois, no `hyphp-web`, commitar `releases/` num commit só e dar push no
+`main`: a integração Git da Hostinger publica o repositório como está.
 O formato está em `C:\DEV\hyphp-web\docs\contrato-releases.md`.
 
 ## Relação com o Laragon

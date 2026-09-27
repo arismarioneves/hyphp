@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"hyphp/internal/update"
@@ -34,7 +35,7 @@ func publicar(t *testing.T, web, inst, v string, priv ed25519.PrivateKey) error 
 
 func lerIndice(t *testing.T, web string) update.Index {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(web, "public", "releases", "index.json"))
+	raw, err := os.ReadFile(filepath.Join(web, "releases", "index.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +53,7 @@ func TestPublishGeraManifestoQueOAppAceita(t *testing.T) {
 	if err := publicar(t, web, inst, "1.0.0", priv); err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(web, "public", "releases")
+	dir := filepath.Join(web, "releases")
 	body, err := os.ReadFile(filepath.Join(dir, "latest.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -100,7 +101,7 @@ func TestPublishRecusaRepublicarOuRegredir(t *testing.T) {
 	if err := publicar(t, web, inst, "1.1.0", priv); err != nil {
 		t.Fatal(err)
 	}
-	antes, _ := os.ReadFile(filepath.Join(web, "public", "releases", "latest.json"))
+	antes, _ := os.ReadFile(filepath.Join(web, "releases", "latest.json"))
 
 	if err := publicar(t, web, inst, "1.1.0", priv); err == nil {
 		t.Error("republicou a mesma versão")
@@ -108,11 +109,11 @@ func TestPublishRecusaRepublicarOuRegredir(t *testing.T) {
 	if err := publicar(t, web, inst, "1.0.5", priv); err == nil {
 		t.Error("publicou versão menor que a última")
 	}
-	depois, _ := os.ReadFile(filepath.Join(web, "public", "releases", "latest.json"))
+	depois, _ := os.ReadFile(filepath.Join(web, "releases", "latest.json"))
 	if string(antes) != string(depois) {
 		t.Error("latest.json mudou depois de publicações recusadas")
 	}
-	if _, err := os.Stat(filepath.Join(web, "public", "releases", "1.0.5")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(web, "releases", "1.0.5")); !os.IsNotExist(err) {
 		t.Error("recusa deixou a pasta 1.0.5 para trás")
 	}
 }
@@ -144,5 +145,47 @@ func TestVersoesConsistentes(t *testing.T) {
 	escrever("1.0.0", "1.0.0", "0.1.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("wails_tools.nsh divergente aceito")
+	}
+}
+
+// O site é HTML puro e roda aberto do disco, onde fetch() de arquivo local é
+// bloqueado; ele lê as versões do releases.js. O conteúdo tem de ser o mesmo
+// do index.json, senão o site mostra uma versão e o app baixa outra.
+func TestReleasesJSEspelhaOIndice(t *testing.T) {
+	web, inst, _, priv := ambiente(t)
+	for _, v := range []string{"1.0.0", "1.1.0"} {
+		if err := publicar(t, web, inst, v, priv); err != nil {
+			t.Fatal(err)
+		}
+	}
+	lerJS := func() update.Index {
+		t.Helper()
+		raw, err := os.ReadFile(filepath.Join(web, "releases", "releases.js"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		s := string(raw)
+		if !strings.HasPrefix(s, releasesJSPrefix) || !strings.HasSuffix(s, ";\n") {
+			t.Fatalf("releases.js fora do formato: %q", s)
+		}
+		var idx update.Index
+		if err := json.Unmarshal([]byte(strings.TrimSuffix(strings.TrimPrefix(s, releasesJSPrefix), ";\n")), &idx); err != nil {
+			t.Fatalf("releases.js não carrega um objeto JSON: %v", err)
+		}
+		return idx
+	}
+	if got, want := lerJS(), lerIndice(t, web); !reflect.DeepEqual(got, want) {
+		t.Errorf("releases.js diverge do index.json:\n%+v\n%+v", got, want)
+	}
+
+	// Regenerate recria o arquivo sumido com o mesmo conteúdo.
+	if err := os.Remove(filepath.Join(web, "releases", "releases.js")); err != nil {
+		t.Fatal(err)
+	}
+	if err := Regenerate(web); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := lerJS(), lerIndice(t, web); !reflect.DeepEqual(got, want) {
+		t.Errorf("releases.js regenerado diverge do index.json")
 	}
 }

@@ -29,11 +29,11 @@ type Options struct {
 	Key       ed25519.PrivateKey
 }
 
-// Publish copia o instalador para public/releases/<v>/, atualiza index.json e
-// grava latest.json assinado. Tudo o que pode recusar é checado antes de
-// escrever o primeiro byte: uma publicação recusada não deixa rastro.
+// Publish copia o instalador para releases/<v>/, atualiza index.json e
+// releases.js e grava latest.json assinado. Tudo o que pode recusar é checado
+// antes de escrever o primeiro byte: uma publicação recusada não deixa rastro.
 func Publish(o Options) (update.Release, error) {
-	dir := filepath.Join(o.WebDir, "public", "releases")
+	dir := releasesDir(o.WebDir)
 	idx, err := readIndex(filepath.Join(dir, "index.json"))
 	if err != nil {
 		return update.Release{}, err
@@ -88,6 +88,9 @@ func Publish(o Options) (update.Release, error) {
 	if err := writeJSON(filepath.Join(dir, "index.json"), idx); err != nil {
 		return update.Release{}, err
 	}
+	if err := writeReleasesJS(dir, idx); err != nil {
+		return update.Release{}, err
+	}
 	latest, err := marshal(update.Latest{Schema: update.SchemaVersion, Release: idx.Releases[0]})
 	if err != nil {
 		return update.Release{}, err
@@ -100,6 +103,41 @@ func Publish(o Options) (update.Release, error) {
 		return update.Release{}, err
 	}
 	return rel, nil
+}
+
+// releasesDir é a pasta publicada. Fica na raiz do repositório do site porque
+// a Hostinger publica o repositório inteiro, sem build: releases/ no repo é
+// https://ae8.com.br/hyphp/releases/ no ar.
+func releasesDir(web string) string { return filepath.Join(web, "releases") }
+
+// releasesJSPrefix abre o releases.js. O site é HTML puro e precisa funcionar
+// aberto direto do disco, onde o navegador bloqueia fetch() de arquivo local;
+// um <script src> carrega de qualquer origem.
+const releasesJSPrefix = "// Gerado por cmd/hyphp-release a partir de index.json. Não edite à mão.\nwindow.HYPHP_RELEASES = "
+
+// writeReleasesJS grava o mesmo conteúdo do index.json como script.
+func writeReleasesJS(dir string, idx update.Index) error {
+	raw, err := json.MarshalIndent(idx, "", "  ")
+	if err != nil {
+		return err
+	}
+	out := append([]byte(releasesJSPrefix), raw...)
+	out = append(out, ";\n"...)
+	return os.WriteFile(filepath.Join(dir, "releases.js"), out, 0o644)
+}
+
+// Regenerate reescreve releases.js a partir do index.json existente, sem
+// publicar nada: serve quando o arquivo some ou quando o formato do script muda.
+func Regenerate(web string) error {
+	dir := releasesDir(web)
+	idx, err := readIndex(filepath.Join(dir, "index.json"))
+	if err != nil {
+		return err
+	}
+	if len(idx.Releases) == 0 {
+		return fmt.Errorf("%s não tem versão publicada", filepath.Join(dir, "index.json"))
+	}
+	return writeReleasesJS(dir, idx)
 }
 
 func readIndex(path string) (update.Index, error) {
