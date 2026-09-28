@@ -4,15 +4,16 @@ Ambiente de desenvolvimento PHP com orquestrador próprio: várias versões de P
 domínios diferentes **ao mesmo tempo**, HTTPS local, workers supervisionados e ambiente
 reproduzível por projeto.
 
-> **Status:** em desenvolvimento. O design está fechado e validado por experimento; a
-> implementação está planejada em `docs/superpowers/plans/`. Ainda não há binário utilizável.
+Baixe o instalador na página de [Releases](https://github.com/arismarioneves/hyphp/releases/latest)
+(Windows 10/11 x64). Ele ainda não tem assinatura digital: se o Windows avisar, use
+**Mais informações → Executar assim mesmo**.
 
 ## Por que existe
 
 | Ferramenta | Limitação |
 |---|---|
 | **XAMPP** | `mod_php`: uma versão de PHP por instalação. Sem domínios locais, sem HTTPS local, órfãos após crash. |
-| **Laragon** | Arquitetura correta, mas fechado, sem fonte publicada e com licença exigida a partir da 7.x. A versão de PHP troca por menu ou por *Profile*, que vale para a instalação inteira, e não fica declarada no projeto. |
+| **Laragon** | Arquitetura correta, mas fechado, sem fonte publicada. A versão de PHP troca por menu ou por *Profile*, que vale para a instalação inteira, e não fica declarada no projeto. |
 | **WampServer** | PHP por VirtualHost via FCGI desde a 3.2.8 (changelog oficial), mas só Apache, e a configuração mora nos menus e arquivos da instalação, não no projeto. |
 | **DDEV / Devilbox / Lando** | Sólidos e open source, mas exigem Docker — 2–4 GB de RAM antes do primeiro request. |
 
@@ -35,10 +36,10 @@ commitável), Apache ou nginx, e workers supervisionados.
 
 ## Plataformas
 
-A v1 tem como alvo **Windows 10/11 x64** — deliberadamente o caso mais difícil, já que
-`php-fpm` não existe nessa plataforma. A arquitetura isola o que é específico de sistema
+O alvo é **Windows 10/11 x64** — deliberadamente o caso mais difícil, já que `php-fpm`
+não existe nessa plataforma. A arquitetura isola o que é específico de sistema
 operacional em arquivos com build tag; portar para macOS e Linux é mais simples, porque lá
-`php-fpm` existe e elimina a peça mais complexa do design. Ver §16 da especificação.
+`php-fpm` existe e elimina a peça mais complexa do design.
 
 ## `hyphp.yaml`
 
@@ -55,19 +56,9 @@ processes:
   scheduler: php artisan schedule:work
 ```
 
-## Documentação
-
-| Documento | Conteúdo |
-|---|---|
-| `docs/superpowers/specs/2026-09-18-hyphp-design.md` | Especificação: decisões, evidências dos experimentos, riscos abertos |
-| `docs/superpowers/specs/2026-09-26-hyphp-update-design.md` | Auto-update e publicação de versões |
-| `docs/superpowers/plans/2026-09-18-hyphp-00-index.md` | Contratos compartilhados (tipos, assinaturas, eventos) e ordem de execução |
-| `docs/superpowers/plans/2026-09-18-hyphp-0*.md` | Planos de implementação por subsistema |
-| `docs/superpowers/reference/wails3-api.md` | Referência da API do Wails v3 usada pelo projeto |
-
 ## Stack
 
-Go 1.27 · Wails v3 (WebView2) · React 18 + TypeScript · Tailwind v4 · Phosphor Icons
+Go 1.26 · Wails v3 (WebView2) · React 18 + TypeScript · Tailwind v4 · Phosphor Icons
 
 Componentes orquestrados, baixados das fontes oficiais, cada um sob a própria licença:
 
@@ -131,12 +122,14 @@ Configurações e o toggle de início automático), antes de desinstalar.
 
 ### Atualizações
 
-A partir da 1.0.0 o app verifica `https://ae8.com.br/hyphp/releases/latest.json`
+O app verifica a release mais nova em
+`https://github.com/arismarioneves/hyphp/releases/latest/download/latest.json`
 um minuto depois de abrir e a cada 6 horas (desligável em Configurações ›
-Atualizações), baixa o instalador novo em segundo plano e confere a assinatura
-ed25519 do manifesto e o SHA-256 do arquivo. A instalação só acontece no
-clique em **Atualizar e reiniciar**: os serviços param, o Windows pede
-permissão uma vez e o app volta sozinho na versão nova. Builds de
+Atualizações) e baixa o instalador novo em segundo plano. O manifesto é assinado
+com ed25519 (chave pública em `internal/update/key.go`) e traz o SHA-256 do
+instalador; o app recusa manifesto ou instalador que não batam. A instalação só
+acontece no clique em **Atualizar e reiniciar**: os serviços param, o Windows
+pede permissão uma vez e o app volta sozinho na versão nova. Builds de
 desenvolvimento (sem `-tags production`) não participam.
 
 ### Publicar uma versão
@@ -144,22 +137,16 @@ desenvolvimento (sem `-tags production`) não participam.
 A versão vive em quatro lugares, que o `hyphp-release` confere antes de
 publicar: `internal/version/version.go`, `info.version` em `build/config.yml`,
 `build/windows/info.json` e `INFO_PRODUCTVERSION` em
-`build/windows/nsis/wails_tools.nsh`.
+`build/windows/nsis/wails_tools.nsh`. Com a tag `v<versão>` já no GitHub:
 
 ```powershell
 wails3 task windows:package
 go run ./cmd/hyphp-release -nota "O que mudou" -nota "Outra mudança"
 ```
 
-O comando copia o instalador para `C:\DEV\hyphp-web\releases\<versão>\`,
-atualiza `index.json` e `releases.js` (o que o site lê) e assina `latest.json`
-com a chave em `%USERPROFILE%\.hyphp\release-ed25519.key`. **Guarde um backup
-dessa chave fora da máquina**: sem ela, nenhuma versão instalada aceita update
-novo. Depois, no `hyphp-web`, commitar `releases/` num commit só e dar push no
-`main`: a integração Git da Hostinger publica o repositório como está.
-Para trocar as notas de uma versão já publicada, sem mexer no instalador:
-`go run ./cmd/hyphp-release -editar-notas 1.0.0 -nota "…"` (reassina o manifesto).
-O formato está em `C:\DEV\hyphp-web\docs\contrato-releases.md`.
+O comando assina o `latest.json` com a chave de release e cria a release com o
+instalador, o manifesto e a assinatura (via `gh`). A release é imutável: as
+notas precisam estar certas antes de publicar.
 
 ## Relação com o Laragon
 
@@ -168,3 +155,20 @@ reporta `"license": null`) e não publica código-fonte — o repositório cont�
 binário compilado. Reaproveitamos **ideias e comportamento** (domínios `.test`, orquestração
 própria, layout portátil), que não são protegidos por copyright, e nenhum arquivo de
 configuração, template ou artefato derivado do executável dele.
+
+## Licença
+
+O código fica aberto para leitura, no modelo *open core* do Chatwoot e do GitLab:
+
+- **Tudo fora de `enterprise/`** usa a [PolyForm Shield 1.0.0](LICENSE). Qualquer
+  pessoa ou empresa pode usar o HyPHP de graça, inclusive no trabalho, e estudar,
+  modificar e compartilhar o código. O que ela não permite é oferecer um produto
+  que concorra com o HyPHP ou com os recursos pagos dele, seja pago ou gratuito,
+  o que inclui vender o próprio HyPHP.
+- **`enterprise/`** vai guardar os recursos pagos, com [licença própria](enterprise/LICENSE)
+  e uso por assinatura. Hoje ela só tem a licença: ainda não existe recurso pago.
+
+Contribuições exigem aceitar o [CLA](CLA.md); ver [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Os componentes que o HyPHP baixa (tabela em [Stack](#stack)) seguem cada um a
+própria licença.
