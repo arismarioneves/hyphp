@@ -4,14 +4,18 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
 	"hyphp/internal/update"
 )
+
+const testRepo = "dono/hyphp"
 
 func ambiente(t *testing.T) (web, inst string, pub ed25519.PublicKey, priv ed25519.PrivateKey) {
 	t.Helper()
@@ -27,9 +31,29 @@ func ambiente(t *testing.T) (web, inst string, pub ed25519.PublicKey, priv ed255
 	return web, inst, pub, priv
 }
 
-func publicar(t *testing.T, web, inst, v string, priv ed25519.PrivateKey) error {
+// ghCall é uma chamada ao gh falso. Os arquivos são lidos na hora da chamada,
+// porque o Publish apaga a pasta temporária ao sair.
+type ghCall struct {
+	args  []string
+	files map[string][]byte // nome base → conteúdo
+}
+
+func fakeGH(calls *[]ghCall, fail error) func(args ...string) error {
+	return func(args ...string) error {
+		c := ghCall{args: args, files: map[string][]byte{}}
+		for _, a := range args {
+			if b, err := os.ReadFile(a); err == nil {
+				c.files[filepath.Base(a)] = b
+			}
+		}
+		*calls = append(*calls, c)
+		return fail
+	}
+}
+
+func publicar(t *testing.T, web, inst, v string, priv ed25519.PrivateKey, calls *[]ghCall) error {
 	t.Helper()
-	_, err := Publish(Options{WebDir: web, Installer: inst, Version: v, Date: "2026-09-26", Notes: []string{"nota " + v}, Key: priv})
+	_, err := Publish(Options{WebDir: web, Repo: testRepo, Installer: inst, Version: v, Date: "2026-09-26", Notes: []string{"nota " + v}, Key: priv, GH: fakeGH(calls, nil)})
 	return err
 }
 
@@ -46,22 +70,26 @@ func lerIndice(t *testing.T, web string) update.Index {
 	return idx
 }
 
-// O que o app instalado vai ler precisa passar exatamente pelo mesmo caminho
-// que ele usa: Verify sobre os bytes publicados e depois ParseLatest.
-func TestPublishGeraManifestoQueOAppAceita(t *testing.T) {
+// O que vai para a release é o que o app instalado lê: precisa passar pelo
+// mesmo caminho que ele usa, Verify sobre os bytes enviados e ParseLatest.
+func TestPublishCriaReleaseQueOAppAceita(t *testing.T) {
 	web, inst, pub, priv := ambiente(t)
-	if err := publicar(t, web, inst, "1.0.0", priv); err != nil {
+	var calls []ghCall
+	if err := publicar(t, web, inst, "1.0.0", priv, &calls); err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(web, "releases")
-	body, err := os.ReadFile(filepath.Join(dir, "latest.json"))
-	if err != nil {
-		t.Fatal(err)
+	if len(calls) != 1 {
+		t.Fatalf("gh chamado %d vezes", len(calls))
 	}
-	sig, err := os.ReadFile(filepath.Join(dir, "latest.json.sig"))
-	if err != nil {
-		t.Fatal(err)
+	c := calls[0]
+	want := []string{"release", "create", "v1.0.0", "--repo", testRepo, "--verify-tag", "--latest", "--title", "HyPHP 1.0.0"}
+	if !slices.Equal(c.args[:len(want)], want) {
+		t.Fatalf("args = %q", c.args)
 	}
+	if got := string(c.files["notas.md"]); got != "- nota 1.0.0\n" {
+		t.Errorf("notas da release = %q", got)
+	}
+	body, sig := c.files["latest.json"], c.files["latest.json.sig"]
 	if err := update.Verify(pub, body, sig); err != nil {
 		t.Fatalf("app recusaria a assinatura: %v", err)
 	}
@@ -69,22 +97,31 @@ func TestPublishGeraManifestoQueOAppAceita(t *testing.T) {
 	if err != nil {
 		t.Fatalf("app recusaria o manifesto: %v", err)
 	}
-	if idx := lerIndice(t, web); !reflect.DeepEqual(l.Release, idx.Releases[0]) {
-		t.Errorf("latest.json diverge de index.releases[0]:\n%+v\n%+v", l.Release, idx.Releases[0])
+	exe, ok := c.files[l.WindowsAMD64.Path]
+	if !ok || l.WindowsAMD64.Path != "hyphp-1.0.0-windows-amd64-setup.exe" {
+		t.Fatalf("o path %q não é o nome de um asset enviado (%v)", l.WindowsAMD64.Path, c.args)
 	}
-	copia, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(l.WindowsAMD64.Path)))
-	if err != nil {
-		t.Fatalf("instalador não está no path anunciado: %v", err)
+	if int64(len(exe)) != l.WindowsAMD64.Size || string(exe) != "instalador de teste" {
+		t.Errorf("asset do instalador não é o arquivo passado")
 	}
-	if int64(len(copia)) != l.WindowsAMD64.Size {
-		t.Errorf("size anunciado %d, arquivo tem %d", l.WindowsAMD64.Size, len(copia))
+
+	idx := lerIndice(t, web)
+	if idx.GitHub != testRepo || !reflect.DeepEqual(l.Release, idx.Releases[0]) {
+		t.Errorf("index.json não registra a release:\n%+v\n%+v", idx, l.Release)
+	}
+	// O site deixou de ser o feed: nada de manifesto nem instalador nele.
+	for _, sobra := range []string{"latest.json", "latest.json.sig", "1.0.0"} {
+		if _, err := os.Stat(filepath.Join(web, "releases", sobra)); !os.IsNotExist(err) {
+			t.Errorf("releases/%s gravado no site", sobra)
+		}
 	}
 }
 
 func TestPublishOrdenaPorVersaoNumerica(t *testing.T) {
 	web, inst, _, priv := ambiente(t)
+	var calls []ghCall
 	for _, v := range []string{"1.0.9", "1.0.10"} {
-		if err := publicar(t, web, inst, v, priv); err != nil {
+		if err := publicar(t, web, inst, v, priv, &calls); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -94,27 +131,41 @@ func TestPublishOrdenaPorVersaoNumerica(t *testing.T) {
 	}
 }
 
-// Arquivo de versão publicada é imutável: o .htaccess manda o CDN guardar o
-// .exe por um ano, e republicar serviria o instalador velho com o sha novo.
+// Release publicada é imutável no GitHub: a mesma versão, ou uma menor que a
+// última, é recusada antes de chamar o gh.
 func TestPublishRecusaRepublicarOuRegredir(t *testing.T) {
 	web, inst, _, priv := ambiente(t)
-	if err := publicar(t, web, inst, "1.1.0", priv); err != nil {
+	var calls []ghCall
+	if err := publicar(t, web, inst, "1.1.0", priv, &calls); err != nil {
 		t.Fatal(err)
 	}
-	antes, _ := os.ReadFile(filepath.Join(web, "releases", "latest.json"))
+	antes, _ := os.ReadFile(filepath.Join(web, "releases", "index.json"))
 
-	if err := publicar(t, web, inst, "1.1.0", priv); err == nil {
+	if err := publicar(t, web, inst, "1.1.0", priv, &calls); err == nil {
 		t.Error("republicou a mesma versão")
 	}
-	if err := publicar(t, web, inst, "1.0.5", priv); err == nil {
+	if err := publicar(t, web, inst, "1.0.5", priv, &calls); err == nil {
 		t.Error("publicou versão menor que a última")
 	}
-	depois, _ := os.ReadFile(filepath.Join(web, "releases", "latest.json"))
-	if string(antes) != string(depois) {
-		t.Error("latest.json mudou depois de publicações recusadas")
+	if len(calls) != 1 {
+		t.Errorf("gh chamado %d vezes; as recusas não podiam chegar nele", len(calls))
 	}
-	if _, err := os.Stat(filepath.Join(web, "releases", "1.0.5")); !os.IsNotExist(err) {
-		t.Error("recusa deixou a pasta 1.0.5 para trás")
+	if depois, _ := os.ReadFile(filepath.Join(web, "releases", "index.json")); string(antes) != string(depois) {
+		t.Error("index.json mudou depois de publicações recusadas")
+	}
+}
+
+// gh falhou (sem login, tag ausente, rede): o site não pode anunciar uma
+// versão que não existe no GitHub.
+func TestPublishGHFalhouNaoMexeNoSite(t *testing.T) {
+	web, inst, _, priv := ambiente(t)
+	var calls []ghCall
+	_, err := Publish(Options{WebDir: web, Repo: testRepo, Installer: inst, Version: "1.0.0", Date: "2026-09-26", Notes: []string{"x"}, Key: priv, GH: fakeGH(&calls, errors.New("tag v1.0.0 não existe"))})
+	if err == nil || !strings.Contains(err.Error(), "tag v1.0.0") {
+		t.Fatalf("erro do gh não voltou: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(web, "releases")); !os.IsNotExist(err) {
+		t.Error("o site ganhou arquivos de uma release que falhou")
 	}
 }
 
@@ -153,8 +204,9 @@ func TestVersoesConsistentes(t *testing.T) {
 // do index.json, senão o site mostra uma versão e o app baixa outra.
 func TestReleasesJSEspelhaOIndice(t *testing.T) {
 	web, inst, _, priv := ambiente(t)
+	var calls []ghCall
 	for _, v := range []string{"1.0.0", "1.1.0"} {
-		if err := publicar(t, web, inst, v, priv); err != nil {
+		if err := publicar(t, web, inst, v, priv, &calls); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -187,59 +239,5 @@ func TestReleasesJSEspelhaOIndice(t *testing.T) {
 	}
 	if got, want := lerJS(), lerIndice(t, web); !reflect.DeepEqual(got, want) {
 		t.Errorf("releases.js regenerado diverge do index.json")
-	}
-}
-
-// Trocar as notas de uma versão publicada reescreve latest.json, que é
-// assinado: o app instalado só aceita o resultado se a assinatura for refeita.
-// O instalador e os demais campos da versão não podem mudar.
-func TestEditNotesReassinaSemTocarNoInstalador(t *testing.T) {
-	web, inst, pub, priv := ambiente(t)
-	for _, v := range []string{"1.0.0", "1.1.0"} {
-		if err := publicar(t, web, inst, v, priv); err != nil {
-			t.Fatal(err)
-		}
-	}
-	dir := filepath.Join(web, "releases")
-	exe := filepath.Join(dir, "1.1.0", "hyphp-1.1.0-windows-amd64-setup.exe")
-	antesExe, _ := os.ReadFile(exe)
-	antes := lerIndice(t, web)
-
-	if err := EditNotes(web, "1.1.0", []string{"Só isto."}, priv); err != nil {
-		t.Fatal(err)
-	}
-	body, _ := os.ReadFile(filepath.Join(dir, "latest.json"))
-	sig, _ := os.ReadFile(filepath.Join(dir, "latest.json.sig"))
-	if err := update.Verify(pub, body, sig); err != nil {
-		t.Fatalf("manifesto editado não verifica: %v", err)
-	}
-	l, err := update.ParseLatest(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(l.Notes, []string{"Só isto."}) {
-		t.Errorf("notas do latest: %q", l.Notes)
-	}
-	depois := lerIndice(t, web)
-	esperado := antes.Releases[0]
-	esperado.Notes = []string{"Só isto."}
-	if !reflect.DeepEqual(depois.Releases[0], esperado) || !reflect.DeepEqual(depois.Releases[1], antes.Releases[1]) {
-		t.Errorf("mudou algo além das notas:\n%+v\n%+v", depois.Releases, antes.Releases)
-	}
-	if depoisExe, _ := os.ReadFile(exe); string(depoisExe) != string(antesExe) {
-		t.Error("o instalador foi reescrito")
-	}
-
-	// Editar uma versão antiga não altera o manifesto que o app lê.
-	latestAntes, _ := os.ReadFile(filepath.Join(dir, "latest.json"))
-	if err := EditNotes(web, "1.0.0", []string{"Antiga."}, priv); err != nil {
-		t.Fatal(err)
-	}
-	if latestDepois, _ := os.ReadFile(filepath.Join(dir, "latest.json")); string(latestDepois) != string(latestAntes) {
-		t.Error("editar a 1.0.0 mudou o latest.json da 1.1.0")
-	}
-
-	if err := EditNotes(web, "9.9.9", nil, priv); err == nil {
-		t.Error("editou versão que não existe")
 	}
 }

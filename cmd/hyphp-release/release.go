@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -21,28 +22,31 @@ import (
 
 // Options descreve uma publicação.
 type Options struct {
-	WebDir    string // raiz do repositório hyphp-web
+	WebDir    string // raiz do repositório do site
+	Repo      string // "<dono>/<repo>" das releases no GitHub
 	Installer string // instalador gerado por `wails3 task windows:package`
 	Version   string
 	Date      string // AAAA-MM-DD
 	Notes     []string
 	Key       ed25519.PrivateKey
+	// GH roda o GitHub CLI com os argumentos dados; o teste troca por um
+	// falso que só registra a chamada.
+	GH func(args ...string) error
 }
 
-// Publish copia o instalador para releases/<v>/, atualiza index.json e
-// releases.js e grava latest.json assinado. Tudo o que pode recusar é checado
-// antes de escrever o primeiro byte: uma publicação recusada não deixa rastro.
+// Publish cria a release v<versão> no GitHub com três assets — o instalador,
+// latest.json e latest.json.sig — e só então acrescenta a versão ao
+// index.json e ao releases.js do site. Tudo o que pode recusar é checado
+// antes do gh, e o site só muda depois de ele dar certo: uma publicação
+// recusada não deixa rastro.
+//
+// A release é imutável depois de publicada (o repositório liga "immutable
+// releases"): notas erradas no latest.json só se corrigem com versão nova.
 func Publish(o Options) (update.Release, error) {
 	dir := releasesDir(o.WebDir)
 	idx, err := readIndex(filepath.Join(dir, "index.json"))
 	if err != nil {
 		return update.Release{}, err
-	}
-	// Arquivo de versão publicada é imutável: o CDN guarda o .exe por um ano,
-	// e republicar serviria o instalador velho com o sha256 novo.
-	verDir := filepath.Join(dir, o.Version)
-	if _, err := os.Stat(verDir); err == nil {
-		return update.Release{}, fmt.Errorf("versão %s já publicada em %s; correção sai como versão nova", o.Version, verDir)
 	}
 	if len(idx.Releases) > 0 {
 		c, err := update.Compare(o.Version, idx.Releases[0].Version)
@@ -62,79 +66,96 @@ func Publish(o Options) (update.Release, error) {
 		Version: o.Version,
 		Date:    o.Date,
 		Notes:   append([]string{}, o.Notes...),
-		WindowsAMD64: &update.Artifact{
-			Path:   o.Version + "/" + name,
-			Size:   size,
-			SHA256: sum,
-		},
+		// Só o nome: o app resolve o path contra a pasta do manifesto, que no
+		// GitHub é releases/latest/download/.
+		WindowsAMD64: &update.Artifact{Path: name, Size: size, SHA256: sum},
 	}
-	// A mesma validação que o app faz: o site nunca serve o que ele recusaria.
+	// A mesma validação que o app faz: nunca publicar o que ele recusaria.
 	if err := rel.Validate(); err != nil {
 		return update.Release{}, err
 	}
 
-	if err := os.MkdirAll(verDir, 0o755); err != nil {
+	stage, err := os.MkdirTemp("", "hyphp-release-")
+	if err != nil {
 		return update.Release{}, err
 	}
-	if err := copyFile(o.Installer, filepath.Join(verDir, name)); err != nil {
+	defer os.RemoveAll(stage)
+	assets, err := stageAssets(stage, o.Installer, name, rel, o.Key)
+	if err != nil {
 		return update.Release{}, err
 	}
+	notes := filepath.Join(stage, "notas.md")
+	if err := os.WriteFile(notes, notesMarkdown(rel.Notes), 0o644); err != nil {
+		return update.Release{}, err
+	}
+	// --verify-tag: a tag tem de estar no GitHub antes, senão o gh criaria
+	// uma apontando para o topo do main, que pode não ser o que foi compilado.
+	args := []string{"release", "create", "v" + o.Version, "--repo", o.Repo, "--verify-tag", "--latest",
+		"--title", "HyPHP " + o.Version, "--notes-file", notes}
+	if err := o.GH(append(args, assets...)...); err != nil {
+		return update.Release{}, fmt.Errorf("gh release create v%s: %w", o.Version, err)
+	}
+
 	idx.Schema = update.SchemaVersion
+	idx.GitHub = o.Repo
 	idx.Releases = append(idx.Releases, rel)
 	slices.SortFunc(idx.Releases, func(a, b update.Release) int {
 		c, _ := update.Compare(b.Version, a.Version) // já validadas
 		return c
 	})
-	if err := writeManifests(dir, idx, o.Key); err != nil {
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return update.Release{}, err
 	}
-	return rel, nil
-}
-
-// writeManifests grava tudo o que deriva do índice: index.json, releases.js,
-// latest.json e a assinatura. latest.json sai sempre de releases[0]; ed25519 é
-// determinístico, então reescrever um latest igual gera a mesma assinatura.
-func writeManifests(dir string, idx update.Index, key ed25519.PrivateKey) error {
 	if err := writeJSON(filepath.Join(dir, "index.json"), idx); err != nil {
-		return err
+		return update.Release{}, err
 	}
-	if err := writeReleasesJS(dir, idx); err != nil {
-		return err
+	return rel, writeReleasesJS(dir, idx)
+}
+
+// stageAssets monta em dir os três arquivos da release e devolve os caminhos
+// na ordem em que vão para o gh. ed25519 assina os bytes exatos do
+// latest.json, e é sobre esses bytes que o app roda Verify.
+func stageAssets(dir, installer, name string, rel update.Release, key ed25519.PrivateKey) ([]string, error) {
+	exe := filepath.Join(dir, name)
+	if err := copyFile(installer, exe); err != nil {
+		return nil, err
 	}
-	latest, err := marshal(update.Latest{Schema: update.SchemaVersion, Release: idx.Releases[0]})
+	latest, err := marshal(update.Latest{Schema: update.SchemaVersion, Release: rel})
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "latest.json"), latest, 0o644); err != nil {
-		return err
+	latestPath := filepath.Join(dir, "latest.json")
+	if err := os.WriteFile(latestPath, latest, 0o644); err != nil {
+		return nil, err
 	}
+	sigPath := latestPath + ".sig"
 	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(key, latest)) + "\n"
-	return os.WriteFile(filepath.Join(dir, "latest.json.sig"), []byte(sig), 0o644)
+	if err := os.WriteFile(sigPath, []byte(sig), 0o644); err != nil {
+		return nil, err
+	}
+	return []string{exe, latestPath, sigPath}, nil
 }
 
-// EditNotes troca as notas de uma versão já publicada e reassina o manifesto.
-// Só as notas mudam: instalador, tamanho, sha256 e data ficam como estão —
-// arquivo de versão publicada não se reescreve.
-func EditNotes(web, version string, notes []string, key ed25519.PrivateKey) error {
-	dir := releasesDir(web)
-	idx, err := readIndex(filepath.Join(dir, "index.json"))
-	if err != nil {
-		return err
+// notesMarkdown vira a descrição da release: uma linha "- " por nota.
+func notesMarkdown(notes []string) []byte {
+	var b []byte
+	for _, n := range notes {
+		b = append(b, "- "+n+"\n"...)
 	}
-	i := slices.IndexFunc(idx.Releases, func(r update.Release) bool { return r.Version == version })
-	if i < 0 {
-		return fmt.Errorf("versão %s não está publicada em %s", version, filepath.Join(dir, "index.json"))
-	}
-	idx.Releases[i].Notes = append([]string{}, notes...)
-	if err := idx.Releases[i].Validate(); err != nil {
-		return err
-	}
-	return writeManifests(dir, idx, key)
+	return b
 }
 
-// releasesDir é a pasta publicada. Fica na raiz do repositório do site porque
-// a Hostinger publica o repositório inteiro, sem build: releases/ no repo é
-// https://ae8.com.br/hyphp/releases/ no ar.
+// runGH é o Options.GH de verdade: o gh herda o terminal, então login e
+// progresso do upload aparecem para quem publica.
+func runGH(args ...string) error {
+	cmd := exec.Command("gh", args...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	return cmd.Run()
+}
+
+// releasesDir guarda o histórico que o site mostra. Fica na raiz do
+// repositório do site porque a Hostinger publica o repositório inteiro, sem
+// build. Os instaladores não moram mais aqui: ficam nas releases do GitHub.
 func releasesDir(web string) string { return filepath.Join(web, "releases") }
 
 // releasesJSPrefix abre o releases.js. O site é HTML puro e precisa funcionar

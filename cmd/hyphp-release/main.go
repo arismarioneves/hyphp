@@ -1,10 +1,9 @@
-// Command hyphp-release publica uma versão do HyPHP na pasta releases/ do
-// site (C:\DEV\hyphp-web\docs\contrato-releases.md).
+// Command hyphp-release publica uma versão do HyPHP como release do GitHub e
+// registra a versão no histórico do site (releases/index.json e releases.js).
 //
 //	go run ./cmd/hyphp-release -gerar-chave
 //	go run ./cmd/hyphp-release -nota "Corrige X" -nota "Adiciona Y"
 //	go run ./cmd/hyphp-release -so-js
-//	go run ./cmd/hyphp-release -editar-notas 1.0.0 -nota "Nova nota"
 package main
 
 import (
@@ -38,14 +37,13 @@ func main() {
 func run() error {
 	home, _ := os.UserHomeDir()
 	var (
-		gerar   = flag.Bool("gerar-chave", false, "gera o par ed25519 e imprime a chave pública")
-		soJS    = flag.Bool("so-js", false, "só reescreve releases/releases.js a partir do index.json")
-		notasDe = flag.String("editar-notas", "", "troca as notas de uma versão já publicada pelas passadas em -nota e reassina")
-		web     = flag.String("web", `C:\DEV\hyphp-web`, "raiz do repositório do site")
-		inst    = flag.String("instalador", filepath.Join("bin", "hyphp-amd64-installer.exe"), "instalador gerado por wails3 task windows:package")
-		data    = flag.String("data", time.Now().Format(time.DateOnly), "data da publicação (AAAA-MM-DD)")
-		chave   = flag.String("chave", filepath.Join(home, ".hyphp", "release-ed25519.key"), "chave privada (seed em hex)")
-		ns      notas
+		gerar = flag.Bool("gerar-chave", false, "gera o par ed25519 e imprime a chave pública")
+		soJS  = flag.Bool("so-js", false, "só reescreve releases/releases.js a partir do index.json")
+		web   = flag.String("web", `C:\DEV\hyphp-web`, "raiz do repositório do site")
+		inst  = flag.String("instalador", filepath.Join("bin", "hyphp-amd64-installer.exe"), "instalador gerado por wails3 task windows:package")
+		data  = flag.String("data", time.Now().Format(time.DateOnly), "data da publicação (AAAA-MM-DD)")
+		chave = flag.String("chave", filepath.Join(home, ".hyphp", "release-ed25519.key"), "chave privada (seed em hex)")
+		ns    notas
 	)
 	flag.Var(&ns, "nota", "item das notas da versão (repetível)")
 	flag.Parse()
@@ -65,22 +63,20 @@ func run() error {
 	if !priv.Public().(ed25519.PublicKey).Equal(update.PublicKey) {
 		return fmt.Errorf("a chave %s não corresponde a update.PublicKey embutida no app", *chave)
 	}
-	if *notasDe != "" {
-		if err := EditNotes(*web, *notasDe, ns, priv); err != nil {
-			return err
-		}
-		fmt.Printf("notas de %s trocadas e manifesto reassinado em %s\n", *notasDe, *web)
-		return nil
+	if len(ns) == 0 {
+		// A release é imutável: sem nota agora, o app mostraria a versão nova
+		// sem dizer o que mudou, e não daria para corrigir depois.
+		return errors.New("passe ao menos um -nota")
 	}
 	if err := checkVersions(".", version.Current); err != nil {
 		return err
 	}
-	rel, err := Publish(Options{WebDir: *web, Installer: *inst, Version: version.Current, Date: *data, Notes: ns, Key: priv})
+	rel, err := Publish(Options{WebDir: *web, Repo: update.GitHubRepo, Installer: *inst, Version: version.Current, Date: *data, Notes: ns, Key: priv, GH: runGH})
 	if err != nil {
 		return err
 	}
-	fmt.Printf("publicada %s em %s\n  %s\n  %d bytes, sha256 %s\n", rel.Version, *web, rel.WindowsAMD64.Path, rel.WindowsAMD64.Size, rel.WindowsAMD64.SHA256)
-	fmt.Println("próximo passo: no hyphp-web, commitar releases/ e dar push no main; a Hostinger publica o main")
+	fmt.Printf("publicada %s em https://github.com/%s/releases/tag/v%s\n  %s, %d bytes, sha256 %s\n", rel.Version, update.GitHubRepo, rel.Version, rel.WindowsAMD64.Path, rel.WindowsAMD64.Size, rel.WindowsAMD64.SHA256)
+	fmt.Println("próximo passo: no hyphp-web, commitar releases/index.json e releases/releases.js e dar push no main")
 	return nil
 }
 
