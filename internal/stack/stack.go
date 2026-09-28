@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -372,10 +373,32 @@ func (s *Stack) InstallCA(ctx context.Context) error {
 // renderWeb renderiza em etc/<name>.next, valida lá e só então grava em
 // etc/<name>. Isso exige que Render() seja relocável (C6 — sem etcDir embutido).
 // Retorna changed=true se algum arquivo do destino mudou.
+//
+// A cópia validada escuta em portas livres, e não nas reais: o nginx -t faz
+// bind() de cada listen, e o Apache no Windows segura as portas com
+// SO_EXCLUSIVEADDRUSE. Validar nas reais fazia a troca Apache → nginx falhar
+// sempre, com erro 10013, antes de o Apache ser parado. As duas cópias só
+// diferem nos números de porta; conflito real de porta aparece na subida, e
+// a troca se desfaz.
 func (s *Stack) renderWeb(web webserver.WebServer, out desiredOutput, st state.State) (bool, error) {
 	name := string(web.Name())
+	logDir := filepath.ToSlash(paths.Log())
 	ports := webserver.Ports{HTTP: st.HTTPPort, HTTPS: st.HTTPSPort}
-	files, err := web.Render(out.Sites, out.Pools, ports, filepath.ToSlash(paths.Log()), out.Tool)
+	files, err := web.Render(out.Sites, out.Pools, ports, logDir, out.Tool)
+	if err != nil {
+		return false, fmt.Errorf("stack: renderizar %s: %w", name, err)
+	}
+	free, err := freeLoopbackPorts(3)
+	if err != nil {
+		return false, fmt.Errorf("stack: portas para validar %s: %w", name, err)
+	}
+	checkTool := out.Tool
+	if checkTool != nil {
+		t := *checkTool
+		t.Port = free[2]
+		checkTool = &t
+	}
+	check, err := web.Render(out.Sites, out.Pools, webserver.Ports{HTTP: free[0], HTTPS: free[1]}, logDir, checkTool)
 	if err != nil {
 		return false, fmt.Errorf("stack: renderizar %s: %w", name, err)
 	}
@@ -385,7 +408,7 @@ func (s *Stack) renderWeb(web webserver.WebServer, out desiredOutput, st state.S
 	if err := os.RemoveAll(next); err != nil {
 		return false, fmt.Errorf("stack: limpar %s: %w", next, err)
 	}
-	if _, err := render.WriteFiles(next, files); err != nil {
+	if _, err := render.WriteFiles(next, check); err != nil {
 		return false, fmt.Errorf("stack: gravar %s: %w", next, err)
 	}
 	ensureWebDirs(next)
@@ -401,6 +424,23 @@ func (s *Stack) renderWeb(web webserver.WebServer, out desiredOutput, st state.S
 	ensureWebDirs(dest)
 	_ = os.RemoveAll(next)
 	return changed, nil
+}
+
+// freeLoopbackPorts devolve n portas distintas que o sistema deu como livres
+// em 127.0.0.1. Os listeners ficam abertos até o último ser criado, para que
+// o sistema não devolva a mesma porta duas vezes. Loopback, e não 0.0.0.0,
+// para não disparar o aviso do Firewall do Windows no hyphp.exe.
+func freeLoopbackPorts(n int) ([]int, error) {
+	ports := make([]int, 0, n)
+	for range n {
+		ln, err := net.Listen("tcp4", "127.0.0.1:0")
+		if err != nil {
+			return nil, err
+		}
+		defer ln.Close()
+		ports = append(ports, ln.Addr().(*net.TCPAddr).Port)
+	}
+	return ports, nil
 }
 
 // ensureWebDirs cria os subdiretórios que o nginx exige dentro de -p (logs/ e
