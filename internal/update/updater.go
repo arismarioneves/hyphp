@@ -21,9 +21,15 @@ import (
 	"hyphp/internal/pkgmgr"
 )
 
-// ManifestURL é o endereço gravado no binário. Mudá-lo corta o update de
-// todas as versões já instaladas (contrato de releases, §Endereço).
-const ManifestURL = "https://ae8.com.br/hyphp/releases/latest.json"
+// GitHubRepo é onde as versões são publicadas, como releases. Entra na URL
+// gravada em cada binário: trocar de dono ou de nome corta o update de todas
+// as versões já instaladas.
+const GitHubRepo = "arismarioneves/hyphp"
+
+// ManifestURL aponta para o asset latest.json da release marcada como Latest:
+// o GitHub redireciona latest/download/<arquivo> para ela. O instalador sai
+// da mesma pasta, porque o path do manifesto é só o nome do asset.
+const ManifestURL = "https://github.com/" + GitHubRepo + "/releases/latest/download/latest.json"
 
 // EnvURL substitui ManifestURL; é por ela que o smoke aponta para um servidor
 // local. A assinatura continua obrigatória, então a variável não abre brecha.

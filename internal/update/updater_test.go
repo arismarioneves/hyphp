@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -292,10 +293,63 @@ func TestDefaultURL(t *testing.T) {
 	}
 	// HTTP fora do loopback deixaria o manifesto trafegar em claro; a
 	// assinatura segura o conteúdo, mas não há motivo para aceitar.
-	for _, ruim := range []string{"http://ae8.com.br/hyphp/releases/latest.json", "ftp://x/latest.json", "::"} {
+	for _, ruim := range []string{"http://github.com/" + GitHubRepo + "/releases/latest/download/latest.json", "ftp://x/latest.json", "::"} {
 		t.Setenv(EnvURL, ruim)
 		if _, err := DefaultURL(); err == nil {
 			t.Errorf("%s aceita", ruim)
 		}
+	}
+}
+
+// O GitHub responde releases/latest/download/<arquivo> com 302 para o host de
+// assets. O path do manifesto é só o nome do arquivo, resolvido contra a pasta
+// latest/download do próprio manifesto.
+func TestCheckSegueRedirecionamentoDoGitHub(t *testing.T) {
+	pub, priv := chaves(t)
+	installer := []byte("instalador 2.1.0")
+	sum := sha256.Sum256(installer)
+	name := "hyphp-2.1.0-windows-amd64-setup.exe"
+	body, err := json.Marshal(Latest{Schema: 1, Release: Release{
+		Version: "2.1.0", Date: "2026-10-01", Notes: []string{"novidade"},
+		WindowsAMD64: &Artifact{Path: name, Size: int64(len(installer)), SHA256: hex.EncodeToString(sum[:])},
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets := map[string][]byte{
+		"latest.json":     body,
+		"latest.json.sig": []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(priv, body)) + "\n"),
+		name:              installer,
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/dono/hyphp/releases/latest/download/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/assets/"+path.Base(r.URL.Path), http.StatusFound)
+	})
+	mux.HandleFunc("/assets/", func(w http.ResponseWriter, r *http.Request) {
+		b, ok := assets[path.Base(r.URL.Path)]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write(b)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	dir := t.TempDir()
+	u := New(Config{
+		Current: "2.0.0", URL: srv.URL + "/dono/hyphp/releases/latest/download/latest.json",
+		Dir: dir, Key: pub, Client: srv.Client(), Enabled: true,
+		AutoCheck: func() bool { return true },
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+	})
+	if err := u.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if s := u.Status(); s.State != StateReady || s.Available != "2.1.0" {
+		t.Fatalf("status %+v", s)
+	}
+	if got, err := os.ReadFile(filepath.Join(dir, "2.1.0", name)); err != nil || string(got) != string(installer) {
+		t.Fatalf("instalador não veio pelo redirecionamento: %v", err)
 	}
 }

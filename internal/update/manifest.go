@@ -1,8 +1,10 @@
 // Package update verifica, baixa e aplica versões novas do HyPHP.
 //
-// O formato publicado é o de C:\DEV\hyphp-web\docs\contrato-releases.md, que é
-// autoritativo: toda versão instalada fica para sempre lendo o mesmo endereço
-// e esperando o mesmo formato, então campo existente nunca muda de sentido.
+// Cada versão é uma release do GitHub com três assets: o instalador,
+// latest.json (um Latest) e latest.json.sig (ed25519 dos bytes exatos do
+// latest.json, em base64). Toda versão instalada fica para sempre lendo o
+// mesmo endereço e esperando o mesmo formato, então campo existente nunca
+// muda de sentido.
 package update
 
 import (
@@ -23,7 +25,7 @@ const SchemaVersion = 1
 
 // Artifact é um arquivo publicado para uma plataforma.
 type Artifact struct {
-	Path   string `json:"path"` // relativo à pasta releases/
+	Path   string `json:"path"` // relativo à pasta do manifesto; na release do GitHub, o nome do asset
 	Size   int64  `json:"size"`
 	SHA256 string `json:"sha256"`
 }
@@ -42,9 +44,13 @@ type Latest struct {
 	Release
 }
 
-// Index é o index.json: o histórico, da versão mais nova para a mais antiga.
+// Index é o index.json do site: o histórico, da versão mais nova para a mais
+// antiga. O app não lê este arquivo.
 type Index struct {
-	Schema   int       `json:"schema"`
+	Schema int `json:"schema"`
+	// GitHub é o "<dono>/<repo>" das releases. O download de cada versão é o
+	// asset com o último segmento de Path, na tag v<versão>.
+	GitHub   string    `json:"github,omitempty"`
 	Releases []Release `json:"releases"`
 }
 
@@ -106,15 +112,15 @@ func (r Release) Validate() error {
 	return validPath(a.Path)
 }
 
-// validPath exige caminho relativo à pasta releases/. Absoluto ou com esquema
-// faria o app baixar de outro lugar; ".." escaparia da pasta; "\" é o
+// validPath exige caminho relativo à pasta do manifesto. Absoluto ou com
+// esquema faria o app baixar de outro lugar; ".." escaparia da pasta; "\" é o
 // separador do Windows e não existe em URL.
 func validPath(p string) error {
 	switch {
 	case p == "":
 		return errors.New("update: path vazio")
 	case strings.HasPrefix(p, "/"), strings.Contains(p, ":"), strings.Contains(p, `\`):
-		return fmt.Errorf("update: path %q não é relativo à pasta releases/", p)
+		return fmt.Errorf("update: path %q não é relativo à pasta do manifesto", p)
 	}
 	for _, seg := range strings.Split(p, "/") {
 		if seg == "" || seg == "." || seg == ".." {
