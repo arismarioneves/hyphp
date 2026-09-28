@@ -89,6 +89,15 @@ func TestRenderPHPIniIgnoraExtensaoSemDLL(t *testing.T) {
 }
 
 func TestRenderMyIniGolden(t *testing.T) {
-	got := RenderMyIni(3306, "C:/hyphp/bin/mysql/mysql-8.0.30-winx64", "C:/hyphp/var/mysql", "C:/hyphp/log")
+	got := RenderMyIni(3306, "C:/hyphp/bin/mysql/mysql-8.0.30-winx64", "C:/hyphp/var/mysql", "C:/hyphp/log", true)
 	checkGolden(t, "my.ini.golden", got)
+}
+
+// Sem ::1 na máquina o mysqld aborta ao não conseguir escutar num dos
+// endereços da lista; aí só o IPv4 pode ir para o bind-address.
+func TestRenderMyIniSemIPv6(t *testing.T) {
+	got := string(RenderMyIni(3306, "C:/m", "C:/d", "C:/l", false))
+	if !strings.Contains(got, "\nbind-address = 127.0.0.1\n") {
+		t.Fatalf("bind-address devia ser só 127.0.0.1:\n%s", got)
+	}
 }

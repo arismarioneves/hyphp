@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"hyphp/internal/mysqlcli"
+	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
 	"hyphp/internal/project"
 	"hyphp/internal/render"
@@ -41,7 +42,7 @@ func WriteMyIni(inst runtime.Installed, port int, etcDir, varDir, logDir string)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", dir, err)
 	}
-	content := render.RenderMyIni(port, inst.Dir, MySQLDataDir(varDir), logDir)
+	content := render.RenderMyIni(port, inst.Dir, MySQLDataDir(varDir), logDir, netcfg.IPv6Loopback())
 	changed, err := render.WriteFiles(dir, map[string][]byte{"my.ini": content})
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar my.ini: %w", err)

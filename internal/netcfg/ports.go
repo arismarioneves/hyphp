@@ -155,6 +155,17 @@ func bindable(port int) bool {
 	return true
 }
 
+// IPv6Loopback diz se dá para escutar em ::1 nesta máquina. Falso quando o
+// IPv6 foi desligado no registro (DisabledComponents).
+func IPv6Loopback() bool {
+	ln, err := net.Listen("tcp6", "[::1]:0")
+	if err != nil {
+		return false
+	}
+	ln.Close()
+	return true
+}
+
 // WhoHolds identifica o processo em LISTENING TCP na porta: PID via `netstat.exe -ano`
 // e caminho do executável via QueryFullProcessImageName. Sem listener → ErrPortNotHeld.
 // Se o PID existir mas o executável não puder ser consultado (ex.: PID 4 "System", ou
