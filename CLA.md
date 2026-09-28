@@ -2,7 +2,7 @@
 
 Based on the Apache Software Foundation Individual Contributor License Agreement v2.2.
 
-Thank you for your interest in HyPHP. To clarify the intellectual property license granted with Contributions from any person or entity, Arismário Neves (the "Licensor") must have on record the agreement of each Contributor to the license terms below. You agree to them by stating so in the pull request, as described in `CONTRIBUTING.md`. This agreement is for your protection as a Contributor as well as the protection of the Licensor and HyPHP users. It does not change your rights to use your own Contributions for any other purpose.
+Thank you for your interest in HyPHP. To clarify the intellectual property license granted with Contributions from any person or entity, Arismário Neves (the "Licensor") requires each Contributor to agree to the license terms below. By submitting a Contribution, including by opening a pull request, You agree to these terms. This agreement is for your protection as a Contributor as well as the protection of the Licensor and HyPHP users. It does not change your rights to use your own Contributions for any other purpose.
 
 You accept and agree to the following terms and conditions for Your present and future Contributions submitted to the Licensor. Except for the license granted herein to the Licensor and recipients of software distributed by the Licensor, You reserve all right, title, and interest in and to Your Contributions.
 

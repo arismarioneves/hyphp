@@ -4,13 +4,9 @@ Obrigado pelo interesse. Issues e pull requests são bem-vindos.
 
 ## Licença das contribuições
 
-Toda contribuição exige aceitar o [CLA](CLA.md) (Contributor License Agreement, baseado no ICLA da Apache). Você continua dono do que escreveu. O que o CLA faz é autorizar o mantenedor a distribuir a sua contribuição, inclusive nas partes pagas do HyPHP (pasta `enterprise/`). Sem isso, código de terceiros não poderia entrar no produto sem risco.
+Ao enviar um pull request, você concorda com o [CLA](CLA.md) (Contributor License Agreement, baseado no ICLA da Apache) para aquela e para as suas próximas contribuições. Não há formulário nem caixa para marcar.
 
-Para aceitar, marque no pull request a caixa:
-
-> - [x] Li o [CLA.md](CLA.md) e aceito os termos para esta e para as minhas próximas contribuições.
-
-Pull request sem essa caixa marcada não é revisado.
+Você continua dono do que escreveu. O que o CLA faz é autorizar o mantenedor a distribuir a sua contribuição, inclusive nas partes pagas do HyPHP (pasta `enterprise/`). Sem isso, código de terceiros não poderia entrar no produto sem risco.
 
 ## Como a licença funciona
 
@@ -27,4 +23,4 @@ go test . ./cmd/... ./services/... ./internal/...
 npx --prefix frontend tsc --noEmit -p frontend
 ```
 
-Explique nos comentários do código o porquê de cada decisão; o quê o código já diz. Commits em português, sem acentos.
+Explique nos comentários do código o porquê de cada decisão; o quê o código já diz.

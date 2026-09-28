@@ -2,4 +2,6 @@
 
 ## Como verificar
 
-- [ ] Li o [CLA.md](https://github.com/arismarioneves/hyphp/blob/main/CLA.md) e aceito os termos para esta e para as minhas próximas contribuições.
+---
+
+Ao enviar este pull request, você concorda com o [CLA](https://github.com/arismarioneves/hyphp/blob/main/CLA.md).
