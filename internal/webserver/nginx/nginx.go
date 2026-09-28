@@ -34,9 +34,10 @@ func New(inst runtime.Installed) webserver.WebServer { return server{inst: inst}
 func (s server) Name() state.WebServerName { return state.Nginx }
 
 type confData struct {
-	ServerRoot string
-	LogDir     string
-	Ports      webserver.Ports
+	ServerRoot  string
+	LogDir      string
+	Ports       webserver.Ports
+	NamesBucket int
 }
 
 type upstreamsData struct {
@@ -62,7 +63,7 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 
 	files := make(map[string][]byte, len(sites)+4)
 
-	main, err := render("nginx.conf.tmpl", confData{ServerRoot: root, LogDir: log, Ports: ports})
+	main, err := render("nginx.conf.tmpl", confData{ServerRoot: root, LogDir: log, Ports: ports, NamesBucket: namesBucketSize(sites, tool)})
 	if err != nil {
 		return nil, err
 	}
@@ -110,6 +111,32 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 	files["logs/.keep"] = nil
 	files["temp/.keep"] = nil
 	return files, nil
+}
+
+// namesBucketSize devolve o server_names_hash_bucket_size em que cabe o nome
+// mais longo. O padrão do nginx no Windows é 32 — a linha de cache que ele
+// assume — e um domínio acima de ~22 caracteres já não cabe: o nginx -t
+// recusa com "could not build server_names_hash". A conta é a do
+// ngx_hash_init: ponteiro + nome + 2 alinhados, mais o ponteiro que fecha o
+// bucket. Ponteiro de 8 bytes, para servir às builds de 32 e de 64 bits.
+// Potência de 2 e mínimo 64, como a documentação do nginx sugere.
+func namesBucketSize(sites []webserver.Site, tool *webserver.Tool) int {
+	need := 0
+	fit := func(name string) { need = max(need, (len(name)+2+7)&^7+16) }
+	for _, site := range sites {
+		fit(site.Domain)
+		for _, alias := range site.Aliases {
+			fit(alias)
+		}
+	}
+	if tool != nil {
+		fit(tool.Name + ".local")
+	}
+	size := 64
+	for size < need {
+		size *= 2
+	}
+	return size
 }
 
 // Validate roda `nginx -t -p <etcDir> -c nginx.conf` e exige

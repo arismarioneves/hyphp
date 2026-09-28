@@ -20,6 +20,10 @@ http {
     client_max_body_size 64m;
     access_log "{{.LogDir}}/nginx-access.log";
 
+    # Calculado a partir do nome mais longo (nginx.go, namesBucketSize): com o
+    # padrão de 32 do Windows, um domínio comprido derruba o nginx -t.
+    server_names_hash_bucket_size {{.NamesBucket}};
+
     # Zona compartilhada declarada UMA vez: repetir o mesmo nome em cada site
     # faria o nginx abortar com "shared memory zone already declared".
     ssl_session_cache shared:hyphp_ssl:10m;

@@ -186,3 +186,36 @@ func TestRenderSemProjetosMantemDiretorioSites(t *testing.T) {
 		t.Error("falta sites/.keep; o nginx recusaria a config")
 	}
 }
+
+// O nginx no Windows usa 32 como server_names_hash_bucket_size, e um nome com
+// mais de ~22 caracteres já não cabe: "could not build server_names_hash". A
+// regra do ngx_hash_init é bucket >= alinha8(len+2) + 16 (ponteiro de 8 bytes,
+// que cobre as builds de 32 e 64 bits); 46 caracteres é o máximo em 64.
+func TestRenderBucketCabeONomeMaisLongo(t *testing.T) {
+	nome := func(n int) string { return strings.Repeat("a", n-len(".test")) + ".test" }
+	casos := []struct {
+		nome   string
+		sites  []webserver.Site
+		tool   *webserver.Tool
+		bucket string
+	}{
+		{"nomes curtos", testSites(), nil, "64"},
+		{"46 caracteres ainda cabem em 64", []webserver.Site{{ID: "x", Domain: nome(46)}}, nil, "64"},
+		{"47 caracteres pedem 128", []webserver.Site{{ID: "x", Domain: nome(47)}}, nil, "128"},
+		{"alias conta", []webserver.Site{{ID: "x", Domain: nome(45), Aliases: []string{"*." + nome(45)}}}, nil, "128"},
+		{"ferramenta conta", nil, &webserver.Tool{Name: strings.Repeat("f", 41), Port: 8036}, "128"},
+		{"nome de 253 caracteres, o máximo do DNS", []webserver.Site{{ID: "x", Domain: nome(253)}}, nil, "512"},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			files, err := New(testInstalled()).Render(c.sites, testPools(), testPorts, testLogDir, c.tool)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "server_names_hash_bucket_size " + c.bucket + ";"
+			if !strings.Contains(string(files["nginx.conf"]), want) {
+				t.Fatalf("nginx.conf sem %q:\n%s", want, files["nginx.conf"])
+			}
+		})
+	}
+}
