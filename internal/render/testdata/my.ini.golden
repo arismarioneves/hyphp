@@ -12,6 +12,7 @@ max_connections = 100
 innodb_buffer_pool_size = 128M
 skip-log-bin
 bind-address = 127.0.0.1,::1
+mysqlx = OFF
 
 [client]
 port = 3306

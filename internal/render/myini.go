@@ -39,6 +39,10 @@ func RenderMyIni(port int, baseDir, dataDir, logDir string, ipv6Loopback bool) [
 		bind += ",::1"
 	}
 	fmt.Fprintf(&b, "bind-address = %s\n", bind)
+	// X Protocol desligado: o HyPHP só fala o protocolo clássico, e o plugin
+	// ignora o bind-address — escutava em 0.0.0.0:33060 e [::]:33060, com o
+	// root sem senha, a um clique no aviso do firewall de ficar exposto na rede.
+	fmt.Fprintf(&b, "mysqlx = OFF\n")
 
 	fmt.Fprintf(&b, "\n[client]\n")
 	fmt.Fprintf(&b, "port = %d\n", port)
