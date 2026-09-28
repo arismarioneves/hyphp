@@ -9,7 +9,7 @@ info:
   productName: "HyPHP"
   productIdentifier: "com.hyphp"
   description: "Ambiente de desenvolvimento PHP"
-  copyright: "(c) 2026, HyPHP contributors"
+  copyright: "(c) 2026 Arismário Neves"
   comments: "Multi-versão de PHP, Apache ou nginx, workers supervisionados"
   version: "2.0.0"
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)

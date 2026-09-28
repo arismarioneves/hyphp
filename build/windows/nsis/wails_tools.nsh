@@ -1,4 +1,4 @@
-# DO NOT EDIT - Generated automatically by `wails build`
+﻿# DO NOT EDIT - Generated automatically by `wails build`
 
 !include "x64.nsh"
 !include "WinVer.nsh"
@@ -17,7 +17,7 @@
     !define INFO_PRODUCTVERSION "2.0.0"
 !endif
 !ifndef INFO_COPYRIGHT
-    !define INFO_COPYRIGHT "(c) 2026, HyPHP contributors"
+    !define INFO_COPYRIGHT "(c) 2026 Arismário Neves"
 !endif
 !ifndef PRODUCT_EXECUTABLE
     !define PRODUCT_EXECUTABLE "${INFO_PROJECTNAME}.exe"

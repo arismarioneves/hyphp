@@ -7,7 +7,7 @@
 			"ProductVersion": "2.0.0",
 			"CompanyName": "HyPHP",
 			"FileDescription": "Ambiente de desenvolvimento PHP",
-			"LegalCopyright": "(c) 2026, HyPHP contributors",
+			"LegalCopyright": "(c) 2026 Arismário Neves",
 			"ProductName": "HyPHP",
 			"Comments": "Multi-versão de PHP, Apache ou nginx, workers supervisionados"
 		}
