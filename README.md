@@ -181,6 +181,6 @@ The code is open to read, following the *open core* model of Chatwoot and GitLab
   features yet.
 
 By submitting a pull request, you agree to the [CLA](CLA.md); see
-[CONTRIBUTING.md](CONTRIBUTING.md) (in Portuguese).
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 The components HyPHP downloads (table in [Stack](#stack)) each follow their own license.

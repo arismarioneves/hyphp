@@ -176,7 +176,7 @@ O código fica aberto para leitura, no modelo *open core* do Chatwoot e do GitLa
 - **`enterprise/`** vai guardar os recursos pagos, com [licença própria](enterprise/LICENSE)
   e uso por assinatura. Hoje ela só tem a licença: ainda não existe recurso pago.
 
-Ao enviar um pull request, você concorda com o [CLA](CLA.md); ver [CONTRIBUTING.md](CONTRIBUTING.md).
+Ao enviar um pull request, você concorda com o [CLA](CLA.md); ver [CONTRIBUTING.md](CONTRIBUTING.md) (em inglês).
 
 Os componentes que o HyPHP baixa (tabela em [Stack](#stack)) seguem cada um a
 própria licença.
