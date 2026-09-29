@@ -4,6 +4,7 @@ import { Events } from '@wailsio/runtime'
 // Nomes exatos do contrato C12.
 export const EVENTS = {
   serviceState: 'service:state',
+  serviceRemoved: 'service:removed',
   serviceLog: 'service:log',
   projectChanged: 'project:changed',
   runtimeChanged: 'runtime:changed',

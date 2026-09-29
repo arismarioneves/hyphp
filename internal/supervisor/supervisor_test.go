@@ -96,6 +96,43 @@ func TestSupervisor_StartFicaReadyEStopMataOProcesso(t *testing.T) {
 	}
 }
 
+// Quem mostra a lista só por eventos (a UI) precisa saber que o serviço saiu:
+// o "stopped" final de Remove é igual ao de um Stop comum, e um serviço
+// removido que continua na tela como parado deixa o resumo amarelo.
+func TestSupervisor_RemoveAvisaQueOServicoSaiu(t *testing.T) {
+	sup := newTestSupervisor(t)
+	if err := sup.Add(longRunningSpec("php:8.1:0")); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	sub, cancel := sup.Subscribe()
+	defer cancel()
+	if err := sup.Start("php:8.1:0"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitState(t, sub, "php:8.1:0", Ready, 10*time.Second)
+
+	if err := sup.Remove("php:8.1:0"); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case ev := <-sub:
+			if ev.Status.ID != "php:8.1:0" {
+				continue
+			}
+			if ev.Removed {
+				if _, ok := sup.Status("php:8.1:0"); ok {
+					t.Fatal("evento de remoção antes de o serviço sair da lista")
+				}
+				return
+			}
+		case <-deadline:
+			t.Fatal("Remove não publicou evento com Removed")
+		}
+	}
+}
+
 func TestSupervisor_SaidaComErroSemRestartVaiParaFailed(t *testing.T) {
 	sup := newTestSupervisor(t)
 	spec := Spec{

@@ -112,7 +112,9 @@ func (s *Supervisor) Add(spec Spec) error {
 	return nil
 }
 
-// Remove para o serviço (se estiver rodando) e o esquece.
+// Remove para o serviço (se estiver rodando), o esquece e publica um Event
+// com Removed: quem acompanha a lista por eventos não tem outro jeito de saber
+// que o "stopped" final foi de uma remoção.
 func (s *Supervisor) Remove(id string) error {
 	s.mu.Lock()
 	_, ok := s.entries[id]
@@ -122,6 +124,12 @@ func (s *Supervisor) Remove(id string) error {
 	}
 	stopErr := s.Stop(id)
 	s.mu.Lock()
+	e, ok := s.entries[id]
+	if !ok { // outro Remove chegou primeiro e já publicou
+		s.mu.Unlock()
+		return stopErr
+	}
+	last := e.status
 	delete(s.entries, id)
 	for i, cur := range s.order {
 		if cur == id {
@@ -129,7 +137,9 @@ func (s *Supervisor) Remove(id string) error {
 			break
 		}
 	}
+	chans := s.subscribersLocked()
 	s.mu.Unlock()
+	s.broadcast(chans, Event{Status: last, Removed: true})
 	return stopErr
 }
 

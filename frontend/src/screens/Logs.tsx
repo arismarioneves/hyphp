@@ -52,6 +52,7 @@ export function Logs({ onNavigate }: ScreenProps) {
   useEffect(loadSources, [])
   // specs novos (projeto adicionado, versão de PHP nova) mudam a lista de fontes.
   useEvent(EVENTS.serviceState, loadSources)
+  useEvent(EVENTS.serviceRemoved, loadSources)
 
   const groups = useMemo(() => toGroups(sources ?? []), [sources])
 
