@@ -16,23 +16,27 @@ import { useRuntimes } from '../lib/useRuntimes'
 import { useServices } from '../lib/useServices'
 import { useSettings } from '../lib/useSettings'
 import { useWarnings } from '../lib/useWarnings'
+import { useT } from '../i18n'
+import type { dashboard as dashboardMessages } from '../i18n/locales/pt-BR/dashboard'
 
 type StackRow = { key: string; state: ServiceState; name: string; version: string; extra?: string }
 
 // Como resolver cada pendência. As que pedem UAC executam aqui mesmo: mandar o
 // usuário para outra tela para clicar num botão equivalente é um salto sem
 // motivo. As que dependem de download levam a Runtimes, onde a escolha existe.
-const ONDE_RESOLVER: Record<string, { tela?: Screen; run?: () => Promise<void>; acao: string }> = {
-  'web-missing': { tela: 'runtimes', acao: 'Instalar web server' },
-  'tls-unavailable': { tela: 'runtimes', acao: 'Instalar mkcert' },
-  'php-missing': { tela: 'runtimes', acao: 'Instalar PHP' },
-  'hosts-pending': { run: SettingsService.ApplyHosts, acao: 'Aplicar domínios' },
-  'ca-pending': { run: SettingsService.InstallCA, acao: 'Instalar certificado' },
-  'wildcard-pending': { run: SettingsService.ApplyWildcardDNS, acao: 'Registrar regra de DNS' },
+// `acao` guarda a chave do rótulo: o texto só é resolvido dentro do componente,
+// onde o hook de tradução existe.
+const ONDE_RESOLVER: Record<string, { tela?: Screen; run?: () => Promise<void>; acao: keyof typeof dashboardMessages }> = {
+  'web-missing': { tela: 'runtimes', acao: 'fixInstallWeb' },
+  'tls-unavailable': { tela: 'runtimes', acao: 'fixInstallMkcert' },
+  'php-missing': { tela: 'runtimes', acao: 'fixInstallPhp' },
+  'hosts-pending': { run: SettingsService.ApplyHosts, acao: 'fixApplyHosts' },
+  'ca-pending': { run: SettingsService.InstallCA, acao: 'fixInstallCa' },
+  'wildcard-pending': { run: SettingsService.ApplyWildcardDNS, acao: 'fixRegisterDns' },
   // Incompatibilidade de versão se resolve instalando a série que falta, e é
   // em Runtimes que ela está.
-  'pma-sem-php': { tela: 'runtimes', acao: 'Instalar PHP compatível' },
-  'docroot-sem-indice': { tela: 'projects', acao: 'Revisar projeto' },
+  'pma-sem-php': { tela: 'runtimes', acao: 'fixInstallCompatiblePhp' },
+  'docroot-sem-indice': { tela: 'projects', acao: 'fixReviewProject' },
 }
 
 // `Installed.kind` é o enum gerado `runtime.Kind`; comparar com os literais de
@@ -77,6 +81,7 @@ function stackRows(services: ServiceStatus[], installed: Installed[]): StackRow[
 }
 
 export function Dashboard({ onNavigate }: ScreenProps) {
+  const t = useT('dashboard')
   const { services, loading } = useServices()
   const { projects } = useProjects()
   const { installed } = useRuntimes()
@@ -150,7 +155,7 @@ export function Dashboard({ onNavigate }: ScreenProps) {
           disabled={busy !== null || allRunning}
           onClick={() => void run('start')}
         >
-          Iniciar tudo
+          {t('startAll')}
         </Button>
         <Button
           variant="secondary"
@@ -159,22 +164,22 @@ export function Dashboard({ onNavigate }: ScreenProps) {
           disabled={busy !== null || !anyRunning}
           onClick={() => void run('stop')}
         >
-          Parar tudo
+          {t('stopAll')}
         </Button>
         {error && <span className="selectable text-sm text-err">{error}</span>}
       </div>
 
       <Card>
-        <SectionLabel>YOUR STACK</SectionLabel>
+        <SectionLabel>{t('yourStack')}</SectionLabel>
         {showSkeleton ? (
           <Skeleton lines={4} className="mt-3" />
         ) : rows.length === 0 ? (
           <EmptyState
-            title="Nenhum serviço configurado"
-            description="Instale um web server e uma versão de PHP em Runtimes."
+            title={t('noServicesTitle')}
+            description={t('noServicesDesc')}
             action={
               <Button variant="secondary" onClick={() => onNavigate('runtimes')}>
-                Ir para Runtimes
+                {t('goToRuntimes')}
               </Button>
             }
           />
@@ -195,14 +200,14 @@ export function Dashboard({ onNavigate }: ScreenProps) {
 
       <div className="grid grid-cols-2 gap-4">
         <Card>
-          <SectionLabel>PROJETOS</SectionLabel>
+          <SectionLabel>{t('projects')}</SectionLabel>
           {projects.length === 0 ? (
             <EmptyState
-              title="Nenhum projeto"
-              description="Adicione um diretório-raiz em Projetos."
+              title={t('noProjectsTitle')}
+              description={t('noProjectsDesc')}
               action={
                 <Button variant="secondary" onClick={() => onNavigate('projects')}>
-                  Adicionar diretório
+                  {t('addDirectory')}
                 </Button>
               }
             />
@@ -230,7 +235,7 @@ export function Dashboard({ onNavigate }: ScreenProps) {
         </Card>
 
         <Card>
-          <SectionLabel>PORTAS</SectionLabel>
+          <SectionLabel>{t('ports')}</SectionLabel>
           {ports.length === 0 ? (
             <Skeleton lines={5} className="mt-3" />
           ) : (
@@ -251,9 +256,9 @@ export function Dashboard({ onNavigate }: ScreenProps) {
           alertas amarelos faz o app parecer quebrado logo na primeira abertura. */}
       {installed.length > 0 && (
         <Card>
-          <SectionLabel>AVISOS</SectionLabel>
+          <SectionLabel>{t('warnings')}</SectionLabel>
           {warnings.length === 0 ? (
-            <p className="mt-3 text-sm text-fg-faint">Nenhum aviso.</p>
+            <p className="mt-3 text-sm text-fg-faint">{t('noWarnings')}</p>
           ) : (
             <ul className="mt-3 flex flex-col gap-2">
               {warnings.map((w, i) => (
@@ -273,7 +278,7 @@ export function Dashboard({ onNavigate }: ScreenProps) {
                         disabled={resolvendo !== null}
                         onClick={() => void resolver(w.code)}
                       >
-                        {ONDE_RESOLVER[w.code].acao}
+                        {t(ONDE_RESOLVER[w.code].acao)}
                       </Button>
                     )}
                   </div>

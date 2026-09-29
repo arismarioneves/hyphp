@@ -13,13 +13,17 @@ import { formatUptime } from '../lib/status';
 import type { ServiceStatus } from '../lib/types';
 import { useNow } from '../lib/useNow';
 import { useServices } from '../lib/useServices';
+import { useT } from '../i18n';
+import type { services as servicesMessages } from '../i18n/locales/pt-BR/services';
 
-const GROUP_LABELS: Record<string, string> = {
-  web: 'WEB SERVER',
-  php: 'PHP',
-  db: 'BANCO DE DADOS',
-  mail: 'MAIL',
-  proc: 'PROCESSOS DE PROJETO',
+// Nomes de produto ficam literais; os grupos com texto guardam a chave do
+// catálogo, resolvida dentro do componente.
+const GROUP_LABELS: Record<string, { text: string } | { key: keyof typeof servicesMessages }> = {
+  web: { text: 'WEB SERVER' },
+  php: { text: 'PHP' },
+  db: { key: 'groupDb' },
+  mail: { text: 'MAIL' },
+  proc: { key: 'groupProc' },
 };
 /** Ordem de exibição dos grupos; grupo desconhecido do Go cai para o fim. */
 const GROUP_RANK: Record<string, number> = { web: 0, php: 1, db: 2, mail: 3, proc: 4 };
@@ -40,6 +44,7 @@ function groupServices(services: ServiceStatus[]): Array<{ group: string; items:
 }
 
 export function Services({ onNavigate }: ScreenProps) {
+  const t = useT('services');
   const { services, loading } = useServices();
   const now = useNow(1000);
   const [openLog, setOpenLog] = useState<string | null>(null);
@@ -73,17 +78,22 @@ export function Services({ onNavigate }: ScreenProps) {
     return (
       <EmptyState
         icon={<Pulse size={24} />}
-        title="Nenhum serviço"
-        description="Instale um web server e PHP em Runtimes e adicione um projeto."
+        title={t('noServicesTitle')}
+        description={t('noServicesDesc')}
         action={
           <Button variant="primary" size="sm" onClick={() => onNavigate('runtimes')}>
-            Abrir Runtimes
+            {t('openRuntimes')}
           </Button>
         }
       />
     );
   }
 
+  const groupLabel = (group: string) => {
+    const l = GROUP_LABELS[group];
+    if (!l) return group.toUpperCase();
+    return 'key' in l ? t(l.key) : l.text;
+  };
   const groups = groupServices(services);
 
   return (
@@ -91,17 +101,17 @@ export function Services({ onNavigate }: ScreenProps) {
       <div className="flex min-h-0 flex-col gap-4 overflow-y-auto">
         {groups.map(({ group, items }) => (
           <Card key={group}>
-            <SectionLabel>{GROUP_LABELS[group] ?? group.toUpperCase()}</SectionLabel>
+            <SectionLabel>{groupLabel(group)}</SectionLabel>
             <table className="mt-3 w-full text-sm">
               <thead className="text-left text-xs text-fg-faint">
                 <tr>
                   <th className="w-8 py-1" />
-                  <th className="py-1 font-normal">Serviço</th>
+                  <th className="py-1 font-normal">{t('service')}</th>
                   <th className="py-1 font-normal">PID</th>
-                  <th className="py-1 font-normal">Porta</th>
+                  <th className="py-1 font-normal">{t('port')}</th>
                   <th className="py-1 font-normal">Uptime</th>
                   <th className="py-1 font-normal">Restarts</th>
-                  <th className="py-1 text-right font-normal">Ações</th>
+                  <th className="py-1 text-right font-normal">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -136,7 +146,7 @@ export function Services({ onNavigate }: ScreenProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            aria-label={`Iniciar ${s.name}`}
+                            aria-label={t('startName', { name: s.name })}
                             icon={<Play size={14} weight="fill" />}
                             disabled={busy || !startable}
                             loading={pending[s.id] === 'start'}
@@ -145,7 +155,7 @@ export function Services({ onNavigate }: ScreenProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            aria-label={`Parar ${s.name}`}
+                            aria-label={t('stopName', { name: s.name })}
                             icon={<Stop size={14} weight="fill" />}
                             disabled={busy || !running}
                             loading={pending[s.id] === 'stop'}
@@ -154,7 +164,7 @@ export function Services({ onNavigate }: ScreenProps) {
                           <Button
                             variant="ghost"
                             size="sm"
-                            aria-label={`Reiniciar ${s.name}`}
+                            aria-label={t('restartName', { name: s.name })}
                             icon={<ArrowClockwise size={14} />}
                             disabled={busy || !running}
                             loading={pending[s.id] === 'restart'}
@@ -163,7 +173,7 @@ export function Services({ onNavigate }: ScreenProps) {
                           <Button
                             variant={openLog === s.id ? 'secondary' : 'ghost'}
                             size="sm"
-                            aria-label={`Log de ${s.name}`}
+                            aria-label={t('logOf', { name: s.name })}
                             aria-pressed={openLog === s.id}
                             icon={<Scroll size={14} />}
                             onClick={() => setOpenLog(openLog === s.id ? null : s.id)}
@@ -183,7 +193,7 @@ export function Services({ onNavigate }: ScreenProps) {
         <div className="flex min-h-0 flex-col gap-2">
           <div className="flex items-center justify-between">
             <SectionLabel className="selectable font-mono">{openLog}</SectionLabel>
-            <Button variant="ghost" size="sm" aria-label="Fechar log" icon={<X size={14} />} onClick={() => setOpenLog(null)} />
+            <Button variant="ghost" size="sm" aria-label={t('closeLog')} icon={<X size={14} />} onClick={() => setOpenLog(null)} />
           </div>
           <LogView id={openLog} className="min-h-0 flex-1" />
         </div>

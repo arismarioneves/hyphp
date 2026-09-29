@@ -9,17 +9,20 @@ import { Skeleton } from '../components/Skeleton'
 import { EVENTS, useEvent } from '../lib/events'
 import type { ScreenProps } from '../lib/screens'
 import type { LogSource } from '../lib/types'
+import { useT } from '../i18n'
+import type { logs } from '../i18n/locales/pt-BR/logs'
 
-const GROUP_LABELS: Record<string, string> = {
-  web: 'Web server',
-  php: 'PHP',
-  db: 'Banco de dados',
-  mail: 'Mail',
-  proc: 'Processos de projeto',
+// guarda a chave do catálogo: o texto só pode ser resolvido dentro do componente.
+const GROUP_LABELS: Record<string, keyof typeof logs> = {
+  web: 'groupWeb',
+  php: 'groupPhp',
+  db: 'groupDb',
+  mail: 'groupMail',
+  proc: 'groupProc',
 }
 const GROUP_ORDER = ['web', 'php', 'db', 'mail', 'proc']
 
-function toGroups(sources: LogSource[]) {
+function toGroups(sources: LogSource[], t: (key: keyof typeof logs) => string) {
   // Map e não Record: o agrupamento é dinâmico e a ordem sai do GROUP_ORDER.
   const map = new Map<string, LogSource[]>()
   for (const s of sources) {
@@ -30,13 +33,14 @@ function toGroups(sources: LogSource[]) {
   const groups: SelectGroup[] = [...map.entries()]
     .sort(([a], [b]) => GROUP_ORDER.indexOf(a) - GROUP_ORDER.indexOf(b))
     .map(([group, items]) => ({
-      label: GROUP_LABELS[group] ?? group,
+      label: GROUP_LABELS[group] ? t(GROUP_LABELS[group]) : group,
       options: items.map((s) => ({ value: s.id, label: s.name })),
     }))
   return groups
 }
 
 export function Logs({ onNavigate }: ScreenProps) {
+  const t = useT('logs')
   const [sources, setSources] = useState<LogSource[] | null>(null)
   const [selected, setSelected] = useState('')
 
@@ -54,18 +58,18 @@ export function Logs({ onNavigate }: ScreenProps) {
   useEvent(EVENTS.serviceState, loadSources)
   useEvent(EVENTS.serviceRemoved, loadSources)
 
-  const groups = useMemo(() => toGroups(sources ?? []), [sources])
+  const groups = useMemo(() => toGroups(sources ?? [], t), [sources, t])
 
   if (sources === null) return <Skeleton lines={6} />
   if (sources.length === 0) {
     return (
       <EmptyState
         icon={<Scroll size={24} />}
-        title="Nenhuma fonte de log"
-        description="Adicione um projeto ou instale um runtime."
+        title={t('noSourcesTitle')}
+        description={t('noSourcesDescription')}
         action={
           <Button variant="secondary" size="sm" onClick={() => onNavigate('projects')}>
-            Ir para Projetos
+            {t('goToProjects')}
           </Button>
         }
       />
@@ -75,8 +79,8 @@ export function Logs({ onNavigate }: ScreenProps) {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex items-center gap-3">
-        <span className="text-sm text-fg-muted">Fonte</span>
-        <Select aria-label="Fonte do log" value={selected} groups={groups} onChange={setSelected} className="w-72" />
+        <span className="text-sm text-fg-muted">{t('source')}</span>
+        <Select aria-label={t('sourceAria')} value={selected} groups={groups} onChange={setSelected} className="w-72" />
       </div>
       {selected && <LogView id={selected} className="min-h-0 flex-1" />}
     </div>

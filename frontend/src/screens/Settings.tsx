@@ -22,6 +22,8 @@ import { useWarnings } from '../lib/useWarnings'
 import { errorText } from '../lib/errors'
 import { LANGS, useLang, useT } from '../i18n'
 import type { UpdateStatus } from '../lib/types'
+import type { Messages } from '../i18n/types'
+import type { Vars } from '../i18n/format'
 
 /** Códigos de `stack.Warning` que o card Permissões resolve (C18.42 e C18.45). */
 const HOSTS_PENDING = 'hosts-pending'
@@ -43,43 +45,48 @@ function Section({ label, children }: { label: string; children: ReactNode }) {
 }
 
 // Texto de estado do auto-update; os estados vêm de internal/update.State.
-function updateLine(s: UpdateStatus) {
+function updateLine(s: UpdateStatus, t: SettingsT, lang: string) {
   switch (s.state as string) {
     case 'inativo':
-      return 'Desligado em builds de desenvolvimento.'
+      return t('updateInactive')
     case 'ocioso':
-      return 'A primeira verificação acontece um minuto depois de abrir.'
+      return t('updateIdle')
     case 'verificando':
-      return 'Verificando…'
+      return t('updateChecking')
     case 'em-dia': {
-      const at = s.checkedAt ? new Date(s.checkedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''
-      return `Em dia${at ? ` (verificado às ${at})` : ''}.`
+      const at = s.checkedAt ? new Date(s.checkedAt).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }) : ''
+      return at ? t('updateUpToDateAt', { at }) : t('updateUpToDate')
     }
     case 'baixando':
-      return `Baixando a versão ${s.available}…`
+      return t('updateDownloading', { version: s.available })
     case 'pronto':
-      return `Versão ${s.available} pronta para instalar.`
+      return t('updateReady', { version: s.available })
     case 'aplicando':
-      return `Instalando a versão ${s.available}…`
+      return t('updateApplying', { version: s.available })
     default:
-      return `Falhou: ${s.error}`
+      return t('updateFailed', { error: s.error })
   }
 }
 
+// Tradutor de `settings` recebido por parâmetro: updateLine fica fora do componente.
+type SettingsT = (key: keyof Messages['settings'], vars?: Vars) => string
+
 function UpdateRow() {
+  const t = useT('settings')
+  const { lang } = useLang()
   const { status, busy, error, check, apply } = useUpdate()
   if (!status) return <Skeleton className="h-9" />
   const state = status.state as string
   return (
     <div className="flex flex-col gap-2">
-      <Row label="Estado">
+      <Row label={t('updateState')}>
         <div className="flex items-center gap-3">
           <span className={`selectable text-sm ${state === 'falhou' ? 'text-err' : 'text-fg-muted'}`}>
-            {updateLine(status)}
+            {updateLine(status, t, lang)}
           </span>
           {state === 'pronto' ? (
             <Button variant="primary" size="sm" loading={busy} onClick={() => void apply()}>
-              Atualizar e reiniciar
+              {t('updateAndRestart')}
             </Button>
           ) : (
             <Button
@@ -89,7 +96,7 @@ function UpdateRow() {
               disabled={state === 'inativo' || state === 'aplicando'}
               onClick={() => void check()}
             >
-              Verificar agora
+              {t('checkNow')}
             </Button>
           )}
         </div>
@@ -120,6 +127,7 @@ const inputClass =
   'selectable h-9 rounded-pill border border-border bg-bg-card px-3 font-mono text-sm text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent'
 
 function PortInput({ label, value, onChange }: { label: string; value: number; onChange: (n: number) => void }) {
+  const t = useT('settings')
   return (
     <Row label={label}>
       <input
@@ -127,7 +135,7 @@ function PortInput({ label, value, onChange }: { label: string; value: number; o
         min={1}
         max={65535}
         value={value}
-        aria-label={`Porta ${label}`}
+        aria-label={t('portAria', { label })}
         onChange={(e) => onChange(Number(e.target.value))}
         className={`${inputClass} w-28 text-right`}
       />
@@ -145,13 +153,14 @@ type WebServerCardProps = {
 }
 
 function WebServerCard({ name, label, version, active, switching, onSelect }: WebServerCardProps) {
+  const t = useT('settings')
   const installed = version !== null
   return (
     <button
       type="button"
       disabled={!installed || switching || active}
       aria-pressed={active}
-      aria-label={`Usar ${label}`}
+      aria-label={t('useWebServer', { label })}
       onClick={onSelect}
       className={`flex flex-1 flex-col items-start gap-1 rounded-card border p-4 text-left focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed ${
         active ? 'border-accent bg-accent-soft' : 'border-border bg-bg-card hover:bg-bg-card-hover'
@@ -159,9 +168,9 @@ function WebServerCard({ name, label, version, active, switching, onSelect }: We
     >
       <div className="flex w-full items-center gap-2">
         <span className="font-mono text-lg text-fg">{label}</span>
-        {active && <Badge tone="accent">ativo</Badge>}
+        {active && <Badge tone="accent">{t('active')}</Badge>}
       </div>
-      <span className="selectable font-mono text-sm text-fg-muted">{installed ? version : 'não instalado'}</span>
+      <span className="selectable font-mono text-sm text-fg-muted">{installed ? version : t('notInstalled')}</span>
       <span className="font-mono text-xs text-fg-faint">{name}</span>
     </button>
   )
@@ -176,6 +185,7 @@ type ElevatedActionProps = { warning: Warning; label: string; run: () => Promise
  * morreria no console do WebView e o botão pareceria não ter feito nada.
  */
 function ElevatedAction({ warning, label, run }: ElevatedActionProps) {
+  const t = useT('settings')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -193,7 +203,7 @@ function ElevatedAction({ warning, label, run }: ElevatedActionProps) {
       {error !== '' && <p className="selectable text-sm text-err">{error}</p>}
       <div>
         <Button variant="primary" size="sm" loading={busy} disabled={busy} onClick={trigger}>
-          {busy ? 'Aplicando…' : label}
+          {busy ? t('applying') : label}
         </Button>
       </div>
     </div>
@@ -206,21 +216,19 @@ function ElevatedAction({ warning, label, run }: ElevatedActionProps) {
  * inteiro: botão que não faz nada é pior que botão nenhum.
  */
 function PermissionsCard() {
+  const t = useT('settings')
   const { warnings } = useWarnings()
   const hosts = warnings.find((w) => w.code === HOSTS_PENDING)
   const ca = warnings.find((w) => w.code === CA_PENDING)
   const wildcard = warnings.find((w) => w.code === WILDCARD_PENDING)
   if (!hosts && !ca && !wildcard) return null
   return (
-    <Section label="PERMISSÕES">
-      <p className="text-xs text-fg-faint">
-        Estas ações exigem permissão de administrador e pedem confirmação do Windows. Nenhuma outra parte do HyPHP
-        eleva privilégio.
-      </p>
-      {hosts && <ElevatedAction warning={hosts} label="Aplicar domínios" run={SettingsService.ApplyHosts} />}
-      {ca && <ElevatedAction warning={ca} label="Instalar certificado" run={SettingsService.InstallCA} />}
+    <Section label={t('permissions')}>
+      <p className="text-xs text-fg-faint">{t('permissionsHint')}</p>
+      {hosts && <ElevatedAction warning={hosts} label={t('applyHosts')} run={SettingsService.ApplyHosts} />}
+      {ca && <ElevatedAction warning={ca} label={t('installCA')} run={SettingsService.InstallCA} />}
       {wildcard && (
-        <ElevatedAction warning={wildcard} label="Registrar regra de DNS" run={SettingsService.ApplyWildcardDNS} />
+        <ElevatedAction warning={wildcard} label={t('applyWildcardDNS')} run={SettingsService.ApplyWildcardDNS} />
       )}
     </Section>
   )
@@ -332,7 +340,7 @@ export function Settings({ onNavigate }: ScreenProps) {
     setPathError(null)
     try {
       await AppService.AddDefaultPHPToUserPath()
-      setPathMsg('PHP adicionado ao PATH do usuário. Abra um terminal novo para valer.')
+      setPathMsg(t('pathAdded'))
     } catch (e) {
       setPathError(errorText(e))
     } finally {
@@ -342,7 +350,7 @@ export function Settings({ onNavigate }: ScreenProps) {
 
   return (
     <div className="flex flex-col gap-4 pb-16">
-      <Section label="WEB SERVER">
+      <Section label={t('webServer')}>
         <div className="flex gap-3">
           {WEB_SERVERS.map((w) => (
             <WebServerCard
@@ -356,33 +364,30 @@ export function Settings({ onNavigate }: ScreenProps) {
             />
           ))}
         </div>
-        {switching && <ProgressBar indeterminate label="Trocando web server: validando config e subindo o novo…" />}
+        {switching && <ProgressBar indeterminate label={t('switchingWebServer')} />}
         {switchError && <p className="selectable text-sm text-err">{switchError}</p>}
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-fg-muted">
-            Um servidor ativo por vez (ambos usam 80/443). A troca valida a nova config antes de parar o atual; se
-            falhar, o anterior continua no ar.
-          </p>
+          <p className="text-xs text-fg-muted">{t('webServerHint')}</p>
           {missingWebServer && (
             <Button variant="ghost" size="sm" onClick={() => onNavigate('runtimes')}>
-              Baixar em Runtimes
+              {t('downloadInRuntimes')}
             </Button>
           )}
         </div>
       </Section>
 
       <Section label="PHP">
-        <Row label="Versão padrão" hint="Usada por projetos sem `php:` no hyphp.yaml.">
+        <Row label={t('defaultPhp')} hint={t('defaultPhpHint')}>
           {phpMajors.length === 0 ? (
             <Button variant="secondary" size="sm" onClick={() => onNavigate('runtimes')}>
-              Instalar PHP
+              {t('installPhp')}
             </Button>
           ) : (
             <Select
-              aria-label="Versão padrão de PHP"
+              aria-label={t('defaultPhpAria')}
               value={draft.defaultPhp}
               options={[
-                { value: '', label: 'Maior instalada' },
+                { value: '', label: t('highestInstalled') },
                 ...phpMajors.map((m) => ({ value: m, label: `PHP ${m}` })),
               ]}
               onChange={(v) => set('defaultPhp', v)}
@@ -392,10 +397,10 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
-      <Section label="POOL">
-        <Row label="Workers php-cgi por versão" hint="Cada worker atende um request por vez. 4 é o default medido.">
+      <Section label={t('pool')}>
+        <Row label={t('poolWorkers')} hint={t('poolWorkersHint')}>
           <Select
-            aria-label="Tamanho do pool"
+            aria-label={t('poolSizeAria')}
             value={String(draft.poolSize)}
             options={[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ value: String(n), label: String(n) }))}
             onChange={(v) => set('poolSize', Number(v))}
@@ -404,7 +409,7 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
-      <Section label="PORTAS">
+      <Section label={t('ports')}>
         <PortInput label="HTTP" value={draft.httpPort} onChange={(n) => set('httpPort', n)} />
         <PortInput label="HTTPS" value={draft.httpsPort} onChange={(n) => set('httpsPort', n)} />
         <PortInput label="MySQL" value={draft.mysqlPort} onChange={(n) => set('mysqlPort', n)} />
@@ -414,9 +419,9 @@ export function Settings({ onNavigate }: ScreenProps) {
 
       <PermissionsCard />
 
-      <Section label="DIRETÓRIOS">
+      <Section label={t('directories')}>
         {roots.length === 0 ? (
-          <p className="text-sm text-fg-faint">Nenhum diretório-raiz.</p>
+          <p className="text-sm text-fg-faint">{t('noRoots')}</p>
         ) : (
           <ul className="divide-y divide-border">
             {roots.map((r) => (
@@ -425,7 +430,7 @@ export function Settings({ onNavigate }: ScreenProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label={`Remover ${r}`}
+                  aria-label={t('removeRoot', { dir: r })}
                   icon={<Trash size={14} />}
                   onClick={() => void removeRoot(r)}
                 />
@@ -436,37 +441,34 @@ export function Settings({ onNavigate }: ScreenProps) {
         {rootsError && <p className="selectable text-sm text-err">{rootsError}</p>}
         <div>
           <Button variant="secondary" size="sm" icon={<FolderPlus size={14} />} onClick={() => void addRoot()}>
-            Adicionar diretório
+            {t('addRoot')}
           </Button>
         </div>
       </Section>
 
-      <Section label="FERRAMENTAS">
-        <Row label="Editor" hint="Caminho do executável. Vazio = `code` no PATH.">
+      <Section label={t('tools')}>
+        <Row label={t('editor')} hint={t('editorHint')}>
           <input
             value={draft.editor}
-            aria-label="Editor"
+            aria-label={t('editor')}
             placeholder="C:\Users\...\Code.exe"
             onChange={(e) => set('editor', e.target.value)}
             className={`${inputClass} w-96`}
           />
         </Row>
-        <Row label="Terminal" hint="Vazio = wt.exe se existir, senão cmd.">
+        <Row label={t('terminal')} hint={t('terminalHint')}>
           <input
             value={draft.terminal}
-            aria-label="Terminal"
+            aria-label={t('terminal')}
             placeholder="wt.exe"
             onChange={(e) => set('terminal', e.target.value)}
             className={`${inputClass} w-96`}
           />
         </Row>
-        <Row
-          label="PHP no PATH"
-          hint="Deixa `php` e `composer` do terminal na mesma versão que o HyPHP serve."
-        >
+        <Row label={t('phpInPath')} hint={t('phpInPathHint')}>
           <div className="flex items-center gap-3">
             <Button variant="secondary" size="sm" loading={pathBusy} onClick={() => void addPHPToPath()}>
-              Adicionar PHP ao PATH
+              {t('addPhpToPath')}
             </Button>
             {pathMsg && <span className="text-sm text-fg-muted">{pathMsg}</span>}
             {pathError && <span className="selectable text-sm text-err">{pathError}</span>}
@@ -474,21 +476,18 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
-      <Section label="INICIAR COM O WINDOWS">
-        <Row label="Iniciar o HyPHP no login" hint="Abre minimizado no tray.">
-          <Toggle checked={draft.autostart} label="Iniciar com o Windows" onChange={(on) => set('autostart', on)} />
+      <Section label={t('autostartSection')}>
+        <Row label={t('autostart')} hint={t('autostartHint')}>
+          <Toggle checked={draft.autostart} label={t('autostartAria')} onChange={(on) => set('autostart', on)} />
         </Row>
       </Section>
 
-      <Section label="ATUALIZAÇÕES">
+      <Section label={t('updates')}>
         <UpdateRow />
-        <Row
-          label="Verificar atualizações automaticamente"
-          hint="A cada 6 horas. O download é automático; a instalação espera o seu clique."
-        >
+        <Row label={t('autoUpdate')} hint={t('autoUpdateHint')}>
           <Toggle
             checked={!draft.autoUpdateOff}
-            label="Verificar atualizações automaticamente"
+            label={t('autoUpdate')}
             onChange={(on) => set('autoUpdateOff', !on)}
           />
         </Row>
@@ -525,29 +524,29 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
-      <Section label="SOBRE">
-        <Row label="Versão">
+      <Section label={t('about')}>
+        <Row label={t('version')}>
           <span className="selectable font-mono text-sm text-fg">{version || '—'}</span>
         </Row>
-        <Row label="Raiz de runtime">
+        <Row label={t('runtimeRoot')}>
           <span className="selectable font-mono text-sm text-fg">{runtimeRoot || '—'}</span>
         </Row>
         <div>
           <Button variant="danger" size="sm" onClick={() => void AppService.Quit()}>
-            Sair do HyPHP
+            {t('quit')}
           </Button>
         </div>
       </Section>
 
       {dirty && (
         <div className="fixed bottom-4 right-6 flex items-center gap-3 rounded-card border border-border bg-bg-card px-4 py-2 shadow-lg">
-          <span className="text-sm text-fg-muted">Alterações não salvas</span>
+          <span className="text-sm text-fg-muted">{t('unsaved')}</span>
           {saveError && <span className="selectable text-sm text-err">{saveError}</span>}
           <Button variant="ghost" size="sm" onClick={() => setDraft(settings)} disabled={saving}>
-            Descartar
+            {t('discard')}
           </Button>
           <Button variant="primary" size="sm" onClick={() => void doSave()} loading={saving} disabled={saving}>
-            Salvar
+            {t('save')}
           </Button>
         </div>
       )}

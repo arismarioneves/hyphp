@@ -20,16 +20,7 @@ export const SCREENS: readonly Screen[] = [
   'settings',
 ];
 
-export const SCREEN_LABELS: Record<Screen, string> = {
-  dashboard: 'Dashboard',
-  projects: 'Projetos',
-  services: 'Serviços',
-  runtimes: 'Runtimes',
-  database: 'Banco',
-  mail: 'Mail',
-  logs: 'Logs',
-  settings: 'Configurações',
-};
+// O título de cada tela está no catálogo `app`, com o id da tela como chave.
 
 /** Props de toda tela: navegação entre telas é a única dependência comum. */
 export type ScreenProps = { onNavigate: (screen: Screen) => void };

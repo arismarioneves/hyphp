@@ -1,3 +1,31 @@
 import type { database as base } from '../pt-BR/database'
 
-export const database: typeof base = {}
+export const database: typeof base = {
+  copied: 'copied',
+  invalidName: 'Invalid name: use [a-z0-9_], up to 64 characters.',
+  installPma: 'Install phpMyAdmin',
+  pmaNeedsMysql: 'Start MySQL first: without a server phpMyAdmin opens with a connection error.',
+  openPma: 'Open phpMyAdmin',
+  copyHost: 'Copy host',
+  user: 'User',
+  copyUser: 'Copy user',
+  password: 'Password',
+  empty: '(empty)',
+  copyPassword: 'Copy password',
+  connection: 'Connection',
+  copyConnection: 'Copy connection command',
+  create: 'Create',
+  namePlaceholder: 'database_name',
+  newNameAria: 'New database name',
+  cancel: 'Cancel',
+  notReadyTitle: 'MySQL is not ready',
+  notReadyDescription: 'Start the service to list databases.',
+  goToServices: 'Go to Services',
+  noDbsTitle: 'No user databases',
+  noDbsDescription: 'Create the first one with the button above.',
+  name: 'Name',
+  size: 'Size',
+  dropConfirm: 'Drop {name}?',
+  drop: 'Drop',
+  dropAria: 'Drop {name}',
+}

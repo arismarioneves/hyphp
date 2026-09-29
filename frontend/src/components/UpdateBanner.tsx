@@ -2,10 +2,12 @@ import { useState } from 'react'
 import { ArrowCircleUp, CheckCircle, X } from '@phosphor-icons/react'
 import { Button } from './Button'
 import { useUpdate } from '../lib/useUpdate'
+import { useT } from '../i18n'
 
 // Faixa acima do conteúdo, em qualquer tela: versão pronta para instalar, ou
 // o resultado do update que acabou de ser aplicado.
 export function UpdateBanner() {
+  const t = useT('app')
   const { status, busy, error, apply } = useUpdate()
   const [dismissed, setDismissed] = useState(false)
   if (!status) return null
@@ -16,8 +18,8 @@ export function UpdateBanner() {
       <div className="flex items-center gap-3 border-b border-border bg-accent-soft px-6 py-2 text-sm">
         <ArrowCircleUp size={18} className="shrink-0 text-accent-fg" />
         <span className="text-fg">
-          HyPHP <span className="font-mono">{status.available}</span> pronto para instalar.
-          <span className="text-fg-muted"> Os serviços param e o Windows pede permissão.</span>
+          HyPHP <span className="font-mono">{status.available}</span> {t('updateReady')}
+          <span className="text-fg-muted">{t('updateReadyHint')}</span>
         </span>
         {(error || status.error) && <span className="selectable text-err">{error || status.error}</span>}
         <Button
@@ -27,7 +29,7 @@ export function UpdateBanner() {
           loading={busy || state === 'aplicando'}
           onClick={() => void apply()}
         >
-          Atualizar e reiniciar
+          {t('updateAndRestart')}
         </Button>
       </div>
     )
@@ -41,7 +43,7 @@ export function UpdateBanner() {
         <button
           type="button"
           className="ml-auto text-fg-muted hover:text-fg"
-          aria-label="Dispensar"
+          aria-label={t('dismiss')}
           onClick={() => setDismissed(true)}
         >
           <X size={16} />

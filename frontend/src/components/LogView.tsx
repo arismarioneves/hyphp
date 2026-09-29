@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Stream, type WailsSocket } from '@wailsio/runtime';
 import { ArrowLineDown, Broom } from '@phosphor-icons/react';
 import { Button } from './Button';
+import { useT } from '../i18n';
 
 type LogViewProps = {
   /** id do serviço supervisionado (ex.: "web:apache", "proc:acme:queue") */
@@ -21,6 +22,7 @@ const RECONNECT_MS = 1000;
  * Handshake: primeiro frame enviado = {"id":"<id>"}; cada frame recebido = uma linha.
  */
 export function LogView({ id, className = '', maxLines = 2000 }: LogViewProps) {
+  const t = useT('app');
   const [lines, setLines] = useState<string[]>([]);
   const [filter, setFilter] = useState('');
   const [follow, setFollow] = useState(true);
@@ -120,15 +122,15 @@ export function LogView({ id, className = '', maxLines = 2000 }: LogViewProps) {
           type="search"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
-          placeholder="filtrar…"
-          aria-label="Filtrar linhas do log"
+          placeholder={t('logFilterPlaceholder')}
+          aria-label={t('logFilter')}
           className="ml-auto h-7 w-48 rounded-pill border border-border bg-bg-card px-2 text-xs text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent"
         />
-        <Button variant="ghost" size="sm" aria-label="Limpar log" icon={<Broom size={14} />} onClick={() => setLines([])} />
+        <Button variant="ghost" size="sm" aria-label={t('logClear')} icon={<Broom size={14} />} onClick={() => setLines([])} />
         <Button
           variant={follow ? 'secondary' : 'ghost'}
           size="sm"
-          aria-label="Seguir o fim do log"
+          aria-label={t('logFollow')}
           aria-pressed={follow}
           icon={<ArrowLineDown size={14} />}
           onClick={() => {
@@ -144,7 +146,7 @@ export function LogView({ id, className = '', maxLines = 2000 }: LogViewProps) {
         className="selectable min-h-0 flex-1 overflow-auto p-3 font-mono text-xs leading-5 text-fg"
       >
         {visible.length === 0 ? (
-          <span className="text-fg-faint">{connected ? 'Sem linhas ainda.' : 'Conectando…'}</span>
+          <span className="text-fg-faint">{connected ? t('logEmpty') : t('logConnecting')}</span>
         ) : (
           visible.map((l, i) => (
             <div key={i} className="whitespace-pre-wrap break-all">

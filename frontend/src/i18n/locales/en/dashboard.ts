@@ -1,3 +1,25 @@
 import type { dashboard as base } from '../pt-BR/dashboard'
 
-export const dashboard: typeof base = {}
+export const dashboard: typeof base = {
+  startAll: 'Start all',
+  stopAll: 'Stop all',
+  yourStack: 'YOUR STACK',
+  noServicesTitle: 'No services configured',
+  noServicesDesc: 'Install a web server and a PHP version in Runtimes.',
+  goToRuntimes: 'Go to Runtimes',
+  projects: 'PROJECTS',
+  noProjectsTitle: 'No projects',
+  noProjectsDesc: 'Add a root directory in Projects.',
+  addDirectory: 'Add directory',
+  ports: 'PORTS',
+  warnings: 'WARNINGS',
+  noWarnings: 'No warnings.',
+  fixInstallWeb: 'Install web server',
+  fixInstallMkcert: 'Install mkcert',
+  fixInstallPhp: 'Install PHP',
+  fixApplyHosts: 'Apply domains',
+  fixInstallCa: 'Install certificate',
+  fixRegisterDns: 'Register DNS rule',
+  fixInstallCompatiblePhp: 'Install compatible PHP',
+  fixReviewProject: 'Review project',
+}

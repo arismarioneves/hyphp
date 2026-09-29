@@ -13,7 +13,8 @@ import {
   SquaresFour,
   Stack,
 } from '@phosphor-icons/react';
-import { SCREEN_LABELS, type Screen } from '../lib/screens';
+import type { Screen } from '../lib/screens';
+import { useT } from '../i18n';
 
 type SidebarProps = {
   current: Screen;
@@ -62,6 +63,7 @@ function NavItem({ icon: IconCmp, label, active, collapsed, onClick, trailing }:
 }
 
 export function Sidebar({ current, onNavigate, collapsed, onToggleCollapsed, status }: SidebarProps) {
+  const t = useT('app');
   return (
     <aside
       className={`flex shrink-0 flex-col border-r border-border bg-bg-sidebar transition-[width] duration-150 ${
@@ -73,7 +75,7 @@ export function Sidebar({ current, onNavigate, collapsed, onToggleCollapsed, sta
           <NavItem
             key={screen}
             icon={icon}
-            label={SCREEN_LABELS[screen]}
+            label={t(screen)}
             active={current === screen}
             collapsed={collapsed}
             onClick={() => onNavigate(screen)}
@@ -84,7 +86,7 @@ export function Sidebar({ current, onNavigate, collapsed, onToggleCollapsed, sta
       <div className="flex flex-col gap-1 border-t border-border p-2">
         <NavItem
           icon={Heartbeat}
-          label="Status"
+          label={t('status')}
           active={false}
           collapsed={collapsed}
           onClick={() => onNavigate('services')}
@@ -92,7 +94,7 @@ export function Sidebar({ current, onNavigate, collapsed, onToggleCollapsed, sta
         />
         <NavItem
           icon={Sliders}
-          label={SCREEN_LABELS.settings}
+          label={t('settings')}
           active={current === 'settings'}
           collapsed={collapsed}
           onClick={() => onNavigate('settings')}
@@ -100,7 +102,7 @@ export function Sidebar({ current, onNavigate, collapsed, onToggleCollapsed, sta
         <button
           type="button"
           onClick={onToggleCollapsed}
-          aria-label={collapsed ? 'Expandir sidebar' : 'Recolher sidebar'}
+          aria-label={collapsed ? t('expandSidebar') : t('collapseSidebar')}
           className="mt-1 flex h-8 w-full items-center justify-center rounded-pill text-fg-faint hover:bg-bg-card-hover hover:text-fg"
         >
           {collapsed ? <CaretRight size={14} /> : <CaretLeft size={14} />}

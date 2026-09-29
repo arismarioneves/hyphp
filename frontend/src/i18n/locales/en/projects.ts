@@ -1,3 +1,28 @@
 import type { projects as base } from '../pt-BR/projects'
 
-export const projects: typeof base = {}
+export const projects: typeof base = {
+  defaultSuffix: ' (default)',
+  downloadOther: 'Download another version…',
+  noProjectsTitle: 'No projects',
+  noProjectsDesc: 'Add a root directory (e.g. C:\\DEV). Each subfolder with index.php, public/ or composer.json becomes a project.',
+  addDirectory: 'Add directory',
+  openBrowser: 'Open in browser',
+  openFolder: 'Open folder',
+  openEditor: 'Open in editor',
+  openTerminal: 'Open terminal',
+  domain: 'Domain',
+  path: 'Path',
+  docroot: 'Docroot',
+  webServer: 'Web server',
+  htaccessNginx: '.htaccess rewrites do not apply under nginx',
+  manifest: 'Manifest',
+  createManifest: 'Create hyphp.yaml',
+  phpVersionAria: 'Project PHP version',
+  phpNotInstalled: 'PHP {version} is not installed',
+  download: 'download',
+  network: 'NETWORK',
+  wildcardDesc: 'Starts the local resolver on 127.0.0.1:53 and registers an NRPT rule (UAC).',
+  processes: 'PROCESSES',
+  noProcesses: 'No processes declared under `processes:` in hyphp.yaml.',
+  restarts: ' · {count} restarts',
+}

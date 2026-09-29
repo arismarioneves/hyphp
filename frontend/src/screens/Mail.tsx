@@ -9,11 +9,13 @@ import { StatusDot, type ServiceState } from '../components/StatusDot'
 import type { ScreenProps } from '../lib/screens'
 import { useServices } from '../lib/useServices'
 import { useSettings } from '../lib/useSettings'
+import { useT } from '../i18n'
 
 /** Porta padrão da UI do Mailpit; `State` recém-criado traz 0 no campo. */
 const DEFAULT_HTTP_PORT = 8025
 
 export function Mail({ onNavigate }: ScreenProps) {
+  const t = useT('mail')
   const { services } = useServices()
   const { settings } = useSettings()
   const [error, setError] = useState<string | null>(null)
@@ -41,11 +43,11 @@ export function Mail({ onNavigate }: ScreenProps) {
     return (
       <EmptyState
         icon={<Envelope size={24} />}
-        title="Mailpit não instalado"
-        description="Baixe o Mailpit na aba Mailpit da tela Runtimes."
+        title={t('notInstalledTitle')}
+        description={t('notInstalledDescription')}
         action={
           <Button variant="secondary" size="sm" onClick={() => onNavigate('runtimes')}>
-            Ir para Runtimes
+            {t('goToRuntimes')}
           </Button>
         }
       />
@@ -65,7 +67,7 @@ export function Mail({ onNavigate }: ScreenProps) {
           className="ml-auto"
           onClick={() => void AppService.OpenExternal(url)}
         >
-          Abrir em nova aba
+          {t('openInNewTab')}
         </Button>
       </div>
       {state === 'ready' ? (
@@ -87,7 +89,7 @@ export function Mail({ onNavigate }: ScreenProps) {
               loading={starting}
               onClick={() => void start()}
             >
-              Iniciar
+              {t('start')}
             </Button>
           </div>
         </Card>

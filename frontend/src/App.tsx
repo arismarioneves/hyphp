@@ -4,7 +4,7 @@ import { Sidebar } from './components/Sidebar';
 import { StatusDot, type ServiceState } from './components/StatusDot';
 import { TitleBar } from './components/TitleBar';
 import { UpdateBanner } from './components/UpdateBanner';
-import { SCREEN_LABELS, type Screen, type ScreenProps } from './lib/screens';
+import { type Screen, type ScreenProps } from './lib/screens';
 import { aggregateState, summarize } from './lib/status';
 import { useApplyTheme } from './lib/theme';
 import { useServices } from './lib/useServices';
@@ -17,6 +17,7 @@ import { Projects } from './screens/Projects';
 import { Runtimes } from './screens/Runtimes';
 import { Services } from './screens/Services';
 import { Settings } from './screens/Settings';
+import { useT } from './i18n';
 
 // O tsconfig usa "jsx": "react-jsx", que não declara o global JSX; por isso o
 // retorno é ReactElement e não JSX.Element.
@@ -32,6 +33,7 @@ const SCREENS: Record<Screen, (props: ScreenProps) => ReactElement> = {
 };
 
 export default function App() {
+  const t = useT('app');
   const [screen, setScreen] = useState<Screen>('dashboard');
   const { services } = useServices();
   const { settings, save } = useSettings();
@@ -51,12 +53,13 @@ export default function App() {
   const status = (
     <span
       className="flex items-center gap-2 font-mono text-xs text-fg-muted"
-      title="Resumo dos serviços — clique para abrir Serviços"
+      title={t('statusTitle')}
     >
       <StatusDot state={overall} />
       {!collapsed && (
         <span>
-          {summary.ready} ativos{summary.degraded > 0 ? ` · ${summary.degraded} com falha` : ''}
+          {t.plural('statusReady', summary.ready)}
+          {summary.degraded > 0 ? t.plural('statusFailed', summary.degraded) : ''}
         </span>
       )}
     </span>
@@ -78,7 +81,7 @@ export default function App() {
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <UpdateBanner />
           <header className="px-6 pb-3 pt-5">
-            <h1 className="font-mono text-lg text-fg">{SCREEN_LABELS[screen]}</h1>
+            <h1 className="font-mono text-lg text-fg">{t(screen)}</h1>
           </header>
           {/* key={screen} descarta o estado local ao trocar de tela: sem isso o
               LogView da tela anterior seguiria com o stream aberto. */}
