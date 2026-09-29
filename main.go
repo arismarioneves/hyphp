@@ -330,12 +330,17 @@ func main() {
 	tray = app.SystemTray.New()
 	tray.SetIcon(trayIcon)
 	tray.SetTooltip("HyPHP")
-	menu := app.NewMenu()
-	menu.Add("Abrir").OnClick(func(*application.Context) {
+	showWindow := func() {
 		window.Show()
+		window.Restore()
 		window.Focus()
-	})
-	menu.Add("Iniciar tudo").OnClick(func(*application.Context) { // hyphp: 06
+	}
+	// Clique esquerdo abre o app, como em todo ícone de bandeja do Windows; o
+	// padrão do Wails era não fazer nada, e só o menu do clique direito abria.
+	tray.OnClick(showWindow)
+	menu := app.NewMenu()
+	menu.Add("Abrir").OnClick(func(*application.Context) { showWindow() })
+	startItem := menu.Add("Iniciar tudo").OnClick(func(*application.Context) { // hyphp: 06
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 			defer cancel()
@@ -344,7 +349,7 @@ func main() {
 			}
 		}()
 	})
-	menu.Add("Parar tudo").OnClick(func(*application.Context) { // hyphp: 06
+	stopItem := menu.Add("Parar tudo").OnClick(func(*application.Context) { // hyphp: 06
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 			defer cancel()
@@ -352,6 +357,19 @@ func main() {
 				logger.Warn("parar tudo (tray)", "err", err)
 			}
 		}()
+	})
+	// Só a ação que faz sentido agora: com algo rodando, Parar; com tudo
+	// parado, Iniciar. Decide na hora de abrir o menu, que é quando o estado
+	// importa, sem assinar cada transição dos serviços.
+	syncStartStop := func() {
+		running := anyRunning(sup.List())
+		startItem.SetHidden(running)
+		stopItem.SetHidden(!running)
+	}
+	syncStartStop()
+	tray.OnRightClick(func() {
+		syncStartStop()
+		tray.OpenMenu()
 	})
 	// Oculto até haver versão pronta; syncUpdateItem mostra e rotula.
 	updItem = menu.Add("Atualizar e reiniciar").SetHidden(true).OnClick(func(*application.Context) {
@@ -405,6 +423,18 @@ func syncUpdateItem(item *application.MenuItem, s update.Status) {
 			item.SetLabel("Atualizar para " + s.Available + " e reiniciar")
 		}
 	})
+}
+
+// anyRunning diz se algum serviço está no ar ou a caminho. Stopping conta:
+// oferecer "Iniciar tudo" enquanto a parada ainda termina faria o clique
+// esbarrar em "serviço já está stopping".
+func anyRunning(list []supervisor.Status) bool {
+	for _, s := range list {
+		if s.State != supervisor.Stopped && s.State != supervisor.Failed {
+			return true
+		}
+	}
+	return false
 }
 
 // webServers monta o mapa de web servers a partir do que está instalado em
