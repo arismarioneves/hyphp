@@ -17,6 +17,13 @@ const (
 	Nginx  WebServerName = "nginx"
 )
 
+// Valores de State.Theme.
+const (
+	ThemeDark   = "dark"
+	ThemeLight  = "light"
+	ThemeSystem = "system"
+)
+
 // State é o conteúdo de state.json. Campos ausentes no arquivo mantêm o valor de Default().
 type State struct {
 	SchemaVersion   int           `json:"schemaVersion"`   // 1
@@ -42,6 +49,13 @@ type State struct {
 	// AutoUpdateOff desliga a verificação periódica de versões. Invertido de
 	// propósito: o zero-value (ausente em state.json antigo) significa ligado.
 	AutoUpdateOff bool `json:"autoUpdateOff"`
+	// Theme é o tema da interface: "dark", "light" ou "system" (segue o
+	// Windows). O zero-value, de state.json anterior à v3, vale como "dark",
+	// que era o único tema.
+	Theme string `json:"theme"`
+	// Language é o idioma da interface ("pt-BR", "en"). Vazio segue o idioma
+	// do Windows (i18n.Resolve).
+	Language string `json:"language"`
 }
 
 // Default é o estado da primeira execução.

@@ -93,6 +93,19 @@ export interface State {
      * propósito: o zero-value (ausente em state.json antigo) significa ligado.
      */
     "autoUpdateOff": boolean;
+
+    /**
+     * Theme é o tema da interface: "dark", "light" ou "system" (segue o
+     * Windows). O zero-value, de state.json anterior à v3, vale como "dark",
+     * que era o único tema.
+     */
+    "theme": string;
+
+    /**
+     * Language é o idioma da interface ("pt-BR", "en"). Vazio segue o idioma
+     * do Windows (i18n.Resolve).
+     */
+    "language": string;
 }
 
 /**

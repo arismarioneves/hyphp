@@ -5,6 +5,7 @@
  * utilitários (bg-bg-app, text-fg-muted, border-border, rounded-card, ...).
  */
 :root {
+  color-scheme: dark;
   --bg-app: #0f1826;
   --bg-sidebar: #0b1220;
   --bg-card: #111c2e;
@@ -19,6 +20,29 @@
   --ok: #22c55e;
   --warn: #f59e0b;
   --err: #ef4444;
+}
+
+/*
+ * Tema claro: mesmos nomes, trocados por <html data-theme="light">
+ * (lib/theme.ts). O acento escurece um tom para manter contraste em fundo
+ * branco; ok/warn/err idem.
+ */
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg-app: #f5f7fb;
+  --bg-sidebar: #eaeef5;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f0f3f8;
+  --border: #d8dfe9;
+  --fg: #0f1826;
+  --fg-muted: #475569;
+  --fg-faint: #6b7890;
+  --accent: #2563eb;
+  --accent-fg: #1d4ed8;
+  --accent-soft: #dbe7fe;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --err: #dc2626;
 }
 
 /* Cores: referenciam as custom properties acima (inline → o utilitário usa var(--bg-app) direto). */

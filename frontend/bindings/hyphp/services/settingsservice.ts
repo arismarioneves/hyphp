@@ -50,6 +50,13 @@ export function InstallCA(): $CancellablePromise<void> {
 }
 
 /**
+ * Languages lista os idiomas oferecidos, na ordem da interface.
+ */
+export function Languages(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(3207731188);
+}
+
+/**
  * RemoveWildcardDNS desfaz a regra. Sem esta porta, quem parasse de usar
  * wildcard ficaria com o namespace .test apontando para um resolvedor morto.
  */
@@ -68,6 +75,15 @@ export function Set($in: state$0.State): $CancellablePromise<void> {
 
 export function SwitchWebServer(name: string): $CancellablePromise<void> {
     return $Call.ByID(2073644598, name);
+}
+
+/**
+ * SystemLanguage devolve o idioma que vale quando state.Language está vazio.
+ * A UI pergunta ao Go, e não ao navigator do WebView, para os dois lados
+ * escolherem igual.
+ */
+export function SystemLanguage(): $CancellablePromise<string> {
+    return $Call.ByID(56439938);
 }
 
 export function Warnings(): $CancellablePromise<stack$0.Warning[] | null> {

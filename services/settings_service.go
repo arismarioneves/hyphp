@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"hyphp/internal/autostart"
+	"hyphp/internal/i18n"
 	"hyphp/internal/project"
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
@@ -20,10 +21,29 @@ type SettingsService struct {
 	mu   sync.Mutex
 	stk  *stack.Stack
 	emit func(name string, data any)
+	// onLanguage roda depois que o idioma muda, para o que o Go desenha fora
+	// da UI (o menu do tray) trocar de texto. Nil em testes.
+	onLanguage func()
 }
 
-func NewSettingsService(stk *stack.Stack, emit func(name string, data any)) *SettingsService {
-	return &SettingsService{stk: stk, emit: emit}
+func NewSettingsService(stk *stack.Stack, emit func(name string, data any), onLanguage func()) *SettingsService {
+	return &SettingsService{stk: stk, emit: emit, onLanguage: onLanguage}
+}
+
+// SystemLanguage devolve o idioma que vale quando state.Language está vazio.
+// A UI pergunta ao Go, e não ao navigator do WebView, para os dois lados
+// escolherem igual.
+func (s *SettingsService) SystemLanguage() string {
+	return string(i18n.Resolve(""))
+}
+
+// Languages lista os idiomas oferecidos, na ordem da interface.
+func (s *SettingsService) Languages() []string {
+	out := make([]string, len(i18n.Supported))
+	for i, l := range i18n.Supported {
+		out[i] = string(l)
+	}
+	return out
 }
 
 func (s *SettingsService) Get() state.State {
@@ -99,7 +119,10 @@ func (s *SettingsService) Set(in state.State) error {
 	relevant := cur.DefaultPHP != in.DefaultPHP || cur.PoolSize != in.PoolSize ||
 		cur.HTTPPort != in.HTTPPort || cur.HTTPSPort != in.HTTPSPort ||
 		cur.MySQLPort != in.MySQLPort || cur.MailpitSMTPPort != in.MailpitSMTPPort ||
-		cur.MailpitHTTPPort != in.MailpitHTTPPort || !reflect.DeepEqual(cur.PHPExtensions, in.PHPExtensions)
+		cur.MailpitHTTPPort != in.MailpitHTTPPort || !reflect.DeepEqual(cur.PHPExtensions, in.PHPExtensions) ||
+		// Avisos e a página padrão do web server são escritos pelo Reconcile
+		// no idioma atual: trocar o idioma tem de reescrevê-los.
+		cur.Language != in.Language
 	rootsChanged := !sameSet(cur.Roots, in.Roots)
 
 	// O toggle "Iniciar o HyPHP no login" só valia como campo persistido; sem
@@ -125,9 +148,17 @@ func (s *SettingsService) Set(in state.State) error {
 		st.SidebarCollapsed = in.SidebarCollapsed
 		st.Autostart = in.Autostart
 		st.AutoUpdateOff = in.AutoUpdateOff
+		st.Theme = in.Theme
+		st.Language = in.Language
 	})
 	if err != nil {
 		return err
+	}
+	if cur.Language != in.Language {
+		i18n.SetCurrent(i18n.Resolve(in.Language))
+		if s.onLanguage != nil {
+			s.onLanguage()
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
@@ -177,6 +208,14 @@ func (s *SettingsService) SwitchWebServer(name string) error {
 func validateSettings(st state.State) error {
 	if st.WebServer != state.Apache && st.WebServer != state.Nginx {
 		return fmt.Errorf("webServer %q inválido (apache|nginx)", st.WebServer)
+	}
+	switch st.Theme {
+	case "", state.ThemeDark, state.ThemeLight, state.ThemeSystem:
+	default:
+		return fmt.Errorf("theme %q inválido (dark|light|system)", st.Theme)
+	}
+	if !i18n.Valid(st.Language) {
+		return fmt.Errorf("language %q não é um idioma suportado", st.Language)
 	}
 	if st.PoolSize < 1 || st.PoolSize > 16 {
 		return fmt.Errorf("poolSize %d fora de 1..16", st.PoolSize)

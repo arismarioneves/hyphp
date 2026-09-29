@@ -20,6 +20,7 @@ import { useSettings } from '../lib/useSettings'
 import { useUpdate } from '../lib/useUpdate'
 import { useWarnings } from '../lib/useWarnings'
 import { errorText } from '../lib/errors'
+import { LANGS, useLang, useT } from '../i18n'
 import type { UpdateStatus } from '../lib/types'
 
 /** Códigos de `stack.Warning` que o card Permissões resolve (C18.42 e C18.45). */
@@ -226,6 +227,8 @@ function PermissionsCard() {
 }
 
 export function Settings({ onNavigate }: ScreenProps) {
+  const t = useT('settings')
+  const { system } = useLang()
   const { settings, save } = useSettings()
   const { installed } = useRuntimes()
   const [draft, setDraft] = useState(settings)
@@ -491,15 +494,43 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
+      <Section label={t('appearance')}>
+        <Row label={t('theme')}>
+          <Select
+            aria-label={t('theme')}
+            value={draft.theme || 'dark'}
+            options={[
+              { value: 'dark', label: t('themeDark') },
+              { value: 'light', label: t('themeLight') },
+              { value: 'system', label: t('themeSystem') },
+            ]}
+            onChange={(v) => set('theme', v)}
+            className="w-64"
+          />
+        </Row>
+        <Row label={t('language')}>
+          <Select
+            aria-label={t('language')}
+            value={draft.language}
+            options={[
+              {
+                value: '',
+                label: t('languageSystem', { lang: LANGS.find((l) => l.code === system)?.label ?? system }),
+              },
+              ...LANGS.map((l) => ({ value: l.code, label: l.label })),
+            ]}
+            onChange={(v) => set('language', v)}
+            className="w-64"
+          />
+        </Row>
+      </Section>
+
       <Section label="SOBRE">
         <Row label="Versão">
           <span className="selectable font-mono text-sm text-fg">{version || '—'}</span>
         </Row>
         <Row label="Raiz de runtime">
           <span className="selectable font-mono text-sm text-fg">{runtimeRoot || '—'}</span>
-        </Row>
-        <Row label="Tema">
-          <span className="text-sm text-fg-muted">Escuro</span>
         </Row>
         <div>
           <Button variant="danger" size="sm" onClick={() => void AppService.Quit()}>

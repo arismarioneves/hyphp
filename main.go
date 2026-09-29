@@ -14,6 +14,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"hyphp/internal/autostart"
+	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
 	"hyphp/internal/pkgmgr"
@@ -68,6 +69,9 @@ func main() {
 		logger.Error("carregar state.json", "path", statePath, "err", err)
 		os.Exit(1)
 	}
+	// Antes de qualquer texto do Go: avisos, tray e diálogos saem no idioma
+	// escolhido (ou no do Windows).
+	i18n.SetCurrent(i18n.Resolve(st.Language))
 
 	// Reconciliar o autostart com o registro. Dois casos reais que de outro
 	// modo quebram calados:
@@ -106,6 +110,8 @@ func main() {
 		stopFwd func()
 		stopUpd context.CancelFunc
 		updItem *application.MenuItem
+		// relabelTray reescreve o menu no idioma atual; no-op até o tray existir.
+		relabelTray = func() {}
 	)
 
 	app := application.New(application.Options{
@@ -297,7 +303,7 @@ func main() {
 	app.RegisterService(application.NewService(projSvc))
 	app.RegisterService(application.NewService(services.NewServicesService(services.ServicesDeps{Sup: sup, Logger: logger})))
 	app.RegisterService(application.NewService(rtSvc))
-	app.RegisterService(application.NewService(services.NewSettingsService(stk, emit)))
+	app.RegisterService(application.NewService(services.NewSettingsService(stk, emit, func() { relabelTray() })))
 	app.RegisterService(application.NewService(services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})))
 	app.RegisterService(application.NewService(services.NewDatabaseService(services.DatabaseDeps{
 		Sup:      sup,
@@ -318,7 +324,7 @@ func main() {
 		MinWidth:         960,
 		MinHeight:        600,
 		Frameless:        true,
-		BackgroundColour: application.NewRGB(15, 24, 38),
+		BackgroundColour: windowBackground(st.Theme, systemDarkMode()),
 		URL:              "/",
 	})
 	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
@@ -339,8 +345,8 @@ func main() {
 	// padrão do Wails era não fazer nada, e só o menu do clique direito abria.
 	tray.OnClick(showWindow)
 	menu := app.NewMenu()
-	menu.Add("Abrir").OnClick(func(*application.Context) { showWindow() })
-	startItem := menu.Add("Iniciar tudo").OnClick(func(*application.Context) { // hyphp: 06
+	openItem := menu.Add(i18n.T("tray.open")).OnClick(func(*application.Context) { showWindow() })
+	startItem := menu.Add(i18n.T("tray.startAll")).OnClick(func(*application.Context) { // hyphp: 06
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 			defer cancel()
@@ -349,7 +355,7 @@ func main() {
 			}
 		}()
 	})
-	stopItem := menu.Add("Parar tudo").OnClick(func(*application.Context) { // hyphp: 06
+	stopItem := menu.Add(i18n.T("tray.stopAll")).OnClick(func(*application.Context) { // hyphp: 06
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 			defer cancel()
@@ -372,7 +378,7 @@ func main() {
 		tray.OpenMenu()
 	})
 	// Oculto até haver versão pronta; syncUpdateItem mostra e rotula.
-	updItem = menu.Add("Atualizar e reiniciar").SetHidden(true).OnClick(func(*application.Context) {
+	updItem = menu.Add(i18n.T("tray.update")).SetHidden(true).OnClick(func(*application.Context) {
 		go func() {
 			if err := upd.Apply(app.Quit); err != nil {
 				logger.Warn("aplicar atualização (tray)", "err", err)
@@ -380,8 +386,19 @@ func main() {
 		}()
 	})
 	menu.AddSeparator()
-	menu.Add("Sair").OnClick(func(*application.Context) { app.Quit() })
+	quitItem := menu.Add(i18n.T("tray.quit")).OnClick(func(*application.Context) { app.Quit() })
 	tray.SetMenu(menu)
+	// Trocar o idioma em Configurações reescreve o menu; o rótulo do item de
+	// update depende da versão pronta, e syncUpdateItem cuida dele.
+	relabelTray = func() {
+		application.InvokeAsync(func() {
+			openItem.SetLabel(i18n.T("tray.open"))
+			startItem.SetLabel(i18n.T("tray.startAll"))
+			stopItem.SetLabel(i18n.T("tray.stopAll"))
+			quitItem.SetLabel(i18n.T("tray.quit"))
+			syncUpdateItem(updItem, upd.Status())
+		})
+	}
 
 	// hyphp: 06 — subir a stack depois que a janela existe (a UI já escuta
 	// service:state / stack:warnings / project:changed no primeiro render).
@@ -420,9 +437,18 @@ func syncUpdateItem(item *application.MenuItem, s update.Status) {
 		ready := s.State == update.StateReady
 		item.SetHidden(!ready)
 		if ready {
-			item.SetLabel("Atualizar para " + s.Available + " e reiniciar")
+			item.SetLabel(i18n.T("tray.updateTo", s.Available))
 		}
 	})
+}
+
+// windowBackground é a cor da janela antes de o WebView pintar: sem casar com
+// o tema, abrir o app no tema claro piscaria o fundo escuro.
+func windowBackground(theme string, systemDark bool) application.RGBA {
+	if theme == state.ThemeLight || (theme == state.ThemeSystem && !systemDark) {
+		return application.NewRGB(245, 247, 251) // --bg-app do tema claro
+	}
+	return application.NewRGB(15, 24, 38) // --bg-app do tema escuro
 }
 
 // anyRunning diz se algum serviço está no ar ou a caminho. Stopping conta:
