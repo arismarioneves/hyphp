@@ -1,21 +1,21 @@
-# Contribuindo com o HyPHP
+# Contributing to HyPHP
 
-Obrigado pelo interesse. Issues e pull requests são bem-vindos.
+Thanks for your interest. Issues and pull requests are welcome.
 
-## Licença das contribuições
+## Licensing of contributions
 
-Ao enviar um pull request, você concorda com o [CLA](CLA.md) (Contributor License Agreement, baseado no ICLA da Apache) para aquela e para as suas próximas contribuições. Não há formulário nem caixa para marcar.
+By submitting a pull request, you agree to the [CLA](CLA.md) (Contributor License Agreement, based on the Apache ICLA) for that contribution and for your future ones. There is no form to fill in and no box to tick.
 
-Você continua dono do que escreveu. O que o CLA faz é autorizar o mantenedor a distribuir a sua contribuição, inclusive nas partes pagas do HyPHP (pasta `enterprise/`). Sem isso, código de terceiros não poderia entrar no produto sem risco.
+You remain the owner of what you wrote. What the CLA does is authorize the maintainer to distribute your contribution, including in the paid parts of HyPHP (the `enterprise/` directory). Without it, third-party code could not go into the product without risk.
 
-## Como a licença funciona
+## How the license works
 
-- **Fora de `enterprise/`**: [PolyForm Shield 1.0.0](LICENSE). Qualquer pessoa ou empresa pode usar, estudar, modificar e compartilhar, inclusive no trabalho. O que não pode é oferecer um produto que concorra com o HyPHP ou com os recursos pagos dele, pago ou gratuito. Isso inclui vender o próprio HyPHP.
-- **Dentro de `enterprise/`**: [licença própria](enterprise/LICENSE). É onde vão morar os recursos pagos, e o uso exige assinatura. O código fica visível, e você pode modificá-lo para desenvolver e testar contribuições.
+- **Outside `enterprise/`**: [PolyForm Shield 1.0.0](LICENSE). Anyone, individuals or companies, can use, study, modify and share it, including at work. What is not allowed is offering a product that competes with HyPHP or with its paid features, whether paid or free. That includes selling HyPHP itself.
+- **Inside `enterprise/`**: [its own license](enterprise/LICENSE). This is where the paid features will live, and using them requires a subscription. The code is visible, and you may modify it to develop and test contributions.
 
-Este resumo não substitui o texto das licenças.
+This summary does not replace the license texts.
 
-## Antes de abrir o pull request
+## Before opening a pull request
 
 ```powershell
 go build . ./cmd/... ./services/... ./internal/...
@@ -23,4 +23,4 @@ go test . ./cmd/... ./services/... ./internal/...
 npx --prefix frontend tsc --noEmit -p frontend
 ```
 
-Explique nos comentários do código o porquê de cada decisão; o quê o código já diz.
+In code comments, explain why each decision was made; the code already says what it does.

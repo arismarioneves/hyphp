@@ -1,7 +1,7 @@
-## O que muda
+## What changes
 
-## Como verificar
+## How to verify
 
 ---
 
-Ao enviar este pull request, você concorda com o [CLA](https://github.com/arismarioneves/hyphp/blob/main/CLA.md).
+By submitting this pull request, you agree to the [CLA](https://github.com/arismarioneves/hyphp/blob/main/CLA.md).

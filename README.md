@@ -1,56 +1,66 @@
-# HyPHP
+<p align="center">
+  <img src=".github/assets/banner.png" alt="HyPHP window running Apache, PHP 7.4, 8.3 and 8.4, MySQL and Mailpit">
+</p>
 
-Ambiente de desenvolvimento PHP com orquestrador próprio: várias versões de PHP servindo
-domínios diferentes **ao mesmo tempo**, HTTPS local, workers supervisionados e ambiente
-reproduzível por projeto.
+<h1 align="center">HyPHP</h1>
 
-Baixe o instalador na página de [Releases](https://github.com/arismarioneves/hyphp/releases/latest)
-(Windows 10/11 x64). Ele ainda não tem assinatura digital: se o Windows avisar, use
-**Mais informações → Executar assim mesmo**.
+<p align="center">PHP development environment for Windows.<br>Multiple PHP versions side by side, each project declares its own. No Docker.</p>
 
-## Por que existe
+<p align="center"><b>English</b> | <a href="README.pt-BR.md">Português</a></p>
 
-| Ferramenta | Limitação |
+A PHP development environment with its own orchestrator: several PHP versions serving
+different domains **at the same time**, local HTTPS, supervised workers and a reproducible
+environment per project.
+
+Download the installer from the [Releases](https://github.com/arismarioneves/hyphp/releases/latest)
+page (Windows 10/11 x64). It is not digitally signed yet: if Windows warns you, choose
+**More info → Run anyway**.
+
+## Why it exists
+
+| Tool | Limitation |
 |---|---|
-| **XAMPP** | `mod_php`: uma versão de PHP por instalação. Sem domínios locais, sem HTTPS local, órfãos após crash. |
-| **Laragon** | Arquitetura correta, mas fechado, sem fonte publicada. A versão de PHP troca por menu ou por *Profile*, que vale para a instalação inteira, e não fica declarada no projeto. |
-| **WampServer** | PHP por VirtualHost via FCGI desde a 3.2.8 (changelog oficial), mas só Apache, e a configuração mora nos menus e arquivos da instalação, não no projeto. |
-| **DDEV / Devilbox / Lando** | Sólidos e open source, mas exigem Docker — 2–4 GB de RAM antes do primeiro request. |
+| **XAMPP** | `mod_php`: one PHP version per installation. No local domains, no local HTTPS, orphan processes after a crash. |
+| **Laragon** | Sound architecture, but closed, with no published source. The PHP version is switched from a menu or a *Profile*, applies to the whole installation, and is not declared in the project. |
+| **WampServer** | PHP per VirtualHost through FCGI since 3.2.8 (official changelog), but Apache only, and the configuration lives in the installation's menus and files, not in the project. |
+| **DDEV / Devilbox / Lando** | Solid and open source, but they require Docker — 2–4 GB of RAM before the first request. |
 
-O HyPHP junta no Windows, sem Docker, o que os outros entregam separado: **vários PHP
-atendendo ao mesmo tempo**, a versão **declarada no próprio projeto** (`hyphp.yaml`,
-commitável), Apache ou nginx, e workers supervisionados.
+HyPHP brings together on Windows, without Docker, what the others deliver separately:
+**several PHP versions serving at the same time**, the version **declared in the project
+itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised workers.
 
-## O que faz diferente
+## What it does differently
 
-- **Multi-versão simultânea real** — `php-cgi` em modo FastCGI externo, um pool por versão,
-  um único Apache (ou nginx) na frente. Versão declarada por projeto.
-- **Pool de workers** — `php-cgi` no Windows atende um request por vez; sem pool, um request
-  lento trava o site. Medido: 2 requests de 3 s levaram 6,2 s em 1 worker e 3 s em 2.
-- **Zero processos órfãos** — garantido pelo kernel, via Job Object com kill-on-close.
-- **Estado real** — cada serviço tem probe de readiness; a UI mostra `degraded` quando o
-  processo vive mas não responde.
-- **Ambiente reproduzível** — `hyphp.yaml` commitado no repositório do projeto.
-- **Config é saída, não entrada** — `etc/` é gerado e validado (`httpd -t` / `nginx -t`)
-  antes de aplicar; config inválida nunca derruba o ambiente.
+- **Real simultaneous multi-version** — `php-cgi` in external FastCGI mode, one pool per
+  version, a single Apache (or nginx) in front. Version declared per project.
+- **Worker pool** — on Windows, `php-cgi` serves one request at a time; without a pool, one
+  slow request locks up the site. Measured: 2 requests of 3 s took 6.2 s with 1 worker and
+  3 s with 2.
+- **Zero orphan processes** — guaranteed by the kernel, through a Job Object with
+  kill-on-close.
+- **Real status** — every service has a readiness probe; the UI shows `degraded` when the
+  process is alive but not responding.
+- **Reproducible environment** — `hyphp.yaml` committed to the project's repository.
+- **Config is output, not input** — `etc/` is generated and validated (`httpd -t` /
+  `nginx -t`) before being applied; an invalid config never takes the environment down.
 
-## Plataformas
+## Platforms
 
-O alvo é **Windows 10/11 x64** — deliberadamente o caso mais difícil, já que `php-fpm`
-não existe nessa plataforma. A arquitetura isola o que é específico de sistema
-operacional em arquivos com build tag; portar para macOS e Linux é mais simples, porque lá
-`php-fpm` existe e elimina a peça mais complexa do design.
+The target is **Windows 10/11 x64** — deliberately the hardest case, since `php-fpm` does
+not exist on this platform. The architecture isolates OS-specific code in files with build
+tags; porting to macOS and Linux is simpler, because `php-fpm` exists there and removes the
+most complex piece of the design.
 
 ## `hyphp.yaml`
 
 ```yaml
 name: acme
 domain: acme.test          # default: <name>.test
-wildcard: false            # true habilita *.acme.test via resolvedor DNS local
-php: "8.1"                 # ausente = versão padrão global
-docroot: public            # default: public se existir, senão a raiz
+wildcard: false            # true enables *.acme.test through the local DNS resolver
+php: "8.1"                 # missing = global default version
+docroot: public            # default: public if it exists, otherwise the root
 extensions: [pdo_mysql, intl, zip, gd]
-database: acme_dev         # criado se ausente
+database: acme_dev         # created if missing
 processes:
   queue: php artisan queue:work --tries=3
   scheduler: php artisan schedule:work
@@ -60,9 +70,9 @@ processes:
 
 Go 1.26 · Wails v3 (WebView2) · React 18 + TypeScript · Tailwind v4 · Phosphor Icons
 
-Componentes orquestrados, baixados das fontes oficiais, cada um sob a própria licença:
+Orchestrated components, downloaded from their official sources, each under its own license:
 
-| Componente | Licença | Origem |
+| Component | License | Source |
 |---|---|---|
 | PHP | PHP License 3.01 | windows.php.net |
 | Apache httpd | Apache-2.0 | apachelounge.com |
@@ -71,104 +81,106 @@ Componentes orquestrados, baixados das fontes oficiais, cada um sob a própria l
 | Mailpit | MIT | github.com/axllent/mailpit |
 | mkcert | BSD-3-Clause | github.com/FiloSottile/mkcert |
 
-O HyPHP não redistribui esses binários: baixa sob demanda, verifica o SHA-256 e extrai em
-`bin/`. Qualquer build compatível colocada manualmente em `bin/` também é reconhecida.
+HyPHP does not redistribute these binaries: it downloads them on demand, verifies the
+SHA-256 and extracts them into `bin/`. Any compatible build placed manually in `bin/` is
+recognized as well.
 
-## Desenvolvimento
+## Development
 
-Requer Go 1.26+, Node/npm e a CLI do Wails v3:
+Requires Go 1.26+, Node/npm and the Wails v3 CLI:
 
 ```bash
 go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0-beta.23
-wails3 doctor     # verifica o ambiente
-wails3 dev        # desenvolvimento com hot reload
-wails3 build      # binário em bin/
+wails3 doctor     # checks the environment
+wails3 dev        # development with hot reload
+wails3 build      # binary in bin/
 ```
 
-Gerar o instalador exige o [NSIS](https://nsis.sourceforge.io/) no `PATH`
-(`winget install NSIS.NSIS` instala em `C:\Program Files (x86)\NSIS`, que o
-instalador não acrescenta ao `PATH` automaticamente):
+Building the installer requires [NSIS](https://nsis.sourceforge.io/) on `PATH`
+(`winget install NSIS.NSIS` installs it into `C:\Program Files (x86)\NSIS`, which the
+installer does not add to `PATH` automatically):
 
 ```powershell
 $env:PATH = 'C:\Program Files (x86)\NSIS;' + $env:PATH
 wails3 task windows:package   # bin/hyphp-amd64-installer.exe
 ```
 
-O instalador leva `hyphp.exe` e `hyphp-helper.exe`. O helper é o binário com
-manifesto `requireAdministrator` que executa as ações elevadas de rede
-(escrever no `hosts`, instalar o certificado raiz local, a regra de DNS
-curinga); sem ele ao lado do executável principal, essas ações falham. A
-quarta e última ação que pede UAC é instalar uma atualização.
+The installer ships `hyphp.exe` and `hyphp-helper.exe`. The helper is the binary with a
+`requireAdministrator` manifest that performs the elevated network actions (writing to
+`hosts`, installing the local root certificate, the wildcard DNS rule); without it next to
+the main executable, those actions fail. The fourth and last action that asks for UAC is
+installing an update.
 
-### Instalação
+### Installation
 
-O instalador aceita os dois escopos do NSIS:
+The installer supports both NSIS scopes:
 
 ```powershell
-wails3 task windows:package                      # máquina (Program Files, pede UAC)
-wails3 task windows:package INSTALL_SCOPE=user   # usuário (sem UAC)
-hyphp-amd64-installer.exe /S /D=C:\caminho       # silencioso, diretório à escolha
+wails3 task windows:package                      # machine (Program Files, asks for UAC)
+wails3 task windows:package INSTALL_SCOPE=user   # user (no UAC)
+hyphp-amd64-installer.exe /S /D=C:\path          # silent, directory of your choice
 ```
 
-A raiz de dados (`bin/`, `etc/`, `var/`, `log/`) fica **ao lado do executável se
-esse diretório for gravável**, senão em `%LOCALAPPDATA%\HyPHP`. É o que permite
-instalar em Program Files sem que o app precise de privilégio para funcionar.
-`HYPHP_ROOT` sobrepõe a regra.
+The data root (`bin/`, `etc/`, `var/`, `log/`) lives **next to the executable if that
+directory is writable**, otherwise in `%LOCALAPPDATA%\HyPHP`. That is what allows installing
+into Program Files without the app needing privileges to work. `HYPHP_ROOT` overrides the
+rule.
 
-A desinstalação remove o diretório de instalação, mas **não** desfaz o que o
-usuário aplicou no sistema: o bloco do `hosts`, a regra de DNS `.test` e a
-entrada de autostart saem pela própria interface (card **Permissões** em
-Configurações e o toggle de início automático), antes de desinstalar.
+Uninstalling removes the installation directory, but does **not** undo what the user
+applied to the system: the `hosts` block, the `.test` DNS rule and the autostart entry are
+removed through the interface itself (the **Permissões** card in **Configurações**, the
+Settings screen, and the autostart toggle), before uninstalling.
 
-### Atualizações
+### Updates
 
-O app verifica a release mais nova em
+The app checks for the newest release at
 `https://github.com/arismarioneves/hyphp/releases/latest/download/latest.json`
-um minuto depois de abrir e a cada 6 horas (desligável em Configurações ›
-Atualizações) e baixa o instalador novo em segundo plano. O manifesto é assinado
-com ed25519 (chave pública em `internal/update/key.go`) e traz o SHA-256 do
-instalador; o app recusa manifesto ou instalador que não batam. A instalação só
-acontece no clique em **Atualizar e reiniciar**: os serviços param, o Windows
-pede permissão uma vez e o app volta sozinho na versão nova. Builds de
-desenvolvimento (sem `-tags production`) não participam.
+one minute after it opens and every 6 hours (can be turned off in **Configurações ›
+Atualizações**), and downloads the new installer in the background. The manifest is signed
+with ed25519 (public key in `internal/update/key.go`) and carries the installer's SHA-256;
+the app rejects a manifest or an installer that does not match. Installation only happens
+when you click **Atualizar e reiniciar** (update and restart): the services stop, Windows
+asks for permission once, and the app comes back on its own in the new version. Development
+builds (without `-tags production`) do not take part.
 
-### Publicar uma versão
+### Publishing a version
 
-A versão vive em quatro lugares, que o `hyphp-release` confere antes de
-publicar: `internal/version/version.go`, `info.version` em `build/config.yml`,
-`build/windows/info.json` e `INFO_PRODUCTVERSION` em
-`build/windows/nsis/wails_tools.nsh`. Com a tag `v<versão>` já no GitHub:
+The version lives in four places, which `hyphp-release` checks before publishing:
+`internal/version/version.go`, `info.version` in `build/config.yml`,
+`build/windows/info.json` and `INFO_PRODUCTVERSION` in
+`build/windows/nsis/wails_tools.nsh`. With the `v<version>` tag already on GitHub:
 
 ```powershell
 wails3 task windows:package
-go run ./cmd/hyphp-release -nota "O que mudou" -nota "Outra mudança"
+go run ./cmd/hyphp-release -nota "What changed" -nota "Another change"
 ```
 
-O comando assina o `latest.json` com a chave de release e cria a release com o
-instalador, o manifesto e a assinatura (via `gh`). A release é imutável: as
-notas precisam estar certas antes de publicar.
+The command signs `latest.json` with the release key and creates the release with the
+installer, the manifest and the signature (via `gh`). The release is immutable: the notes
+must be right before publishing.
 
-## Relação com o Laragon
+## Relationship with Laragon
 
-O HyPHP é implementação limpa. O Laragon não tem licença open-source (a API do GitHub
-reporta `"license": null`) e não publica código-fonte — o repositório contém apenas o
-binário compilado. Reaproveitamos **ideias e comportamento** (domínios `.test`, orquestração
-própria, layout portátil), que não são protegidos por copyright, e nenhum arquivo de
-configuração, template ou artefato derivado do executável dele.
+HyPHP is a clean-room implementation. Laragon has no open-source license (the GitHub API
+reports `"license": null`) and does not publish its source code — the repository contains
+only the compiled binary. We reuse **ideas and behavior** (`.test` domains, own
+orchestration, portable layout), which are not protected by copyright, and no configuration
+file, template or artifact derived from its executable.
 
-## Licença
+## License
 
-O código fica aberto para leitura, no modelo *open core* do Chatwoot e do GitLab:
+The code is open to read, following the *open core* model of Chatwoot and GitLab:
 
-- **Tudo fora de `enterprise/`** usa a [PolyForm Shield 1.0.0](LICENSE). Qualquer
-  pessoa ou empresa pode usar o HyPHP de graça, inclusive no trabalho, e estudar,
-  modificar e compartilhar o código. O que ela não permite é oferecer um produto
-  que concorra com o HyPHP ou com os recursos pagos dele, seja pago ou gratuito,
-  o que inclui vender o próprio HyPHP.
-- **`enterprise/`** vai guardar os recursos pagos, com [licença própria](enterprise/LICENSE)
-  e uso por assinatura. Hoje ela só tem a licença: ainda não existe recurso pago.
+- **Everything outside `enterprise/`** is under the [PolyForm Shield 1.0.0](LICENSE).
+  Anyone, individuals or companies, can use HyPHP for free, including at work, and study,
+  modify and share the code. What it does not allow is offering a product that competes
+  with HyPHP or with its paid features, whether paid or free, which includes selling HyPHP
+  itself.
+- **`enterprise/`** will hold the paid features, under [its own license](enterprise/LICENSE)
+  and subscription-based use. Today it only contains the license: there are no paid
+  features yet.
 
-Contribuições exigem aceitar o [CLA](CLA.md); ver [CONTRIBUTING.md](CONTRIBUTING.md).
+By submitting a pull request, you agree to the [CLA](CLA.md); see
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
-Os componentes que o HyPHP baixa (tabela em [Stack](#stack)) seguem cada um a
-própria licença.
+The components HyPHP downloads (table in [Stack](#stack)) each follow their own license.
