@@ -3,6 +3,7 @@ package pkgmgr
 import (
 	"archive/zip"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -21,6 +22,9 @@ const (
 	PhaseExtract  = "extract"
 	PhaseDone     = "done"
 	PhaseError    = "error"
+	// PhaseCanceled: o usuário cancelou. Fase própria para a UI voltar ao
+	// estado inicial em vez de mostrar "context canceled" como erro.
+	PhaseCanceled = "canceled"
 )
 
 type Progress struct {
@@ -56,6 +60,10 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 		onProgress(Progress{PackageID: pkg.ID, Done: done, Total: total, Phase: phase})
 	}
 	fail := func(err error) (runtime.Installed, error) {
+		if errors.Is(err, context.Canceled) {
+			onProgress(Progress{PackageID: pkg.ID, Phase: PhaseCanceled})
+			return runtime.Installed{}, err
+		}
 		onProgress(Progress{PackageID: pkg.ID, Phase: PhaseError, Error: err.Error()})
 		return runtime.Installed{}, err
 	}

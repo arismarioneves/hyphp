@@ -20,6 +20,15 @@ export function Available(): $CancellablePromise<pkgmgr$0.Package[] | null> {
 }
 
 /**
+ * CancelInstall interrompe o download em andamento do pacote. O progresso
+ * termina com a fase "canceled" e o arquivo parcial é apagado. Depois do
+ * download (verificação e extração, que levam segundos) não há o que cancelar.
+ */
+export function CancelInstall(packageID: string): $CancellablePromise<void> {
+    return $Call.ByID(2726836002, packageID);
+}
+
+/**
  * Extensions lista ext/*.dll do maior patch da série, marcando as habilitadas.
  */
 export function Extensions(major: string): $CancellablePromise<runtime$0.Extension[] | null> {
@@ -59,7 +68,9 @@ export function PickImportDir(): $CancellablePromise<string> {
 }
 
 /**
- * Remove apaga a pasta do runtime e revarre.
+ * Remove para os serviços que rodam do runtime, apaga a pasta e revarre. A
+ * revarredura dispara o Reconcile, que passa o serviço para outra versão
+ * instalada ou o tira.
  */
 export function Remove(kind: string, version: string): $CancellablePromise<void> {
     return $Call.ByID(476102805, kind, version);

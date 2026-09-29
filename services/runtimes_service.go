@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -46,7 +47,7 @@ type RuntimesService struct {
 	mu         sync.Mutex
 	installed  []runtime.Installed
 	scanned    bool
-	installing map[string]bool // packageID → em andamento
+	installing map[string]context.CancelFunc // packageID → cancela o download em andamento
 	ctx        context.Context // de ServiceStartup; Background() antes disso
 }
 
@@ -55,7 +56,7 @@ func NewRuntimesService(d RuntimesDeps) *RuntimesService {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
 	}
-	return &RuntimesService{d: d, installing: map[string]bool{}, ctx: context.Background()}
+	return &RuntimesService{d: d, installing: map[string]context.CancelFunc{}, ctx: context.Background()}
 }
 
 // ServiceStartup (Wails) inicia o watcher de bin/. ctx é cancelado no shutdown.
@@ -119,11 +120,12 @@ func (r *RuntimesService) Install(packageID string) error {
 		return fmt.Errorf("pacote %q não existe no catálogo", packageID)
 	}
 	r.mu.Lock()
-	if r.installing[packageID] {
+	if _, busy := r.installing[packageID]; busy {
 		r.mu.Unlock()
 		return fmt.Errorf("pacote %q já está sendo instalado", packageID)
 	}
-	r.installing[packageID] = true
+	ctx, cancel := context.WithCancel(r.ctx)
+	r.installing[packageID] = cancel
 	r.mu.Unlock()
 
 	go func() {
@@ -131,15 +133,33 @@ func (r *RuntimesService) Install(packageID string) error {
 			r.mu.Lock()
 			delete(r.installing, packageID)
 			r.mu.Unlock()
+			cancel()
 		}()
-		_, err := r.d.Manager.Install(r.ctx, pkg, func(p pkgmgr.Progress) { r.emit("download:progress", p) })
-		if err != nil {
+		_, err := r.d.Manager.Install(ctx, pkg, func(p pkgmgr.Progress) { r.emit("download:progress", p) })
+		switch {
+		case errors.Is(err, context.Canceled):
+			r.d.Logger.Info("runtimes: download cancelado", "pkg", packageID)
+		case err != nil:
 			r.d.Logger.Error("runtimes: instalação falhou", "pkg", packageID, "err", err)
 		}
 		if err := r.Rescan(); err != nil {
 			r.d.Logger.Warn("runtimes: varredura após instalação", "err", err)
 		}
 	}()
+	return nil
+}
+
+// CancelInstall interrompe o download em andamento do pacote. O progresso
+// termina com a fase "canceled" e o arquivo parcial é apagado. Depois do
+// download (verificação e extração, que levam segundos) não há o que cancelar.
+func (r *RuntimesService) CancelInstall(packageID string) error {
+	r.mu.Lock()
+	cancel, ok := r.installing[packageID]
+	r.mu.Unlock()
+	if !ok {
+		return fmt.Errorf("pacote %q não está sendo instalado", packageID)
+	}
+	cancel()
 	return nil
 }
 

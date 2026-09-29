@@ -42,8 +42,8 @@ func TestProgressContratoComOFrontend(t *testing.T) {
 // As fases são uma união literal no TypeScript (ProgressPhase). Emitir uma fase
 // fora da lista faria a UI cair no default silenciosamente.
 func TestFasesDeProgressoConhecidas(t *testing.T) {
-	want := map[string]bool{"download": true, "verify": true, "extract": true, "done": true, "error": true}
-	for _, p := range []string{PhaseDownload, PhaseVerify, PhaseExtract, PhaseDone, PhaseError} {
+	want := map[string]bool{"download": true, "verify": true, "extract": true, "done": true, "error": true, "canceled": true}
+	for _, p := range []string{PhaseDownload, PhaseVerify, PhaseExtract, PhaseDone, PhaseError, PhaseCanceled} {
 		if !want[p] {
 			t.Errorf("fase %q não está em ProgressPhase (frontend/src/lib/types.ts)", p)
 		}

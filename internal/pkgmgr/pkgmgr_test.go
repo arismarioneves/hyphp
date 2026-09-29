@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -194,5 +195,49 @@ func TestInstallSHAMismatchApagaTmp(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(bin, "nginx")); statErr == nil {
 		t.Fatal("nada deveria ter sido extraído em bin/nginx")
+	}
+}
+
+// Cancelar no meio do download (runtimes de centenas de MB) tem de parar a
+// transferência, avisar a UI com a fase própria — não "erro" — e não deixar o
+// .part nem nada em bin/.
+func TestInstallCanceladoNoDownload(t *testing.T) {
+	chegou := make(chan struct{})
+	liberar := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Length", "1000000")
+		_, _ = w.Write(make([]byte, 1000))
+		w.(http.Flusher).Flush()
+		close(chegou)
+		select { // segura a resposta até o cliente desistir
+		case <-r.Context().Done():
+		case <-liberar:
+		}
+	}))
+	defer srv.Close()
+	defer close(liberar)
+	bin, tmp := t.TempDir(), t.TempDir()
+	m := NewManager(bin, tmp, srv.Client())
+	pkg := Package{ID: "mysql-9.9.9", Kind: runtime.MySQL, Version: "9.9.9", URL: srv.URL + "/mysql.zip", SHA256: strings.Repeat("0", 64)}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-chegou
+		cancel()
+	}()
+	var last Progress
+	_, err := m.Install(ctx, pkg, func(p Progress) { last = p })
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("esperava context.Canceled, veio %v", err)
+	}
+	if last.Phase != PhaseCanceled || last.PackageID != pkg.ID {
+		t.Fatalf("último Progress = %+v; esperava Phase=%s", last, PhaseCanceled)
+	}
+	if entries, _ := os.ReadDir(tmp); len(entries) != 0 {
+		t.Fatalf("sobrou download parcial em tmp: %d entradas", len(entries))
+	}
+	if _, statErr := os.Stat(filepath.Join(bin, "mysql")); statErr == nil {
+		t.Fatal("nada deveria ter ido para bin/mysql")
 	}
 }

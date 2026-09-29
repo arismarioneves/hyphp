@@ -25,7 +25,7 @@ export type DBInfo = GeneratedDBInfo
 export type LogSource = GeneratedLogSource
 export type Credentials = GeneratedCredentials
 
-export type ProgressPhase = 'download' | 'verify' | 'extract' | 'done' | 'error'
+export type ProgressPhase = 'download' | 'verify' | 'extract' | 'done' | 'error' | 'canceled'
 
 /**
  * Espelho de `pkgmgr.Progress` (payload de `download:progress`).

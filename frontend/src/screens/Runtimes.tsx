@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { DownloadSimple, FolderOpen, Star, Trash } from '@phosphor-icons/react'
+import { DownloadSimple, FolderOpen, Star, Trash, X } from '@phosphor-icons/react'
 import { AppService, RuntimesService } from '../../bindings/hyphp/services'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
@@ -36,6 +36,7 @@ const PHASE_LABELS: Record<string, string> = {
   extract: 'Extraindo',
   done: 'Concluído',
   error: 'Erro',
+  canceled: 'Cancelado',
 }
 
 const KB = 1024
@@ -219,7 +220,10 @@ type AvailableCardProps = {
 
 function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
   const [starting, setStarting] = useState(false)
-  const active = progress !== undefined && progress.phase !== 'done' && progress.phase !== 'error'
+  const [canceling, setCanceling] = useState(false)
+  // Cancelado volta ao estado inicial: nem barra nem mensagem, só o botão Baixar.
+  const finished = progress === undefined || ['done', 'error', 'canceled'].includes(progress.phase)
+  const active = !finished
   // só a fase de download tem tamanho conhecido — e nem sempre (total = -1 sem Content-Length).
   const determinate = progress !== undefined && progress.phase === 'download' && progress.total > 0
 
@@ -231,6 +235,19 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
       onError(errorText(e))
     } finally {
       setStarting(false)
+    }
+  }
+
+  // Só o download é cancelável: verificar e extrair levam segundos e não
+  // olham o cancelamento.
+  const cancel = async () => {
+    setCanceling(true)
+    try {
+      await RuntimesService.CancelInstall(pkg.id)
+    } catch (e) {
+      onError(errorText(e))
+    } finally {
+      setCanceling(false)
     }
   }
 
@@ -250,7 +267,19 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
             {pkg.url}
           </span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {progress?.phase === 'download' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<X size={14} />}
+              loading={canceling}
+              disabled={canceling}
+              onClick={() => void cancel()}
+            >
+              Cancelar
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"
@@ -263,7 +292,7 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
           </Button>
         </div>
       </div>
-      {progress && progress.phase !== 'done' && (
+      {progress && progress.phase !== 'done' && progress.phase !== 'canceled' && (
         <div className="mt-3">
           <ProgressBar
             value={determinate ? progress.done / progress.total : 0}
