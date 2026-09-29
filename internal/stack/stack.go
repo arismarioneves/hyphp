@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"hyphp/internal/elevate"
+	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
 	"hyphp/internal/project"
@@ -198,7 +199,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 			// O caminho completo é obrigatório na mensagem: "não está instalado
 			// em bin/" leva o usuário a olhar o bin/ errado quando existe outra
 			// ferramenta na máquina com um Apache próprio.
-			Message: fmt.Sprintf("web server %q não encontrado em %s; baixe ou importe em Runtimes, senão nenhum site será servido", st.WebServer, filepath.Join(paths.Bin(), string(st.WebServer))),
+			Message: i18n.T("warn.webMissing", st.WebServer, filepath.Join(paths.Bin(), string(st.WebServer))),
 		})
 	}
 
@@ -268,8 +269,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 			warnings = append(warnings, Warning{
 				Code:      "docroot-sem-indice",
 				ProjectID: p.ID,
-				Message: fmt.Sprintf("%s serve %s, que não tem index.php nem index.html; ajuste `docroot:` no hyphp.yaml",
-					p.Domain, p.DocrootAbs),
+				Message:   i18n.T("warn.docrootSemIndice", p.Domain, p.DocrootAbs),
 			})
 		}
 	}
@@ -322,17 +322,17 @@ func (s *Stack) finish(w []Warning) []Warning {
 func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) {
 	mk := s.d.Mkcert
 	if mk.Exe == "" {
-		return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("mkcert não encontrado em %s; baixe em Runtimes, senão os sites ficam só em HTTP", filepath.Join(paths.Bin(), "mkcert"))}}
+		return nil, []Warning{{Code: "tls-unavailable", Message: i18n.T("warn.mkcertMissing", filepath.Join(paths.Bin(), "mkcert"))}}
 	}
 	if !s.caReady {
 		ok, err := mk.CAInstalled()
 		if err != nil {
-			return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("verificar CA do mkcert: %v", err)}}
+			return nil, []Warning{{Code: "tls-unavailable", Message: i18n.T("warn.caCheck", err)}}
 		}
 		if !ok {
 			return nil, []Warning{{
 				Code:    "ca-pending",
-				Message: "certificado raiz local não instalado; sites só em HTTP até você instalá-lo",
+				Message: i18n.T("warn.caPending"),
 			}}
 		}
 		s.caReady = true
@@ -346,23 +346,23 @@ func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) 
 func (s *Stack) InstallCA(ctx context.Context) error {
 	mk := s.d.Mkcert
 	if mk.Exe == "" {
-		return fmt.Errorf("mkcert não encontrado em bin/mkcert/mkcert.exe")
+		return i18n.Errorf("err.stack.mkcertMissing")
 	}
 	switch ok, err := mk.CAInstalled(); {
 	case err != nil:
-		return fmt.Errorf("verificar CA do mkcert: %w", err)
+		return i18n.Errorf("err.stack.caCheck", err)
 	case ok:
 		return nil
 	}
 	helper, herr := elevate.HelperPath()
 	if herr != nil {
-		return fmt.Errorf("helper elevado indisponível: %w", herr)
+		return i18n.Errorf("err.stack.helperUnavailable", herr)
 	}
 	switch err := elevate.RunElevated(helper, []string{"mkcert-install", "--exe", mk.Exe}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return fmt.Errorf("instalação do certificado raiz cancelada; sites seguem só em HTTP")
+		return i18n.Errorf("err.stack.caCancelled")
 	case err != nil:
-		return fmt.Errorf("mkcert -install falhou: %w", err)
+		return i18n.Errorf("err.stack.caInstallFailed", err)
 	}
 	s.d.Logger.Info("stack: CA local instalada")
 	// Agora os vhosts podem nascer com TLS: o Reconcile re-emite tudo.
@@ -481,9 +481,9 @@ func (s *Stack) portConflicts(st state.State, webID string) []Warning {
 		if netcfg.IsFree(port) {
 			continue
 		}
-		msg := fmt.Sprintf("porta %d ocupada", port)
+		msg := i18n.T("warn.portBusy", port)
 		if pid, exe, err := netcfg.WhoHolds(port); err == nil {
-			msg = fmt.Sprintf("porta %d ocupada por %s (PID %d)", port, filepath.Base(exe), pid)
+			msg = i18n.T("warn.portBusyBy", port, filepath.Base(exe), pid)
 		}
 		warns = append(warns, Warning{Code: "port-conflict", Message: msg})
 	}
@@ -652,15 +652,15 @@ func hostsChange(have, want []string) string {
 	}
 	var parts []string
 	if len(add) > 0 {
-		parts = append(parts, "adicionar "+strings.Join(add, ", "))
+		parts = append(parts, i18n.T("warn.hostsAdd", strings.Join(add, ", ")))
 	}
 	if len(rem) > 0 {
-		parts = append(parts, "remover "+strings.Join(rem, ", "))
+		parts = append(parts, i18n.T("warn.hostsRemove", strings.Join(rem, ", ")))
 	}
 	if len(parts) == 0 {
-		return "o bloco do HyPHP no hosts precisa ser reescrito"
+		return i18n.T("warn.hostsRewrite")
 	}
-	return "o hosts precisa ser atualizado: " + strings.Join(parts, "; ")
+	return i18n.T("warn.hostsUpdate", strings.Join(parts, "; "))
 }
 
 // syncHosts só REPORTA a pendência; a escrita acontece em ApplyHosts.
@@ -706,7 +706,7 @@ func (s *Stack) ApplyHosts(ctx context.Context) error {
 	}
 	switch err := elevate.RunElevated(helper, []string{"hosts-write", "--from", tmp}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return fmt.Errorf("hosts não atualizado (UAC cancelado); %s", hostsChange(have, want))
+		return i18n.Errorf("err.stack.hostsCancelled", hostsChange(have, want))
 	case err != nil:
 		return fmt.Errorf("stack: helper hosts-write: %w", err)
 	}
@@ -926,7 +926,7 @@ func (s *Stack) rollbackWeb(oldSpec supervisor.Spec, hadOld, oldRunning bool, ca
 			}
 		}
 	}
-	return fmt.Errorf("troca de web server desfeita: %w", cause)
+	return i18n.Errorf("err.stack.webSwitchUndone", cause)
 }
 
 // renderPhpMyAdmin grava o config.inc.php dentro da instalação do phpMyAdmin.

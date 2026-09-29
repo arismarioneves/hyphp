@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"hyphp/internal/compat"
+	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/project"
 	"hyphp/internal/runtime"
@@ -73,7 +74,7 @@ func desired(in desiredInput) (desiredOutput, error) {
 			out.Warnings = append(out.Warnings, Warning{
 				Code:      "php-missing",
 				ProjectID: p.ID,
-				Message:   fmt.Sprintf("PHP %s não está instalado; %s não será servido", major, p.ID),
+				Message:   i18n.T("warn.phpMissing", major, p.ID),
 			})
 			continue
 		}
@@ -267,7 +268,7 @@ func siteFor(in desiredInput, p project.Project, major string) (webserver.Site, 
 		if err != nil {
 			warns = append(warns, Warning{
 				Code: "tls-unavailable", ProjectID: p.ID,
-				Message: fmt.Sprintf("sem HTTPS para %s: %v", p.Domain, err),
+				Message: i18n.T("warn.tlsSite", p.Domain, err),
 			})
 		} else {
 			site.TLSCert = filepath.ToSlash(cert)
@@ -277,7 +278,7 @@ func siteFor(in desiredInput, p project.Project, major string) (webserver.Site, 
 	if in.State.WebServer == state.Nginx && p.HasHtaccess {
 		warns = append(warns, Warning{
 			Code: "htaccess-under-nginx", ProjectID: p.ID,
-			Message: fmt.Sprintf("%s tem .htaccess; rewrites não se aplicam sob nginx", p.ID),
+			Message: i18n.T("warn.htaccessUnderNginx", p.ID),
 		})
 	}
 	return site, warns
@@ -362,13 +363,13 @@ func resolveProcExe(tokens []string, inst runtime.Installed, pathEnv string) (st
 		// Instalação que só copiou o .phar: roda com o PHP do projeto.
 		phar, err := findInPath(pathEnv, "composer.phar")
 		if err != nil {
-			return "", nil, fmt.Errorf("composer não encontrado no PATH do projeto")
+			return "", nil, errors.New(i18n.T("err.stack.composerNotFound"))
 		}
 		return inst.Exe, append([]string{phar}, rest...), nil
 	default:
 		exe, err := lookPathIn(pathEnv, tokens[0])
 		if err != nil {
-			return "", nil, fmt.Errorf("%s não encontrado no PATH do projeto", tokens[0])
+			return "", nil, errors.New(i18n.T("err.stack.exeNotFound", tokens[0]))
 		}
 		return exe, rest, nil
 	}
@@ -600,14 +601,13 @@ func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool
 
 	escolhida := majorCompativel(runtime.ByKind(in.Runtimes, runtime.PHP), faixa)
 	if escolhida == "" {
-		tem := "nenhuma série de PHP instalada"
+		tem := i18n.T("warn.pmaSemPhpNone")
 		if len(instaladas) > 0 {
-			tem = "instaladas: " + strings.Join(instaladas, ", ")
+			tem = i18n.T("warn.pmaSemPhpInstalled", strings.Join(instaladas, ", "))
 		}
 		return nil, []Warning{{
-			Code: "pma-sem-php",
-			Message: fmt.Sprintf("phpMyAdmin %s precisa de %s (%s)",
-				pma.Version, faixa, tem),
+			Code:    "pma-sem-php",
+			Message: i18n.T("warn.pmaSemPhp", pma.Version, faixa, tem),
 		}}
 	}
 	return &webserver.Tool{

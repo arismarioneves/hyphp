@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/mysqlcli"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
@@ -138,7 +139,7 @@ func (s *Stack) ensureMySQL(ctx context.Context, rts []runtime.Installed, st sta
 		s.d.Logger.Error("inicializar datadir do MySQL", "err", err)
 		return dropKind(rts, runtime.MySQL), changed, []Warning{{
 			Code:    "db-init-failed",
-			Message: fmt.Sprintf("MySQL não foi inicializado e não será iniciado: %v", err),
+			Message: i18n.T("warn.dbInitFailed", err),
 		}}
 	}
 	return rts, changed, nil
@@ -205,7 +206,7 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 		if err := s.waitMySQLReady(ctx); err != nil {
 			s.addWarnings([]Warning{{
 				Code:    "db-create-failed",
-				Message: fmt.Sprintf("databases dos projetos não foram criados: %v", err),
+				Message: i18n.T("warn.dbCreateNotReady", err),
 			}})
 			return
 		}
@@ -215,14 +216,14 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 				// Nome inválido nunca vira comando: vira aviso.
 				warns = append(warns, Warning{
 					Code: "db-create-failed", ProjectID: req.ProjectID,
-					Message: fmt.Sprintf("database %q de %s ignorado: %v", req.Name, req.ProjectID, err),
+					Message: i18n.T("warn.dbCreateInvalidName", req.Name, req.ProjectID, err),
 				})
 				continue
 			}
 			if err := client.Create(ctx, req.Name); err != nil {
 				warns = append(warns, Warning{
 					Code: "db-create-failed", ProjectID: req.ProjectID,
-					Message: fmt.Sprintf("criar database %s de %s: %v", req.Name, req.ProjectID, err),
+					Message: i18n.T("warn.dbCreateFailed", req.Name, req.ProjectID, err),
 				})
 				continue
 			}
@@ -247,7 +248,7 @@ func (s *Stack) waitMySQLReady(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("mysql não ficou pronto: %w", ctx.Err())
+			return i18n.Errorf("err.stack.mysqlNotReady", ctx.Err())
 		case ev := <-ch:
 			if ev.Status.ID != MySQLSpecID {
 				continue
@@ -256,7 +257,7 @@ func (s *Stack) waitMySQLReady(ctx context.Context) error {
 			case supervisor.Ready:
 				return nil
 			case supervisor.Failed:
-				return fmt.Errorf("mysql falhou: %s", ev.Status.LastError)
+				return i18n.Errorf("err.stack.mysqlFailed", ev.Status.LastError)
 			}
 		}
 	}

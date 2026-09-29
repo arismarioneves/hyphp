@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/mysqlcli"
 	"hyphp/internal/runtime"
 	"hyphp/internal/stack"
@@ -30,7 +30,15 @@ type Credentials struct {
 
 // ErrMySQLIndisponivel é devolvido quando não há MySQL instalado ou o serviço
 // não está pronto. Sem ele a UI mostraria o erro cru de conexão do cliente.
-var ErrMySQLIndisponivel = errors.New("services: MySQL não está rodando")
+//
+// É um tipo, e não errors.New, porque a variável nasce no init — antes de o
+// idioma ser escolhido — e o texto precisa sair no idioma da hora em que o
+// erro é mostrado. O valor é comparável, então errors.Is segue funcionando.
+var ErrMySQLIndisponivel error = mysqlIndisponivel{}
+
+type mysqlIndisponivel struct{}
+
+func (mysqlIndisponivel) Error() string { return i18n.T("err.db.mysqlDown") }
 
 type DatabaseDeps struct {
 	Sup      *supervisor.Supervisor

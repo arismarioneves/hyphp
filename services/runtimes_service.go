@@ -18,6 +18,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/pkgmgr"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
@@ -117,12 +118,12 @@ func (r *RuntimesService) Available() []pkgmgr.Package {
 func (r *RuntimesService) Install(packageID string) error {
 	pkg, ok := r.d.Catalog.ByID(packageID)
 	if !ok {
-		return fmt.Errorf("pacote %q não existe no catálogo", packageID)
+		return i18n.Errorf("err.runtimes.unknownPackage", packageID)
 	}
 	r.mu.Lock()
 	if _, busy := r.installing[packageID]; busy {
 		r.mu.Unlock()
-		return fmt.Errorf("pacote %q já está sendo instalado", packageID)
+		return i18n.Errorf("err.runtimes.installing", packageID)
 	}
 	ctx, cancel := context.WithCancel(r.ctx)
 	r.installing[packageID] = cancel
@@ -157,7 +158,7 @@ func (r *RuntimesService) CancelInstall(packageID string) error {
 	cancel, ok := r.installing[packageID]
 	r.mu.Unlock()
 	if !ok {
-		return fmt.Errorf("pacote %q não está sendo instalado", packageID)
+		return i18n.Errorf("err.runtimes.notInstalling", packageID)
 	}
 	cancel()
 	return nil
@@ -169,7 +170,7 @@ func (r *RuntimesService) CancelInstall(packageID string) error {
 func (r *RuntimesService) Remove(kind, version string) error {
 	inst, ok := r.find(runtime.Kind(kind), version)
 	if !ok {
-		return fmt.Errorf("runtime %s %s não está instalado", kind, version)
+		return i18n.Errorf("err.runtimes.notInstalled", kind, version)
 	}
 	if r.d.StopUsing != nil {
 		if err := r.d.StopUsing(inst.Dir); err != nil {
@@ -291,7 +292,7 @@ func runtimesEm(dir string) []runtime.Installed {
 // (cfd é interno ao Wails, não há sentinela importável).
 func (r *RuntimesService) PickImportDir() (string, error) {
 	dir, err := r.d.App.Dialog.OpenFile().
-		SetTitle("Selecionar pasta com runtimes (ex.: bin de outra ferramenta)").
+		SetTitle(i18n.T("dialog.pickImportDir")).
 		CanChooseDirectories(true).
 		CanChooseFiles(false).
 		PromptForSingleSelection()
@@ -299,7 +300,7 @@ func (r *RuntimesService) PickImportDir() (string, error) {
 		if strings.Contains(err.Error(), dialogCancelledMsg) {
 			return "", nil
 		}
-		return "", fmt.Errorf("diálogo de pasta: %w", err)
+		return "", i18n.Errorf("err.dialog", err)
 	}
 	return dir, nil
 }
@@ -309,7 +310,7 @@ func (r *RuntimesService) PickImportDir() (string, error) {
 func (r *RuntimesService) ImportFrom(dir string) error {
 	achadas := runtimesEm(dir)
 	if len(achadas) == 0 {
-		return fmt.Errorf("nenhum runtime reconhecido em %s", dir)
+		return i18n.Errorf("err.runtimes.noneFound", dir)
 	}
 	for _, inst := range achadas {
 		destino := destinoImport(r.d.BinDir, inst)
@@ -320,13 +321,13 @@ func (r *RuntimesService) ImportFrom(dir string) error {
 			// Uma árvore pela metade seria detectada como runtime quebrado na
 			// próxima varredura; melhor não deixar rastro da cópia falha.
 			os.RemoveAll(destino)
-			return fmt.Errorf("copiar %s: %w", inst.Dir, err)
+			return i18n.Errorf("err.runtimes.copy", inst.Dir, err)
 		}
 	}
 	// O watcher de bin/ publica a lista nova; forçar o rescan evita depender
 	// do tempo de propagação do evento de arquivo.
 	if err := r.Rescan(); err != nil {
-		return fmt.Errorf("reler bin/: %w", err)
+		return i18n.Errorf("err.runtimes.rescan", err)
 	}
 	return nil
 }
@@ -334,11 +335,11 @@ func (r *RuntimesService) ImportFrom(dir string) error {
 // SetDefaultPHP grava state.DefaultPHP e notifica (settings:changed + runtime:changed).
 func (r *RuntimesService) SetDefaultPHP(major string) error {
 	if _, ok := runtime.PHPByMajor(r.Installed(), major); !ok {
-		return fmt.Errorf("PHP %s não está instalado", major)
+		return i18n.Errorf("err.runtimes.phpMissing", major)
 	}
 	r.d.State.DefaultPHP = major
 	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
-		return fmt.Errorf("salvar state: %w", err)
+		return i18n.Errorf("err.runtimes.saveState", err)
 	}
 	r.emit("settings:changed", *r.d.State)
 	r.notify(r.Installed())
@@ -349,7 +350,7 @@ func (r *RuntimesService) SetDefaultPHP(major string) error {
 func (r *RuntimesService) Extensions(major string) ([]runtime.Extension, error) {
 	inst, ok := runtime.PHPByMajor(r.Installed(), major)
 	if !ok {
-		return nil, fmt.Errorf("PHP %s não está instalado", major)
+		return nil, i18n.Errorf("err.runtimes.phpMissing", major)
 	}
 	return runtime.ListExtensions(inst, r.enabledExtensions(major))
 }
@@ -358,14 +359,14 @@ func (r *RuntimesService) Extensions(major string) ([]runtime.Extension, error) 
 func (r *RuntimesService) SetExtension(major, name string, on bool) error {
 	inst, ok := runtime.PHPByMajor(r.Installed(), major)
 	if !ok {
-		return fmt.Errorf("PHP %s não está instalado", major)
+		return i18n.Errorf("err.runtimes.phpMissing", major)
 	}
 	available, err := runtime.ListExtensions(inst, nil)
 	if err != nil {
 		return err
 	}
 	if !slices.ContainsFunc(available, func(e runtime.Extension) bool { return e.Name == name }) {
-		return fmt.Errorf("extensão %q não existe em %s", name, filepath.Join(inst.Dir, "ext"))
+		return i18n.Errorf("err.runtimes.unknownExtension", name, filepath.Join(inst.Dir, "ext"))
 	}
 
 	cur := slices.Clone(r.enabledExtensions(major))
@@ -382,7 +383,7 @@ func (r *RuntimesService) SetExtension(major, name string, on bool) error {
 	}
 	r.d.State.PHPExtensions[major] = cur
 	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
-		return fmt.Errorf("salvar state: %w", err)
+		return i18n.Errorf("err.runtimes.saveState", err)
 	}
 	r.emit("settings:changed", *r.d.State)
 	r.notify(r.Installed())

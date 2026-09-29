@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
 	"sync"
@@ -182,7 +181,7 @@ func (s *SettingsService) Set(in state.State) error {
 	case relevant || rootsChanged:
 		if _, err := s.stk.Reconcile(ctx); err != nil {
 			s.emit("settings:changed", s.stk.State())
-			return fmt.Errorf("reconciliar: %w", err)
+			return i18n.Errorf("err.reconcile", err)
 		}
 	}
 	s.emit("settings:changed", s.stk.State())
@@ -192,7 +191,7 @@ func (s *SettingsService) Set(in state.State) error {
 func (s *SettingsService) SwitchWebServer(name string) error {
 	ws := state.WebServerName(name)
 	if ws != state.Apache && ws != state.Nginx {
-		return fmt.Errorf("web server %q inválido (apache|nginx)", name)
+		return i18n.Errorf("err.settings.webServer", name)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -207,21 +206,21 @@ func (s *SettingsService) SwitchWebServer(name string) error {
 
 func validateSettings(st state.State) error {
 	if st.WebServer != state.Apache && st.WebServer != state.Nginx {
-		return fmt.Errorf("webServer %q inválido (apache|nginx)", st.WebServer)
+		return i18n.Errorf("err.settings.webServerField", st.WebServer)
 	}
 	switch st.Theme {
 	case "", state.ThemeDark, state.ThemeLight, state.ThemeSystem:
 	default:
-		return fmt.Errorf("theme %q inválido (dark|light|system)", st.Theme)
+		return i18n.Errorf("err.settings.theme", st.Theme)
 	}
 	if !i18n.Valid(st.Language) {
-		return fmt.Errorf("language %q não é um idioma suportado", st.Language)
+		return i18n.Errorf("err.settings.language", st.Language)
 	}
 	if st.PoolSize < 1 || st.PoolSize > 16 {
-		return fmt.Errorf("poolSize %d fora de 1..16", st.PoolSize)
+		return i18n.Errorf("err.settings.poolSize", st.PoolSize)
 	}
 	if st.DefaultPHP != "" && !phpMajorRe.MatchString(st.DefaultPHP) {
-		return fmt.Errorf("defaultPhp %q inválido; use major.minor", st.DefaultPHP)
+		return i18n.Errorf("err.settings.defaultPhp", st.DefaultPHP)
 	}
 	ports := map[string]int{
 		"httpPort": st.HTTPPort, "httpsPort": st.HTTPSPort, "mysqlPort": st.MySQLPort,
@@ -230,10 +229,10 @@ func validateSettings(st state.State) error {
 	seen := map[int]string{}
 	for name, port := range ports {
 		if port < 1 || port > 65535 {
-			return fmt.Errorf("%s %d fora de 1..65535", name, port)
+			return i18n.Errorf("err.settings.portRange", name, port)
 		}
 		if other, dup := seen[port]; dup {
-			return fmt.Errorf("%s e %s usam a mesma porta %d", other, name, port)
+			return i18n.Errorf("err.settings.portDup", other, name, port)
 		}
 		seen[port] = name
 	}

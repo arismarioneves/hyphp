@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/sys/windows/registry"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/paths"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
@@ -169,7 +170,7 @@ func pathComPHP(atual, dir string) (string, bool) {
 func (a *AppService) AddDefaultPHPToUserPath() error {
 	inst, ok := a.d.DefaultPHP()
 	if !ok {
-		return errors.New("nenhuma versão de PHP instalada")
+		return errors.New(i18n.T("err.app.noPHP"))
 	}
 
 	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.QUERY_VALUE|registry.SET_VALUE)

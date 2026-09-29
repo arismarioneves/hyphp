@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"hyphp/internal/i18n"
 )
 
 // SiteURL é a página do HyPHP, citada no cabeçalho de todo hyphp.yaml gerado.
@@ -26,30 +28,30 @@ func Render(m Manifest) []byte {
 	var b strings.Builder
 	// O link vai no topo porque o arquivo viaja com o repositório: quem clona
 	// um projeto e não conhece o HyPHP precisa saber de onde ele vem.
-	b.WriteString("# Configuração do projeto no HyPHP — " + SiteURL + "\n")
-	b.WriteString("# Este arquivo define o ambiente: quem clonar o repositório sobe o mesmo.\n\n")
+	b.WriteString(i18n.T("yaml.header", SiteURL) + "\n")
+	b.WriteString(i18n.T("yaml.headerSub") + "\n\n")
 
-	campo(&b, "name", m.Name, "nome do projeto")
-	campo(&b, "domain", m.Domain, "domínio local")
+	campo(&b, "name", m.Name, i18n.T("yaml.name"))
+	campo(&b, "domain", m.Domain, i18n.T("yaml.domain"))
 	// php sempre com aspas: 8.10 sem aspas vira o número 8.1 e a série muda
 	// silenciosamente para outra versão.
-	campo(&b, "php", quoted(m.PHP), "série do PHP que serve este projeto")
+	campo(&b, "php", quoted(m.PHP), i18n.T("yaml.php"))
 
 	if m.Docroot != "" {
-		campo(&b, "docroot", m.Docroot, "pasta servida, relativa à raiz")
+		campo(&b, "docroot", m.Docroot, i18n.T("yaml.docroot"))
 	}
 	if m.Wildcard {
-		campo(&b, "wildcard", "true", "faz *."+m.Domain+" resolver")
+		campo(&b, "wildcard", "true", i18n.T("yaml.wildcard", m.Domain))
 	}
 	if m.Database != "" {
-		campo(&b, "database", m.Database, "criado no MySQL se não existir")
+		campo(&b, "database", m.Database, i18n.T("yaml.database"))
 	}
 	if len(m.Extensions) > 0 {
-		b.WriteString("\n# extensões do PHP além das habilitadas por padrão\n")
+		b.WriteString("\n" + i18n.T("yaml.extensions") + "\n")
 		lista(&b, "extensions", m.Extensions)
 	}
 	if len(m.Processes) > 0 {
-		b.WriteString("\n# processos supervisionados junto do projeto\n")
+		b.WriteString("\n" + i18n.T("yaml.processes") + "\n")
 		mapa(&b, "processes", m.Processes)
 	}
 
@@ -63,30 +65,30 @@ func Render(m Manifest) []byte {
 func ausentes(b *strings.Builder, m Manifest) {
 	var linhas []string
 	if m.Docroot == "" {
-		linhas = append(linhas, comentado("docroot: public", "pasta servida (padrão: public/ se tiver índice, senão a raiz)"))
+		linhas = append(linhas, comentado("docroot: public", i18n.T("yaml.docrootHint")))
 	}
 	if !m.Wildcard {
-		linhas = append(linhas, comentado("wildcard: true", "faz *."+m.Domain+" resolver (precisa registrar a regra de DNS)"))
+		linhas = append(linhas, comentado("wildcard: true", i18n.T("yaml.wildcardHint", m.Domain)))
 	}
 	if m.Database == "" {
-		linhas = append(linhas, comentado("database: "+NormalizeName(m.Name), "criado no MySQL na primeira execução"))
+		linhas = append(linhas, comentado("database: "+NormalizeName(m.Name), i18n.T("yaml.databaseHint")))
 	}
 	if len(m.Extensions) == 0 {
 		linhas = append(linhas,
-			comentado("extensions:", "além das habilitadas por padrão"),
+			comentado("extensions:", i18n.T("yaml.extensionsHint")),
 			"#   - redis",
 			"#   - imagick")
 	}
 	if len(m.Processes) == 0 {
 		linhas = append(linhas,
-			comentado("processes:", "sobem e reiniciam junto do projeto"),
+			comentado("processes:", i18n.T("yaml.processesHint")),
 			"#   queue: php artisan queue:work",
 			"#   vite: npm run dev")
 	}
 	if len(linhas) == 0 {
 		return
 	}
-	b.WriteString("\n# Descomente o que precisar:\n")
+	b.WriteString("\n" + i18n.T("yaml.uncomment") + "\n")
 	b.WriteString(strings.Join(linhas, "\n"))
 	b.WriteString("\n")
 }
