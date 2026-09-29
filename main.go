@@ -203,6 +203,12 @@ func main() {
 			stk.SetMkcert(newMkcert(logger))
 			reconcile("runtime:changed")
 		},
+		StopUsing: func(dir string) error {
+			if stk == nil {
+				return nil
+			}
+			return stk.StopUsingDir(dir)
+		},
 	})
 	rts := rtSvc.Installed()
 
@@ -407,11 +413,11 @@ func syncUpdateItem(item *application.MenuItem, s update.Status) {
 // passar a valer sem reiniciar.
 func webServers(rts []runtime.Installed) map[state.WebServerName]webserver.WebServer {
 	web := map[state.WebServerName]webserver.WebServer{}
-	if list := runtime.ByKind(rts, runtime.Apache); len(list) > 0 {
-		web[state.Apache] = apache.New(list[0])
+	if inst, ok := runtime.Newest(rts, runtime.Apache); ok {
+		web[state.Apache] = apache.New(inst)
 	}
-	if list := runtime.ByKind(rts, runtime.Nginx); len(list) > 0 {
-		web[state.Nginx] = nginx.New(list[0])
+	if inst, ok := runtime.Newest(rts, runtime.Nginx); ok {
+		web[state.Nginx] = nginx.New(inst)
 	}
 	return web
 }

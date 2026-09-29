@@ -762,6 +762,39 @@ func (s *Stack) StopAll(ctx context.Context) error {
 	return first
 }
 
+// StopUsingDir para os serviços cujo executável mora em dir. Apagar um runtime
+// com o processo dele vivo falha no Windows ("Access is denied" na primeira DLL
+// carregada), e o restart automático o traria de volta no meio da remoção. Os
+// specs continuam registrados: a revarredura de bin/ depois da remoção dispara
+// o Reconcile que troca de versão ou tira o serviço.
+func (s *Stack) StopUsingDir(dir string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var first error
+	for _, id := range specsUsingDir(s.appliedList(), dir) {
+		if err := s.d.Sup.Stop(id); err != nil && first == nil {
+			first = fmt.Errorf("stack: parar %s: %w", id, err)
+		}
+	}
+	return first
+}
+
+// specsUsingDir devolve, ordenados, os IDs dos specs cujo executável está
+// dentro de dir. A comparação ignora maiúsculas, como o sistema de arquivos do
+// Windows, e exige o separador depois de dir: "mysql-8.4.11-winx64-old" não
+// está dentro de "mysql-8.4.11-winx64".
+func specsUsingDir(specs []supervisor.Spec, dir string) []string {
+	base := strings.ToLower(filepath.Clean(dir)) + string(filepath.Separator)
+	var ids []string
+	for _, sp := range specs {
+		if strings.HasPrefix(strings.ToLower(filepath.Clean(sp.Exe)), base) {
+			ids = append(ids, sp.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
 func (s *Stack) appliedList() []supervisor.Spec {
 	out := make([]supervisor.Spec, 0, len(s.applied))
 	for _, sp := range s.applied {

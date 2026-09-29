@@ -334,6 +334,27 @@ func TestDesiredMySQLSpec(t *testing.T) {
 	}
 }
 
+// Instalar um MySQL mais antigo não pode trocar o banco em uso. A pasta do
+// 8.0 vem antes da do 8.4 na ordem de bin/, e era a primeira da lista que
+// subia: o 8.0 recusa o datadir do 8.4 ("downgrade is only permitted between
+// patch releases") e o serviço entra em loop de restart.
+func TestDesiredMySQLUsaAVersaoMaisNova(t *testing.T) {
+	antigo := `C:\rt\bin\mysql\mysql-8.0.46-winx64`
+	novo := `C:\rt\bin\mysql\mysql-8.4.11-winx64`
+	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in.Runtimes = append(in.Runtimes,
+		runtime.Installed{Kind: runtime.MySQL, Version: "8.0.46", Major: "8.0.46", Dir: antigo, Exe: filepath.Join(antigo, "bin", "mysqld.exe")},
+		runtime.Installed{Kind: runtime.MySQL, Version: "8.4.11", Major: "8.4.11", Dir: novo, Exe: filepath.Join(novo, "bin", "mysqld.exe")},
+	)
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sp, ok := specByID(out.Specs, "mysql")
+	if !ok || sp.Exe != filepath.Join(novo, "bin", "mysqld.exe") {
+		t.Fatalf("spec mysql = %q, quero o 8.4.11", sp.Exe)
+	}
+}
 func TestDesiredSemMySQL(t *testing.T) {
 	out, err := desired(baseInput(proj("app81", `C:\DEV\app81`, "8.1")))
 	if err != nil {

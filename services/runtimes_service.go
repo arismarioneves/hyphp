@@ -36,6 +36,9 @@ type RuntimesDeps struct {
 	Logger    *slog.Logger
 	Emit      func(name string, data any)    // app.Event.Emit; nil em smoke/testes
 	OnChange  func(list []runtime.Installed) // opcional; chamado fora do lock após cada mudança
+	// StopUsing para os serviços que rodam de dir (stack.StopUsingDir). Nil
+	// em smoke/testes sem stack.
+	StopUsing func(dir string) error
 }
 
 type RuntimesService struct {
@@ -140,11 +143,18 @@ func (r *RuntimesService) Install(packageID string) error {
 	return nil
 }
 
-// Remove apaga a pasta do runtime e revarre.
+// Remove para os serviços que rodam do runtime, apaga a pasta e revarre. A
+// revarredura dispara o Reconcile, que passa o serviço para outra versão
+// instalada ou o tira.
 func (r *RuntimesService) Remove(kind, version string) error {
 	inst, ok := r.find(runtime.Kind(kind), version)
 	if !ok {
 		return fmt.Errorf("runtime %s %s não está instalado", kind, version)
+	}
+	if r.d.StopUsing != nil {
+		if err := r.d.StopUsing(inst.Dir); err != nil {
+			return err
+		}
 	}
 	if err := r.d.Manager.Remove(inst); err != nil {
 		return err

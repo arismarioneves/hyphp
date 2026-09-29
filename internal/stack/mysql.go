@@ -124,11 +124,10 @@ func (s *Stack) ensureMySQLData(ctx context.Context, inst runtime.Installed, st 
 // desired() não emite o spec. Um mysqld sem datadir subiria, morreria, e o
 // restart automático transformaria isso num loop de processos.
 func (s *Stack) ensureMySQL(ctx context.Context, rts []runtime.Installed, st state.State) ([]runtime.Installed, bool, []Warning) {
-	list := runtime.ByKind(rts, runtime.MySQL)
-	if len(list) == 0 {
+	inst, ok := runtime.Newest(rts, runtime.MySQL)
+	if !ok {
 		return rts, false, nil
 	}
-	inst := list[0]
 	changed, err := WriteMyIni(inst, st.MySQLPort, paths.Etc(), paths.Var(), paths.Log())
 	if err != nil {
 		return dropKind(rts, runtime.MySQL), false, []Warning{{
@@ -181,8 +180,8 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 	if len(reqs) == 0 {
 		return
 	}
-	list := runtime.ByKind(rts, runtime.MySQL)
-	if len(list) == 0 {
+	inst, ok := runtime.Newest(rts, runtime.MySQL)
+	if !ok {
 		return
 	}
 	s.stateMu.Lock()
@@ -193,7 +192,7 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 	s.dbSync = true
 	s.stateMu.Unlock()
 
-	client := mysqlcli.New(list[0], s.State().MySQLPort)
+	client := mysqlcli.New(inst, s.State().MySQLPort)
 	go func() {
 		defer func() {
 			s.stateMu.Lock()

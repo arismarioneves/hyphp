@@ -124,12 +124,14 @@ func (d *DatabaseService) PhpMyAdminURL() string {
 
 // client exige MySQL instalado e ready.
 func (d *DatabaseService) client() (mysqlcli.Client, error) {
-	list := runtime.ByKind(d.runtimes(), runtime.MySQL)
-	if len(list) == 0 {
+	// O mesmo MySQL que a stack sobe: o cliente de outra versão até
+	// conectaria, mas mysqldump e afins têm de casar com o servidor.
+	inst, ok := runtime.Newest(d.runtimes(), runtime.MySQL)
+	if !ok {
 		return mysqlcli.Client{}, ErrMySQLIndisponivel
 	}
 	if st, ok := d.sup.Status(stack.MySQLSpecID); !ok || st.State != supervisor.Ready {
 		return mysqlcli.Client{}, ErrMySQLIndisponivel
 	}
-	return mysqlcli.New(list[0], d.stk.State().MySQLPort), nil
+	return mysqlcli.New(inst, d.stk.State().MySQLPort), nil
 }

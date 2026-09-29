@@ -132,7 +132,7 @@ func (m *Manager) place(pkg Package, tmp string) (string, error) {
 }
 
 // Remove apaga a pasta do runtime. Falha se algum processo (php-cgi, mysqld) ainda
-// segurar arquivos — o chamador deve parar o serviço antes.
+// segurar arquivos — o chamador para o serviço antes (RuntimesDeps.StopUsing).
 func (m *Manager) Remove(inst runtime.Installed) error {
 	if inst.Dir == "" || inst.Dir == m.binDir {
 		return fmt.Errorf("pkgmgr: recusando remover %q", inst.Dir)

@@ -155,6 +155,25 @@ func ByKind(list []Installed, k Kind) []Installed {
 	return out
 }
 
+// Newest devolve o runtime de maior versão do tipo k. É a escolha para o que
+// roda uma instância só (MySQL, web server, Mailpit, phpMyAdmin): a ordem de
+// ByKind é a das pastas em bin/, e "mysql-8.0.46" vem antes de "mysql-8.4.11".
+// Instalar uma versão mais antiga ao lado não troca a que está em uso — no
+// MySQL isso seria um downgrade, que ele recusa.
+func Newest(list []Installed, k Kind) (Installed, bool) {
+	var best Installed
+	found := false
+	for _, i := range list {
+		if i.Kind != k {
+			continue
+		}
+		if !found || compareVersions(i.Version, best.Version) > 0 {
+			best, found = i, true
+		}
+	}
+	return best, found
+}
+
 // PHPByMajor devolve o PHP de maior patch da série major ("8.1").
 func PHPByMajor(list []Installed, major string) (Installed, bool) {
 	var best Installed

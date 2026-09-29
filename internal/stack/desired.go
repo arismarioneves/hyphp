@@ -514,11 +514,10 @@ const (
 
 // mysqlSpec devolve o spec do MySQL, ou ok=false quando não há MySQL em bin/.
 func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
-	list := runtime.ByKind(in.Runtimes, runtime.MySQL)
-	if len(list) == 0 {
+	inst, ok := runtime.Newest(in.Runtimes, runtime.MySQL)
+	if !ok {
 		return supervisor.Spec{}, false
 	}
-	inst := list[0]
 	addr := fmt.Sprintf("127.0.0.1:%d", in.State.MySQLPort)
 	return supervisor.Spec{
 		ID:    MySQLSpecID,
@@ -543,11 +542,10 @@ func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 // --database. O binário fica direto em bin/mailpit/mailpit.exe (C18.5), então
 // inst.Exe já é o caminho final.
 func mailpitSpec(in desiredInput) (supervisor.Spec, bool) {
-	list := runtime.ByKind(in.Runtimes, runtime.Mailpit)
-	if len(list) == 0 {
+	inst, ok := runtime.Newest(in.Runtimes, runtime.Mailpit)
+	if !ok {
 		return supervisor.Spec{}, false
 	}
-	inst := list[0]
 	httpAddr := fmt.Sprintf("127.0.0.1:%d", in.State.MailpitHTTPPort)
 	return supervisor.Spec{
 		ID:    MailpitSpecID,
@@ -577,11 +575,10 @@ func mailpitSpec(in desiredInput) (supervisor.Spec, bool) {
 // da faixa, ainda que nenhum projeto use essa série — o pool já existe porque
 // todo PHP instalado ganha o seu.
 func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool, []Warning) {
-	pmas := runtime.ByKind(in.Runtimes, runtime.PhpMyAdmin)
-	if len(pmas) == 0 {
+	pma, ok := runtime.Newest(in.Runtimes, runtime.PhpMyAdmin)
+	if !ok {
 		return nil, nil
 	}
-	pma := pmas[0]
 
 	faixa, ok := compat.PHPParaPhpMyAdmin(pma.Version)
 	if !ok {
@@ -627,11 +624,11 @@ func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool
 // Olha os PHP INSTALADOS, não os pools: é justamente o caso em que ainda não
 // há pool nenhum — ambiente sem projeto — que precisa criar um.
 func phpParaFerramenta(in desiredInput, phps []runtime.Installed) string {
-	pmas := runtime.ByKind(in.Runtimes, runtime.PhpMyAdmin)
-	if len(pmas) == 0 {
+	pma, ok := runtime.Newest(in.Runtimes, runtime.PhpMyAdmin)
+	if !ok {
 		return ""
 	}
-	faixa, ok := compat.PHPParaPhpMyAdmin(pmas[0].Version)
+	faixa, ok := compat.PHPParaPhpMyAdmin(pma.Version)
 	if !ok {
 		faixa = compat.Faixa{}
 	}
