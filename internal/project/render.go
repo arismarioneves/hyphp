@@ -9,6 +9,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// SiteURL é a página do HyPHP, citada no cabeçalho de todo hyphp.yaml gerado.
+const SiteURL = "https://ae8.com.br/hyphp/"
+
 // Render produz o conteúdo do hyphp.yaml.
 //
 // Não é yaml.Marshal direto por dois motivos. O arquivo vai para o repositório
@@ -21,7 +24,9 @@ import (
 // nome real), para poderem ser descomentados e funcionarem.
 func Render(m Manifest) []byte {
 	var b strings.Builder
-	b.WriteString("# Configuração do projeto no HyPHP.\n")
+	// O link vai no topo porque o arquivo viaja com o repositório: quem clona
+	// um projeto e não conhece o HyPHP precisa saber de onde ele vem.
+	b.WriteString("# Configuração do projeto no HyPHP — " + SiteURL + "\n")
 	b.WriteString("# Este arquivo define o ambiente: quem clonar o repositório sobe o mesmo.\n\n")
 
 	campo(&b, "name", m.Name, "nome do projeto")
