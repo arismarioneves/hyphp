@@ -28,7 +28,7 @@ vendor/
 Thumbs.db
 desktop.ini
 
-# scripts descartaveis de smoke visual (PrintWindow, cliques sinteticos)
+# roteiros locais de smoke (UIA, PrintWindow, empacotar e instalar)
 .*.ps1
 .*.png
 .smoke/
