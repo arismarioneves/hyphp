@@ -391,7 +391,7 @@ export function Settings({ onNavigate }: ScreenProps) {
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-fg-muted">{t('webServerHint')}</p>
           {missingWebServer && (
-            <Button variant="ghost" size="sm" onClick={() => onNavigate('runtimes')}>
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => onNavigate('runtimes')}>
               {t('downloadInRuntimes')}
             </Button>
           )}
@@ -417,7 +417,7 @@ export function Settings({ onNavigate }: ScreenProps) {
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-fg-muted">{t('databaseHint')}</p>
           {DB_ENGINES.some((e) => versions[e.name] === undefined) && (
-            <Button variant="ghost" size="sm" onClick={() => onNavigate('runtimes')}>
+            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => onNavigate('runtimes')}>
               {t('downloadInRuntimes')}
             </Button>
           )}

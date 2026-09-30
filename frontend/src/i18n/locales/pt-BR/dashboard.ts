@@ -1,7 +1,7 @@
 export const dashboard = {
   startAll: 'Iniciar tudo',
   stopAll: 'Parar tudo',
-  yourStack: 'YOUR STACK',
+  yourStack: 'SUA STACK',
   noServicesTitle: 'Nenhum serviço configurado',
   noServicesDesc: 'Instale um web server e uma versão de PHP em Runtimes.',
   goToRuntimes: 'Ir para Runtimes',
