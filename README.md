@@ -43,6 +43,11 @@ itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised workers.
 - **Reproducible environment** — `hyphp.yaml` committed to the project's repository.
 - **Config is output, not input** — `etc/` is generated and validated (`httpd -t` /
   `nginx -t`) before being applied; an invalid config never takes the environment down.
+- **MySQL or MariaDB** — one active at a time on the same port, each with its own data
+  directory. Switching is immediate and rolls back if the new one does not come up.
+- **php.ini per version** — directives such as `max_input_vars` are edited in the app for
+  each PHP version, showing the effective value and where it comes from.
+- **English or Portuguese**, dark or light theme (or the same as Windows).
 
 ## Platforms
 
@@ -78,6 +83,7 @@ Orchestrated components, downloaded from their official sources, each under its 
 | Apache httpd | Apache-2.0 | apachelounge.com |
 | nginx | BSD-2-Clause | nginx.org |
 | MySQL Community | GPL-2.0 | dev.mysql.com |
+| MariaDB Server | GPL-2.0 | mariadb.org |
 | Mailpit | MIT | github.com/axllent/mailpit |
 | mkcert | BSD-3-Clause | github.com/FiloSottile/mkcert |
 
@@ -159,13 +165,11 @@ The command signs `latest.json` with the release key and creates the release wit
 installer, the manifest and the signature (via `gh`). The release is immutable: the notes
 must be right before publishing.
 
-## Relationship with Laragon
+## Support the project
 
-HyPHP is a clean-room implementation. Laragon has no open-source license (the GitHub API
-reports `"license": null`) and does not publish its source code — the repository contains
-only the compiled binary. We reuse **ideas and behavior** (`.test` domains, own
-orchestration, portable layout), which are not protected by copyright, and no configuration
-file, template or artifact derived from its executable.
+HyPHP is free. If it saves you time, you can support its development:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-arismarioneves-FFDD00?logo=buymeacoffee&logoColor=000000)](https://buymeacoffee.com/arismarioneves)
 
 ## License
 

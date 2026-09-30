@@ -41,6 +41,11 @@ commitável), Apache ou nginx, e workers supervisionados.
 - **Ambiente reproduzível** — `hyphp.yaml` commitado no repositório do projeto.
 - **Config é saída, não entrada** — `etc/` é gerado e validado (`httpd -t` / `nginx -t`)
   antes de aplicar; config inválida nunca derruba o ambiente.
+- **MySQL ou MariaDB** — um ativo por vez, na mesma porta, cada um com o próprio diretório
+  de dados. A troca é imediata e volta ao anterior se o novo não subir.
+- **php.ini por versão** — diretivas como `max_input_vars` são editadas no app para cada
+  versão de PHP, com o valor efetivo e de onde ele vem.
+- **Português ou inglês**, tema escuro ou claro (ou igual ao do Windows).
 
 ## Plataformas
 
@@ -76,6 +81,7 @@ Componentes orquestrados, baixados das fontes oficiais, cada um sob a própria l
 | Apache httpd | Apache-2.0 | apachelounge.com |
 | nginx | BSD-2-Clause | nginx.org |
 | MySQL Community | GPL-2.0 | dev.mysql.com |
+| MariaDB Server | GPL-2.0 | mariadb.org |
 | Mailpit | MIT | github.com/axllent/mailpit |
 | mkcert | BSD-3-Clause | github.com/FiloSottile/mkcert |
 
@@ -156,13 +162,11 @@ O comando assina o `latest.json` com a chave de release e cria a release com o
 instalador, o manifesto e a assinatura (via `gh`). A release é imutável: as
 notas precisam estar certas antes de publicar.
 
-## Relação com o Laragon
+## Apoie o projeto
 
-O HyPHP é implementação limpa. O Laragon não tem licença open-source (a API do GitHub
-reporta `"license": null`) e não publica código-fonte — o repositório contém apenas o
-binário compilado. Reaproveitamos **ideias e comportamento** (domínios `.test`, orquestração
-própria, layout portátil), que não são protegidos por copyright, e nenhum arquivo de
-configuração, template ou artefato derivado do executável dele.
+O HyPHP é gratuito. Se ele economiza o seu tempo, você pode apoiar o desenvolvimento:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-arismarioneves-FFDD00?logo=buymeacoffee&logoColor=000000)](https://buymeacoffee.com/arismarioneves)
 
 ## Licença
 
