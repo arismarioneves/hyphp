@@ -2,10 +2,10 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/mysqlcli"
 	"hyphp/internal/runtime"
 	"hyphp/internal/stack"
@@ -26,11 +26,24 @@ type Credentials struct {
 	Password string `json:"password"`
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
+	// Engine é o motor no ar ("mysql" ou "mariadb", vazio sem banco) e
+	// Client o comando de linha do cliente dele, para o comando de conexão
+	// que a tela mostra.
+	Engine string `json:"engine"`
+	Client string `json:"client"`
 }
 
 // ErrMySQLIndisponivel é devolvido quando não há MySQL instalado ou o serviço
 // não está pronto. Sem ele a UI mostraria o erro cru de conexão do cliente.
-var ErrMySQLIndisponivel = errors.New("services: MySQL não está rodando")
+//
+// É um tipo, e não errors.New, porque a variável nasce no init — antes de o
+// idioma ser escolhido — e o texto precisa sair no idioma da hora em que o
+// erro é mostrado. O valor é comparável, então errors.Is segue funcionando.
+var ErrMySQLIndisponivel error = mysqlIndisponivel{}
+
+type mysqlIndisponivel struct{}
+
+func (mysqlIndisponivel) Error() string { return i18n.T("err.db.mysqlDown") }
 
 type DatabaseDeps struct {
 	Sup      *supervisor.Supervisor
@@ -109,7 +122,14 @@ func (d *DatabaseService) Drop(name string) error {
 // resultado do --initialize-insecure. É ambiente de desenvolvimento escutando
 // só em loopback; a senha vazia é decisão registrada, não descuido.
 func (d *DatabaseService) Credentials() Credentials {
-	return Credentials{User: "root", Password: "", Host: "127.0.0.1", Port: d.stk.State().MySQLPort}
+	c := Credentials{User: "root", Password: "", Host: "127.0.0.1", Port: d.stk.State().MySQLPort, Client: "mysql"}
+	if inst, ok := stack.DBRuntime(d.runtimes(), d.stk.State()); ok {
+		c.Engine = string(inst.Kind)
+		if inst.Kind == runtime.MariaDB {
+			c.Client = "mariadb"
+		}
+	}
+	return c
 }
 
 // PhpMyAdminURL é a URL do vhost dedicado da ferramenta, ou "" quando ela não
@@ -122,14 +142,16 @@ func (d *DatabaseService) PhpMyAdminURL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", d.stk.State().PhpMyAdminPort)
 }
 
-// client exige MySQL instalado e ready.
+// client exige o servidor de banco instalado e ready.
 func (d *DatabaseService) client() (mysqlcli.Client, error) {
-	list := runtime.ByKind(d.runtimes(), runtime.MySQL)
-	if len(list) == 0 {
+	// O mesmo servidor que a stack sobe (motor e versão): o cliente de outro
+	// até conectaria, mas mysqldump e afins têm de casar com o servidor.
+	inst, ok := stack.DBRuntime(d.runtimes(), d.stk.State())
+	if !ok {
 		return mysqlcli.Client{}, ErrMySQLIndisponivel
 	}
 	if st, ok := d.sup.Status(stack.MySQLSpecID); !ok || st.State != supervisor.Ready {
 		return mysqlcli.Client{}, ErrMySQLIndisponivel
 	}
-	return mysqlcli.New(list[0], d.stk.State().MySQLPort), nil
+	return mysqlcli.New(inst, d.stk.State().MySQLPort), nil
 }

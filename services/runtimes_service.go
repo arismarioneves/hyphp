@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -17,7 +18,9 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/pkgmgr"
+	"hyphp/internal/render"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
 )
@@ -36,6 +39,9 @@ type RuntimesDeps struct {
 	Logger    *slog.Logger
 	Emit      func(name string, data any)    // app.Event.Emit; nil em smoke/testes
 	OnChange  func(list []runtime.Installed) // opcional; chamado fora do lock após cada mudança
+	// StopUsing para os serviços que rodam de dir (stack.StopUsingDir). Nil
+	// em smoke/testes sem stack.
+	StopUsing func(dir string) error
 }
 
 type RuntimesService struct {
@@ -43,8 +49,14 @@ type RuntimesService struct {
 	mu         sync.Mutex
 	installed  []runtime.Installed
 	scanned    bool
-	installing map[string]bool // packageID → em andamento
-	ctx        context.Context // de ServiceStartup; Background() antes disso
+	installing map[string]context.CancelFunc // packageID → cancela o download em andamento
+	ctx        context.Context               // de ServiceStartup; Background() antes disso
+
+	// Consultas ao php.exe da série (runtime.PHPIniBuiltins/PHPIniKnows). São
+	// campos para que os testes das regras de php.ini não dependam de um PHP
+	// instalado na máquina.
+	iniBuiltins func(ctx context.Context, inst runtime.Installed, ext, names []string) (map[string]string, error)
+	iniKnows    func(ctx context.Context, inst runtime.Installed, ext []string, name, value string) (bool, error)
 }
 
 func NewRuntimesService(d RuntimesDeps) *RuntimesService {
@@ -52,7 +64,10 @@ func NewRuntimesService(d RuntimesDeps) *RuntimesService {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
 	}
-	return &RuntimesService{d: d, installing: map[string]bool{}, ctx: context.Background()}
+	return &RuntimesService{
+		d: d, installing: map[string]context.CancelFunc{}, ctx: context.Background(),
+		iniBuiltins: runtime.PHPIniBuiltins, iniKnows: runtime.PHPIniKnows,
+	}
 }
 
 // ServiceStartup (Wails) inicia o watcher de bin/. ctx é cancelado no shutdown.
@@ -113,14 +128,15 @@ func (r *RuntimesService) Available() []pkgmgr.Package {
 func (r *RuntimesService) Install(packageID string) error {
 	pkg, ok := r.d.Catalog.ByID(packageID)
 	if !ok {
-		return fmt.Errorf("pacote %q não existe no catálogo", packageID)
+		return i18n.Errorf("err.runtimes.unknownPackage", packageID)
 	}
 	r.mu.Lock()
-	if r.installing[packageID] {
+	if _, busy := r.installing[packageID]; busy {
 		r.mu.Unlock()
-		return fmt.Errorf("pacote %q já está sendo instalado", packageID)
+		return i18n.Errorf("err.runtimes.installing", packageID)
 	}
-	r.installing[packageID] = true
+	ctx, cancel := context.WithCancel(r.ctx)
+	r.installing[packageID] = cancel
 	r.mu.Unlock()
 
 	go func() {
@@ -128,9 +144,13 @@ func (r *RuntimesService) Install(packageID string) error {
 			r.mu.Lock()
 			delete(r.installing, packageID)
 			r.mu.Unlock()
+			cancel()
 		}()
-		_, err := r.d.Manager.Install(r.ctx, pkg, func(p pkgmgr.Progress) { r.emit("download:progress", p) })
-		if err != nil {
+		_, err := r.d.Manager.Install(ctx, pkg, func(p pkgmgr.Progress) { r.emit("download:progress", p) })
+		switch {
+		case errors.Is(err, context.Canceled):
+			r.d.Logger.Info("runtimes: download cancelado", "pkg", packageID)
+		case err != nil:
 			r.d.Logger.Error("runtimes: instalação falhou", "pkg", packageID, "err", err)
 		}
 		if err := r.Rescan(); err != nil {
@@ -140,11 +160,32 @@ func (r *RuntimesService) Install(packageID string) error {
 	return nil
 }
 
-// Remove apaga a pasta do runtime e revarre.
+// CancelInstall interrompe o download em andamento do pacote. O progresso
+// termina com a fase "canceled" e o arquivo parcial é apagado. Depois do
+// download (verificação e extração, que levam segundos) não há o que cancelar.
+func (r *RuntimesService) CancelInstall(packageID string) error {
+	r.mu.Lock()
+	cancel, ok := r.installing[packageID]
+	r.mu.Unlock()
+	if !ok {
+		return i18n.Errorf("err.runtimes.notInstalling", packageID)
+	}
+	cancel()
+	return nil
+}
+
+// Remove para os serviços que rodam do runtime, apaga a pasta e revarre. A
+// revarredura dispara o Reconcile, que passa o serviço para outra versão
+// instalada ou o tira.
 func (r *RuntimesService) Remove(kind, version string) error {
 	inst, ok := r.find(runtime.Kind(kind), version)
 	if !ok {
-		return fmt.Errorf("runtime %s %s não está instalado", kind, version)
+		return i18n.Errorf("err.runtimes.notInstalled", kind, version)
+	}
+	if r.d.StopUsing != nil {
+		if err := r.d.StopUsing(inst.Dir); err != nil {
+			return err
+		}
 	}
 	if err := r.d.Manager.Remove(inst); err != nil {
 		return err
@@ -156,7 +197,7 @@ func (r *RuntimesService) Remove(kind, version string) error {
 // direto em bin/<kind>/, sem pasta por versão, e pesam poucos megabytes no
 // catálogo: importá-los exigiria tratar um segundo layout de destino sem poupar
 // download nenhum.
-var kindsImportaveis = []runtime.Kind{runtime.PHP, runtime.Apache, runtime.Nginx, runtime.MySQL}
+var kindsImportaveis = []runtime.Kind{runtime.PHP, runtime.Apache, runtime.Nginx, runtime.MySQL, runtime.MariaDB}
 
 // copyRuntimeTree copia recursivamente src para dst. Copia, não move: a pasta
 // de origem costuma ser de outra ferramenta que o usuário ainda usa, e o HyPHP
@@ -261,7 +302,7 @@ func runtimesEm(dir string) []runtime.Installed {
 // (cfd é interno ao Wails, não há sentinela importável).
 func (r *RuntimesService) PickImportDir() (string, error) {
 	dir, err := r.d.App.Dialog.OpenFile().
-		SetTitle("Selecionar pasta com runtimes (ex.: bin de outra ferramenta)").
+		SetTitle(i18n.T("dialog.pickImportDir")).
 		CanChooseDirectories(true).
 		CanChooseFiles(false).
 		PromptForSingleSelection()
@@ -269,7 +310,7 @@ func (r *RuntimesService) PickImportDir() (string, error) {
 		if strings.Contains(err.Error(), dialogCancelledMsg) {
 			return "", nil
 		}
-		return "", fmt.Errorf("diálogo de pasta: %w", err)
+		return "", i18n.Errorf("err.dialog", err)
 	}
 	return dir, nil
 }
@@ -279,7 +320,7 @@ func (r *RuntimesService) PickImportDir() (string, error) {
 func (r *RuntimesService) ImportFrom(dir string) error {
 	achadas := runtimesEm(dir)
 	if len(achadas) == 0 {
-		return fmt.Errorf("nenhum runtime reconhecido em %s", dir)
+		return i18n.Errorf("err.runtimes.noneFound", dir)
 	}
 	for _, inst := range achadas {
 		destino := destinoImport(r.d.BinDir, inst)
@@ -290,13 +331,13 @@ func (r *RuntimesService) ImportFrom(dir string) error {
 			// Uma árvore pela metade seria detectada como runtime quebrado na
 			// próxima varredura; melhor não deixar rastro da cópia falha.
 			os.RemoveAll(destino)
-			return fmt.Errorf("copiar %s: %w", inst.Dir, err)
+			return i18n.Errorf("err.runtimes.copy", inst.Dir, err)
 		}
 	}
 	// O watcher de bin/ publica a lista nova; forçar o rescan evita depender
 	// do tempo de propagação do evento de arquivo.
 	if err := r.Rescan(); err != nil {
-		return fmt.Errorf("reler bin/: %w", err)
+		return i18n.Errorf("err.runtimes.rescan", err)
 	}
 	return nil
 }
@@ -304,11 +345,11 @@ func (r *RuntimesService) ImportFrom(dir string) error {
 // SetDefaultPHP grava state.DefaultPHP e notifica (settings:changed + runtime:changed).
 func (r *RuntimesService) SetDefaultPHP(major string) error {
 	if _, ok := runtime.PHPByMajor(r.Installed(), major); !ok {
-		return fmt.Errorf("PHP %s não está instalado", major)
+		return i18n.Errorf("err.runtimes.phpMissing", major)
 	}
 	r.d.State.DefaultPHP = major
 	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
-		return fmt.Errorf("salvar state: %w", err)
+		return i18n.Errorf("err.runtimes.saveState", err)
 	}
 	r.emit("settings:changed", *r.d.State)
 	r.notify(r.Installed())
@@ -319,7 +360,7 @@ func (r *RuntimesService) SetDefaultPHP(major string) error {
 func (r *RuntimesService) Extensions(major string) ([]runtime.Extension, error) {
 	inst, ok := runtime.PHPByMajor(r.Installed(), major)
 	if !ok {
-		return nil, fmt.Errorf("PHP %s não está instalado", major)
+		return nil, i18n.Errorf("err.runtimes.phpMissing", major)
 	}
 	return runtime.ListExtensions(inst, r.enabledExtensions(major))
 }
@@ -328,14 +369,14 @@ func (r *RuntimesService) Extensions(major string) ([]runtime.Extension, error) 
 func (r *RuntimesService) SetExtension(major, name string, on bool) error {
 	inst, ok := runtime.PHPByMajor(r.Installed(), major)
 	if !ok {
-		return fmt.Errorf("PHP %s não está instalado", major)
+		return i18n.Errorf("err.runtimes.phpMissing", major)
 	}
 	available, err := runtime.ListExtensions(inst, nil)
 	if err != nil {
 		return err
 	}
 	if !slices.ContainsFunc(available, func(e runtime.Extension) bool { return e.Name == name }) {
-		return fmt.Errorf("extensão %q não existe em %s", name, filepath.Join(inst.Dir, "ext"))
+		return i18n.Errorf("err.runtimes.unknownExtension", name, filepath.Join(inst.Dir, "ext"))
 	}
 
 	cur := slices.Clone(r.enabledExtensions(major))
@@ -352,7 +393,7 @@ func (r *RuntimesService) SetExtension(major, name string, on bool) error {
 	}
 	r.d.State.PHPExtensions[major] = cur
 	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
-		return fmt.Errorf("salvar state: %w", err)
+		return i18n.Errorf("err.runtimes.saveState", err)
 	}
 	r.emit("settings:changed", *r.d.State)
 	r.notify(r.Installed())
@@ -365,6 +406,139 @@ func (r *RuntimesService) enabledExtensions(major string) []string {
 		return list
 	}
 	return runtime.DefaultExtensions
+}
+
+// IniSetting é uma linha do painel de php.ini: o valor efetivo da diretiva na
+// série e de onde ele vem.
+type IniSetting struct {
+	Name         string `json:"name"`
+	Value        string `json:"value"`        // o que vai valer nos workers
+	DefaultValue string `json:"defaultValue"` // o que vale sem a escolha do usuário
+	Source       string `json:"source"`       // "user" | "hyphp" | "php"
+}
+
+// curatedIni são as diretivas que o painel mostra sempre: as que projetos
+// comuns (Moodle, Magento, WordPress com importação grande) pedem para mudar.
+var curatedIni = []string{
+	"memory_limit", "max_execution_time", "max_input_time", "max_input_vars",
+	"post_max_size", "upload_max_filesize", "display_errors", "error_reporting",
+	"date.timezone", "opcache.enable",
+}
+
+// iniProbeTimeout limita cada consulta ao php.exe; o PHP responde em
+// milissegundos, mas um antivírus inspecionando o exe não pode travar a UI.
+const iniProbeTimeout = 15 * time.Second
+
+// IniSettings lista as diretivas curadas e as que o usuário definiu para a
+// série, com valor efetivo, padrão e origem. Curadas primeiro, na ordem da
+// lista; depois as extras por nome.
+func (r *RuntimesService) IniSettings(major string) ([]IniSetting, error) {
+	inst, ok := runtime.PHPByMajor(r.Installed(), major)
+	if !ok {
+		return nil, i18n.Errorf("err.runtimes.phpMissing", major)
+	}
+	user := r.d.State.PHPIni[major]
+	names := slices.Clone(curatedIni)
+	var extras []string
+	for name := range user {
+		if !slices.Contains(names, name) {
+			extras = append(extras, name)
+		}
+	}
+	sort.Strings(extras)
+	names = append(names, extras...)
+
+	ctx, cancel := context.WithTimeout(r.ctx, iniProbeTimeout)
+	defer cancel()
+	builtin, err := r.iniBuiltins(ctx, inst, r.enabledExtensions(major), slices.DeleteFunc(slices.Clone(names), func(n string) bool { return !runtime.ValidIniName(n) }))
+	if err != nil {
+		return nil, i18n.Errorf("err.runtimes.iniProbe", major, err)
+	}
+	hyphp := map[string]string{}
+	for _, d := range render.PHPIniDefaults() {
+		hyphp[d.Name] = d.Value
+	}
+
+	out := make([]IniSetting, 0, len(names))
+	for _, name := range names {
+		s := IniSetting{Name: name}
+		if v, ok := hyphp[name]; ok {
+			s.DefaultValue, s.Source = v, "hyphp"
+		} else if v, ok := builtin[name]; ok {
+			s.DefaultValue, s.Source = v, "php"
+		} else if _, ok := user[name]; !ok {
+			continue // curada que este PHP não conhece (ex.: extensão ausente)
+		}
+		s.Value = s.DefaultValue
+		if v, ok := user[name]; ok {
+			s.Value, s.Source = v, "user"
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
+// SetIniSetting define name=value no php.ini da série e persiste em
+// state.PHPIni. O Reconcile que o notify dispara regrava o php.ini e reinicia
+// só os workers dessa série.
+func (r *RuntimesService) SetIniSetting(major, name, value string) error {
+	name = strings.TrimSpace(name)
+	value = strings.TrimSpace(value)
+	if !runtime.ValidIniName(name) {
+		return i18n.Errorf("err.runtimes.iniName", name)
+	}
+	if render.IsManagedIniDirective(name) {
+		return i18n.Errorf("err.runtimes.iniManaged", name)
+	}
+	if value == "" || strings.ContainsAny(value, "\r\n") {
+		return i18n.Errorf("err.runtimes.iniValue", name)
+	}
+	inst, ok := runtime.PHPByMajor(r.Installed(), major)
+	if !ok {
+		return i18n.Errorf("err.runtimes.phpMissing", major)
+	}
+	ctx, cancel := context.WithTimeout(r.ctx, iniProbeTimeout)
+	defer cancel()
+	known, err := r.iniKnows(ctx, inst, r.enabledExtensions(major), name, value)
+	if err != nil {
+		return i18n.Errorf("err.runtimes.iniProbe", major, err)
+	}
+	if !known {
+		return i18n.Errorf("err.runtimes.iniUnknown", major, name)
+	}
+
+	if r.d.State.PHPIni == nil {
+		r.d.State.PHPIni = map[string]map[string]string{}
+	}
+	if r.d.State.PHPIni[major] == nil {
+		r.d.State.PHPIni[major] = map[string]string{}
+	}
+	r.d.State.PHPIni[major][name] = value
+	return r.saveIni()
+}
+
+// ResetIniSetting apaga a escolha do usuário; a diretiva volta ao padrão do
+// HyPHP ou do PHP. Sem diretivas, a série sai do mapa para o state.json não
+// acumular objetos vazios.
+func (r *RuntimesService) ResetIniSetting(major, name string) error {
+	if _, ok := r.d.State.PHPIni[major][name]; !ok {
+		return nil
+	}
+	delete(r.d.State.PHPIni[major], name)
+	if len(r.d.State.PHPIni[major]) == 0 {
+		delete(r.d.State.PHPIni, major)
+	}
+	return r.saveIni()
+}
+
+// saveIni persiste state.PHPIni e dispara o Reconcile, como SetExtension.
+func (r *RuntimesService) saveIni() error {
+	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
+		return i18n.Errorf("err.runtimes.saveState", err)
+	}
+	r.emit("settings:changed", *r.d.State)
+	r.notify(r.Installed())
+	return nil
 }
 
 func (r *RuntimesService) find(kind runtime.Kind, version string) (runtime.Installed, bool) {

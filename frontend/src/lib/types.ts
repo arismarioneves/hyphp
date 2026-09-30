@@ -25,7 +25,7 @@ export type DBInfo = GeneratedDBInfo
 export type LogSource = GeneratedLogSource
 export type Credentials = GeneratedCredentials
 
-export type ProgressPhase = 'download' | 'verify' | 'extract' | 'done' | 'error'
+export type ProgressPhase = 'download' | 'verify' | 'extract' | 'done' | 'error' | 'canceled'
 
 /**
  * Espelho de `pkgmgr.Progress` (payload de `download:progress`).
@@ -41,5 +41,5 @@ export type Progress = {
   error: string
 }
 
-export type RuntimeKind = 'php' | 'apache' | 'nginx' | 'mysql' | 'mailpit' | 'mkcert' | 'phpmyadmin'
+export type RuntimeKind = 'php' | 'apache' | 'nginx' | 'mysql' | 'mariadb' | 'mailpit' | 'mkcert' | 'phpmyadmin'
 export type WebServerName = 'apache' | 'nginx'

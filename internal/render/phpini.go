@@ -12,6 +12,64 @@ import (
 	"hyphp/internal/runtime"
 )
 
+// IniDirective é uma diretiva de php.ini com o valor que o HyPHP escreve.
+type IniDirective struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// Os padrões do HyPHP ficam em grupos porque o php.ini os escreve em blocos
+// separados, intercalados com diretivas gerenciadas (error_log, sys_temp_dir):
+// manter a ordem de antes deixa o arquivo gerado idêntico byte a byte.
+var (
+	errorDefaults = []IniDirective{
+		{"error_reporting", "E_ALL"},
+		{"display_errors", "On"},
+		{"display_startup_errors", "On"},
+		{"log_errors", "On"},
+	}
+	limitDefaults = []IniDirective{
+		{"upload_max_filesize", "64M"},
+		{"post_max_size", "64M"},
+		{"memory_limit", "512M"},
+		{"max_execution_time", "120"},
+		{"date.timezone", "UTC"},
+	}
+	opcacheDefaults = []IniDirective{
+		{"opcache.enable", "1"},
+		{"opcache.enable_cli", "0"},
+		{"opcache.validate_timestamps", "1"},
+		{"opcache.revalidate_freq", "0"},
+	}
+)
+
+// PHPIniDefaults devolve, na ordem do arquivo, as diretivas que o HyPHP define
+// e que o usuário pode sobrescrever por série. A UI mostra estes valores como
+// "padrão do HyPHP".
+func PHPIniDefaults() []IniDirective {
+	return slices.Concat(errorDefaults, limitDefaults, opcacheDefaults)
+}
+
+// managedDirectives são as diretivas que o HyPHP controla: caminhos que o stack
+// cria por série (ext, log, tmp), o redirecionamento de mail() para o Mailpit e
+// o que o php-cgi precisa para atender o Apache/nginx. Trocar qualquer uma quebra
+// o stack de um jeito que o usuário não liga ao php.ini.
+var managedDirectives = []string{
+	"extension_dir", "extension", "zend_extension", "error_log",
+	"sys_temp_dir", "upload_tmp_dir", "session.save_path",
+	"smtp", "smtp_port", "sendmail_from", "mail.add_x_header",
+	"fastcgi.impersonate", "user_ini.filename",
+}
+
+// IsManagedIniDirective diz se name é gerenciada pelo HyPHP e portanto não pode
+// ser sobrescrita pelo usuário. Compara sem caixa porque o php.ini escreve
+// "SMTP" em maiúsculas; `cgi.*` inteiro é do php-cgi (fix_pathinfo errado abre
+// execução de arquivo arbitrário via PATH_INFO).
+func IsManagedIniDirective(name string) bool {
+	n := strings.ToLower(strings.TrimSpace(name))
+	return strings.HasPrefix(n, "cgi.") || slices.Contains(managedDirectives, n)
+}
+
 // RenderPHPIni gera o php.ini de uma série de PHP. Determinístico: mesma
 // entrada, mesmos bytes.
 //
@@ -26,7 +84,12 @@ import (
 // filepath.ToSlash). tmpDir é por série: sys_temp_dir, upload_tmp_dir e
 // session.save_path apontam todos para lá, para que uma sessão criada sob 8.1
 // não seja lida por um worker 7.2.
-func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int) []byte {
+//
+// userIni são as diretivas que o usuário definiu para a série (state.PHPIni).
+// Saem num bloco no FIM do arquivo porque no php.ini a última ocorrência
+// vence: assim sobrescrevem os padrões acima sem que o renderer precise
+// removê-los. O chamador já recusou as gerenciadas (IsManagedIniDirective).
+func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int, userIni map[string]string) []byte {
 	extDir := filepath.ToSlash(filepath.Join(inst.Dir, "ext"))
 	tmp := slashDir(tmpDir)
 	log := slashDir(logDir)
@@ -54,17 +117,12 @@ func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir st
 		fmt.Fprintf(&b, "zend_extension=php_opcache.dll\n")
 	}
 
-	fmt.Fprintf(&b, "\nerror_reporting = E_ALL\n")
-	fmt.Fprintf(&b, "display_errors = On\n")
-	fmt.Fprintf(&b, "display_startup_errors = On\n")
-	fmt.Fprintf(&b, "log_errors = On\n")
+	fmt.Fprintf(&b, "\n")
+	writeDirectives(&b, errorDefaults)
 	fmt.Fprintf(&b, "error_log = %q\n", log+"/php-"+inst.Major+".log")
 
-	fmt.Fprintf(&b, "\nupload_max_filesize = 64M\n")
-	fmt.Fprintf(&b, "post_max_size = 64M\n")
-	fmt.Fprintf(&b, "memory_limit = 512M\n")
-	fmt.Fprintf(&b, "max_execution_time = 120\n")
-	fmt.Fprintf(&b, "date.timezone = UTC\n")
+	fmt.Fprintf(&b, "\n")
+	writeDirectives(&b, limitDefaults)
 
 	fmt.Fprintf(&b, "\nsys_temp_dir = %q\n", tmp)
 	fmt.Fprintf(&b, "upload_tmp_dir = %q\n", tmp)
@@ -87,12 +145,40 @@ func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir st
 	fmt.Fprintf(&b, "mail.add_x_header = On\n")
 
 	fmt.Fprintf(&b, "\n[opcache]\n")
-	fmt.Fprintf(&b, "opcache.enable = 1\n")
-	fmt.Fprintf(&b, "opcache.enable_cli = 0\n")
-	fmt.Fprintf(&b, "opcache.validate_timestamps = 1\n")
-	fmt.Fprintf(&b, "opcache.revalidate_freq = 0\n")
+	writeDirectives(&b, opcacheDefaults)
 
+	writeUserIni(&b, userIni)
 	return b.Bytes()
+}
+
+func writeDirectives(b *bytes.Buffer, list []IniDirective) {
+	for _, d := range list {
+		fmt.Fprintf(b, "%s = %s\n", d.Name, d.Value)
+	}
+}
+
+// writeUserIni escreve o bloco do usuário ordenado por nome (determinismo).
+// Pula gerenciadas e quebras de linha mesmo já recusadas pelo serviço: o
+// state.json pode ter sido editado à mão, e uma linha a mais aqui viraria uma
+// diretiva que ninguém pediu.
+func writeUserIni(b *bytes.Buffer, userIni map[string]string) {
+	names := make([]string, 0, len(userIni))
+	for name, value := range userIni {
+		if IsManagedIniDirective(name) || strings.ContainsAny(name+value, "\r\n") {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return
+	}
+	sort.Strings(names)
+	fmt.Fprintf(b, "\n; Diretivas definidas pelo usuário em Runtimes › PHP (state.json, phpIni).\n")
+	fmt.Fprintf(b, "; Ficam no fim porque no php.ini a última ocorrência vence.\n")
+	fmt.Fprintf(b, "[PHP]\n")
+	for _, name := range names {
+		fmt.Fprintf(b, "%s = %s\n", name, userIni[name])
+	}
 }
 
 // hasExtensionDLL responde se <extDir>/php_<name>.dll existe.

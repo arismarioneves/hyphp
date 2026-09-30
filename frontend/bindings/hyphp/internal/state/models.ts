@@ -77,6 +77,13 @@ export interface State {
     "phpExtensions"?: { [_ in string]?: string[] | null } | null;
 
     /**
+     * PHPIni são as diretivas que o usuário definiu por série ("8.3" →
+     * "max_input_vars" → "5000"). Vão para o fim do php.ini, depois dos
+     * padrões do HyPHP, e por isso passam por cima deles.
+     */
+    "phpIni"?: { [_ in string]?: { [_ in string]?: string } | null } | null;
+
+    /**
      * caminho do exe ou "" (usa `code`)
      */
     "editor": string;
@@ -93,6 +100,26 @@ export interface State {
      * propósito: o zero-value (ausente em state.json antigo) significa ligado.
      */
     "autoUpdateOff": boolean;
+
+    /**
+     * Theme é o tema da interface: "dark", "light" ou "system" (segue o
+     * Windows). O zero-value, de state.json anterior à v3, vale como "dark",
+     * que era o único tema.
+     */
+    "theme": string;
+
+    /**
+     * Language é o idioma da interface ("pt-BR", "en"). Vazio segue o idioma
+     * do Windows (i18n.Resolve).
+     */
+    "language": string;
+
+    /**
+     * DBEngine é o banco ativo: "mysql" ou "mariadb". Um de cada vez, na
+     * MySQLPort, cada um com o próprio datadir. Vazio vale "mysql", o único
+     * até a v3.
+     */
+    "dbEngine": string;
 }
 
 /**

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"hyphp/internal/compat"
+	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/project"
 	"hyphp/internal/runtime"
@@ -73,7 +74,7 @@ func desired(in desiredInput) (desiredOutput, error) {
 			out.Warnings = append(out.Warnings, Warning{
 				Code:      "php-missing",
 				ProjectID: p.ID,
-				Message:   fmt.Sprintf("PHP %s não está instalado; %s não será servido", major, p.ID),
+				Message:   i18n.T("warn.phpMissing", major, p.ID),
 			})
 			continue
 		}
@@ -267,7 +268,7 @@ func siteFor(in desiredInput, p project.Project, major string) (webserver.Site, 
 		if err != nil {
 			warns = append(warns, Warning{
 				Code: "tls-unavailable", ProjectID: p.ID,
-				Message: fmt.Sprintf("sem HTTPS para %s: %v", p.Domain, err),
+				Message: i18n.T("warn.tlsSite", p.Domain, err),
 			})
 		} else {
 			site.TLSCert = filepath.ToSlash(cert)
@@ -277,7 +278,7 @@ func siteFor(in desiredInput, p project.Project, major string) (webserver.Site, 
 	if in.State.WebServer == state.Nginx && p.HasHtaccess {
 		warns = append(warns, Warning{
 			Code: "htaccess-under-nginx", ProjectID: p.ID,
-			Message: fmt.Sprintf("%s tem .htaccess; rewrites não se aplicam sob nginx", p.ID),
+			Message: i18n.T("warn.htaccessUnderNginx", p.ID),
 		})
 	}
 	return site, warns
@@ -362,13 +363,13 @@ func resolveProcExe(tokens []string, inst runtime.Installed, pathEnv string) (st
 		// Instalação que só copiou o .phar: roda com o PHP do projeto.
 		phar, err := findInPath(pathEnv, "composer.phar")
 		if err != nil {
-			return "", nil, fmt.Errorf("composer não encontrado no PATH do projeto")
+			return "", nil, errors.New(i18n.T("err.stack.composerNotFound"))
 		}
 		return inst.Exe, append([]string{phar}, rest...), nil
 	default:
 		exe, err := lookPathIn(pathEnv, tokens[0])
 		if err != nil {
-			return "", nil, fmt.Errorf("%s não encontrado no PATH do projeto", tokens[0])
+			return "", nil, errors.New(i18n.T("err.stack.exeNotFound", tokens[0]))
 		}
 		return exe, rest, nil
 	}
@@ -512,29 +513,36 @@ const (
 	MailpitSpecID = "mailpit"
 )
 
-// mysqlSpec devolve o spec do MySQL, ou ok=false quando não há MySQL em bin/.
+// mysqlSpec devolve o spec do servidor de banco — MySQL ou MariaDB, pelo
+// DBRuntime —, ou ok=false quando não há o que subir. O ID continua "mysql"
+// nos dois motores: é o serviço de banco da stack, e a UI, o Banco e o
+// phpMyAdmin o procuram por esse nome. inst.Exe já é o servidor do motor
+// (mysqld.exe ou mariadbd.exe).
 func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
-	list := runtime.ByKind(in.Runtimes, runtime.MySQL)
-	if len(list) == 0 {
+	inst, ok := DBRuntime(in.Runtimes, in.State)
+	if !ok {
 		return supervisor.Spec{}, false
 	}
-	inst := list[0]
+	logName := "mysql.log"
+	if inst.Kind == runtime.MariaDB {
+		logName = "mariadb.log"
+	}
 	addr := fmt.Sprintf("127.0.0.1:%d", in.State.MySQLPort)
 	return supervisor.Spec{
 		ID:    MySQLSpecID,
-		Name:  "MySQL " + inst.Version,
+		Name:  DBName(inst.Kind) + " " + inst.Version,
 		Group: "db",
-		Exe:   filepath.Join(inst.Dir, "bin", "mysqld.exe"),
+		Exe:   inst.Exe,
 		Args: []string{
 			"--defaults-file=" + MyIniPath(in.EtcDir),
 			"--console",
 		},
 		Dir:          inst.Dir,
 		Port:         in.State.MySQLPort,
-		Probe:        &supervisor.MySQLProbe{Addr: addr},
+		Probe:        &supervisor.MySQLProbe{Addr: addr, Version: inst.Version},
 		ProbeTimeout: 60 * time.Second,
 		Restart:      defaultRestart(),
-		LogPath:      filepath.Join(in.LogDir, "mysql.log"),
+		LogPath:      filepath.Join(in.LogDir, logName),
 	}, true
 }
 
@@ -543,11 +551,10 @@ func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 // --database. O binário fica direto em bin/mailpit/mailpit.exe (C18.5), então
 // inst.Exe já é o caminho final.
 func mailpitSpec(in desiredInput) (supervisor.Spec, bool) {
-	list := runtime.ByKind(in.Runtimes, runtime.Mailpit)
-	if len(list) == 0 {
+	inst, ok := runtime.Newest(in.Runtimes, runtime.Mailpit)
+	if !ok {
 		return supervisor.Spec{}, false
 	}
-	inst := list[0]
 	httpAddr := fmt.Sprintf("127.0.0.1:%d", in.State.MailpitHTTPPort)
 	return supervisor.Spec{
 		ID:    MailpitSpecID,
@@ -577,11 +584,10 @@ func mailpitSpec(in desiredInput) (supervisor.Spec, bool) {
 // da faixa, ainda que nenhum projeto use essa série — o pool já existe porque
 // todo PHP instalado ganha o seu.
 func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool, []Warning) {
-	pmas := runtime.ByKind(in.Runtimes, runtime.PhpMyAdmin)
-	if len(pmas) == 0 {
+	pma, ok := runtime.Newest(in.Runtimes, runtime.PhpMyAdmin)
+	if !ok {
 		return nil, nil
 	}
-	pma := pmas[0]
 
 	faixa, ok := compat.PHPParaPhpMyAdmin(pma.Version)
 	if !ok {
@@ -603,14 +609,13 @@ func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool
 
 	escolhida := majorCompativel(runtime.ByKind(in.Runtimes, runtime.PHP), faixa)
 	if escolhida == "" {
-		tem := "nenhuma série de PHP instalada"
+		tem := i18n.T("warn.pmaSemPhpNone")
 		if len(instaladas) > 0 {
-			tem = "instaladas: " + strings.Join(instaladas, ", ")
+			tem = i18n.T("warn.pmaSemPhpInstalled", strings.Join(instaladas, ", "))
 		}
 		return nil, []Warning{{
-			Code: "pma-sem-php",
-			Message: fmt.Sprintf("phpMyAdmin %s precisa de %s (%s)",
-				pma.Version, faixa, tem),
+			Code:    "pma-sem-php",
+			Message: i18n.T("warn.pmaSemPhp", pma.Version, faixa, tem),
 		}}
 	}
 	return &webserver.Tool{
@@ -627,11 +632,11 @@ func toolPhpMyAdmin(in desiredInput, pools []webserver.PHPPool) (*webserver.Tool
 // Olha os PHP INSTALADOS, não os pools: é justamente o caso em que ainda não
 // há pool nenhum — ambiente sem projeto — que precisa criar um.
 func phpParaFerramenta(in desiredInput, phps []runtime.Installed) string {
-	pmas := runtime.ByKind(in.Runtimes, runtime.PhpMyAdmin)
-	if len(pmas) == 0 {
+	pma, ok := runtime.Newest(in.Runtimes, runtime.PhpMyAdmin)
+	if !ok {
 		return ""
 	}
-	faixa, ok := compat.PHPParaPhpMyAdmin(pmas[0].Version)
+	faixa, ok := compat.PHPParaPhpMyAdmin(pma.Version)
 	if !ok {
 		faixa = compat.Faixa{}
 	}

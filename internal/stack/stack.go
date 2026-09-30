@@ -2,6 +2,7 @@ package stack
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,7 @@ import (
 	"time"
 
 	"hyphp/internal/elevate"
+	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
 	"hyphp/internal/project"
@@ -198,7 +200,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 			// O caminho completo é obrigatório na mensagem: "não está instalado
 			// em bin/" leva o usuário a olhar o bin/ errado quando existe outra
 			// ferramenta na máquina com um Apache próprio.
-			Message: fmt.Sprintf("web server %q não encontrado em %s; baixe ou importe em Runtimes, senão nenhum site será servido", st.WebServer, filepath.Join(paths.Bin(), string(st.WebServer))),
+			Message: i18n.T("warn.webMissing", st.WebServer, filepath.Join(paths.Bin(), string(st.WebServer))),
 		})
 	}
 
@@ -234,7 +236,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	iniChanged := map[string]bool{}
 	for _, pool := range out.Pools {
 		inst, _ := runtime.PHPByMajor(runtime.ByKind(rts, runtime.PHP), pool.Version)
-		changed, err := s.renderPHPIni(inst, pool.Version, out.Extensions[pool.Version], st.MailpitSMTPPort)
+		changed, err := s.renderPHPIni(inst, pool.Version, out.Extensions[pool.Version], st.MailpitSMTPPort, st.PHPIni[pool.Version])
 		if err != nil {
 			return s.finish(warnings), err
 		}
@@ -268,8 +270,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 			warnings = append(warnings, Warning{
 				Code:      "docroot-sem-indice",
 				ProjectID: p.ID,
-				Message: fmt.Sprintf("%s serve %s, que não tem index.php nem index.html; ajuste `docroot:` no hyphp.yaml",
-					p.Domain, p.DocrootAbs),
+				Message:   i18n.T("warn.docrootSemIndice", p.Domain, p.DocrootAbs),
 			})
 		}
 	}
@@ -322,17 +323,17 @@ func (s *Stack) finish(w []Warning) []Warning {
 func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) {
 	mk := s.d.Mkcert
 	if mk.Exe == "" {
-		return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("mkcert não encontrado em %s; baixe em Runtimes, senão os sites ficam só em HTTP", filepath.Join(paths.Bin(), "mkcert"))}}
+		return nil, []Warning{{Code: "tls-unavailable", Message: i18n.T("warn.mkcertMissing", filepath.Join(paths.Bin(), "mkcert"))}}
 	}
 	if !s.caReady {
 		ok, err := mk.CAInstalled()
 		if err != nil {
-			return nil, []Warning{{Code: "tls-unavailable", Message: fmt.Sprintf("verificar CA do mkcert: %v", err)}}
+			return nil, []Warning{{Code: "tls-unavailable", Message: i18n.T("warn.caCheck", err)}}
 		}
 		if !ok {
 			return nil, []Warning{{
 				Code:    "ca-pending",
-				Message: "certificado raiz local não instalado; sites só em HTTP até você instalá-lo",
+				Message: i18n.T("warn.caPending"),
 			}}
 		}
 		s.caReady = true
@@ -346,23 +347,23 @@ func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) 
 func (s *Stack) InstallCA(ctx context.Context) error {
 	mk := s.d.Mkcert
 	if mk.Exe == "" {
-		return fmt.Errorf("mkcert não encontrado em bin/mkcert/mkcert.exe")
+		return i18n.Errorf("err.stack.mkcertMissing")
 	}
 	switch ok, err := mk.CAInstalled(); {
 	case err != nil:
-		return fmt.Errorf("verificar CA do mkcert: %w", err)
+		return i18n.Errorf("err.stack.caCheck", err)
 	case ok:
 		return nil
 	}
 	helper, herr := elevate.HelperPath()
 	if herr != nil {
-		return fmt.Errorf("helper elevado indisponível: %w", herr)
+		return i18n.Errorf("err.stack.helperUnavailable", herr)
 	}
 	switch err := elevate.RunElevated(helper, []string{"mkcert-install", "--exe", mk.Exe}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return fmt.Errorf("instalação do certificado raiz cancelada; sites seguem só em HTTP")
+		return i18n.Errorf("err.stack.caCancelled")
 	case err != nil:
-		return fmt.Errorf("mkcert -install falhou: %w", err)
+		return i18n.Errorf("err.stack.caInstallFailed", err)
 	}
 	s.d.Logger.Info("stack: CA local instalada")
 	// Agora os vhosts podem nascer com TLS: o Reconcile re-emite tudo.
@@ -452,7 +453,7 @@ func ensureWebDirs(etcDir string) {
 }
 
 // renderPHPIni grava etc/php/<major>/php.ini se o conteúdo mudou.
-func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string, smtpPort int) (bool, error) {
+func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string, smtpPort int, userIni map[string]string) (bool, error) {
 	dir := filepath.Join(paths.Etc(), "php", major)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", dir, err)
@@ -461,7 +462,7 @@ func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string,
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", tmpDir, err)
 	}
-	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort)
+	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, userIni)
 	changed, err := render.WriteFiles(dir, map[string][]byte{"php.ini": content})
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar php.ini %s: %w", major, err)
@@ -481,9 +482,9 @@ func (s *Stack) portConflicts(st state.State, webID string) []Warning {
 		if netcfg.IsFree(port) {
 			continue
 		}
-		msg := fmt.Sprintf("porta %d ocupada", port)
+		msg := i18n.T("warn.portBusy", port)
 		if pid, exe, err := netcfg.WhoHolds(port); err == nil {
-			msg = fmt.Sprintf("porta %d ocupada por %s (PID %d)", port, filepath.Base(exe), pid)
+			msg = i18n.T("warn.portBusyBy", port, filepath.Base(exe), pid)
 		}
 		warns = append(warns, Warning{Code: "port-conflict", Message: msg})
 	}
@@ -652,15 +653,15 @@ func hostsChange(have, want []string) string {
 	}
 	var parts []string
 	if len(add) > 0 {
-		parts = append(parts, "adicionar "+strings.Join(add, ", "))
+		parts = append(parts, i18n.T("warn.hostsAdd", strings.Join(add, ", ")))
 	}
 	if len(rem) > 0 {
-		parts = append(parts, "remover "+strings.Join(rem, ", "))
+		parts = append(parts, i18n.T("warn.hostsRemove", strings.Join(rem, ", ")))
 	}
 	if len(parts) == 0 {
-		return "o bloco do HyPHP no hosts precisa ser reescrito"
+		return i18n.T("warn.hostsRewrite")
 	}
-	return "o hosts precisa ser atualizado: " + strings.Join(parts, "; ")
+	return i18n.T("warn.hostsUpdate", strings.Join(parts, "; "))
 }
 
 // syncHosts só REPORTA a pendência; a escrita acontece em ApplyHosts.
@@ -706,7 +707,7 @@ func (s *Stack) ApplyHosts(ctx context.Context) error {
 	}
 	switch err := elevate.RunElevated(helper, []string{"hosts-write", "--from", tmp}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return fmt.Errorf("hosts não atualizado (UAC cancelado); %s", hostsChange(have, want))
+		return i18n.Errorf("err.stack.hostsCancelled", hostsChange(have, want))
 	case err != nil:
 		return fmt.Errorf("stack: helper hosts-write: %w", err)
 	}
@@ -762,6 +763,39 @@ func (s *Stack) StopAll(ctx context.Context) error {
 	return first
 }
 
+// StopUsingDir para os serviços cujo executável mora em dir. Apagar um runtime
+// com o processo dele vivo falha no Windows ("Access is denied" na primeira DLL
+// carregada), e o restart automático o traria de volta no meio da remoção. Os
+// specs continuam registrados: a revarredura de bin/ depois da remoção dispara
+// o Reconcile que troca de versão ou tira o serviço.
+func (s *Stack) StopUsingDir(dir string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var first error
+	for _, id := range specsUsingDir(s.appliedList(), dir) {
+		if err := s.d.Sup.Stop(id); err != nil && first == nil {
+			first = fmt.Errorf("stack: parar %s: %w", id, err)
+		}
+	}
+	return first
+}
+
+// specsUsingDir devolve, ordenados, os IDs dos specs cujo executável está
+// dentro de dir. A comparação ignora maiúsculas, como o sistema de arquivos do
+// Windows, e exige o separador depois de dir: "mysql-8.4.11-winx64-old" não
+// está dentro de "mysql-8.4.11-winx64".
+func specsUsingDir(specs []supervisor.Spec, dir string) []string {
+	base := strings.ToLower(filepath.Clean(dir)) + string(filepath.Separator)
+	var ids []string
+	for _, sp := range specs {
+		if strings.HasPrefix(strings.ToLower(filepath.Clean(sp.Exe)), base) {
+			ids = append(ids, sp.ID)
+		}
+	}
+	sort.Strings(ids)
+	return ids
+}
+
 func (s *Stack) appliedList() []supervisor.Spec {
 	out := make([]supervisor.Spec, 0, len(s.applied))
 	for _, sp := range s.applied {
@@ -777,16 +811,23 @@ func (s *Stack) waitReady(ctx context.Context, id string, timeout time.Duration)
 	for {
 		st, ok := s.d.Sup.Status(id)
 		if !ok {
-			return fmt.Errorf("stack: %s desapareceu do supervisor", id)
+			return i18n.Errorf("err.stack.serviceGone", id)
 		}
+		// O nome ("MariaDB 11.4.13") diz mais do que o ID, que no banco é
+		// "mysql" para os dois motores; a última falha do processo mostra
+		// por que ele não ficou pronto sem precisar abrir o log.
+		name := cmp.Or(st.Name, id)
 		switch st.State {
 		case supervisor.Ready:
 			return nil
 		case supervisor.Failed, supervisor.Stopped:
-			return fmt.Errorf("stack: %s em estado %s: %s", id, st.State, st.LastError)
+			return i18n.Errorf("err.stack.serviceState", name, st.State, st.LastError)
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("stack: %s não ficou pronto em %s (estado %s)", id, timeout, st.State)
+			if st.LastError != "" {
+				return i18n.Errorf("err.stack.notReadyCause", name, timeout, st.State, st.LastError)
+			}
+			return i18n.Errorf("err.stack.notReady", name, timeout, st.State)
 		}
 		select {
 		case <-ctx.Done():
@@ -893,7 +934,65 @@ func (s *Stack) rollbackWeb(oldSpec supervisor.Spec, hadOld, oldRunning bool, ca
 			}
 		}
 	}
-	return fmt.Errorf("troca de web server desfeita: %w", cause)
+	return i18n.Errorf("err.stack.webSwitchUndone", cause)
+}
+
+// ---- troca de banco -------------------------------------------------------
+
+// dbReadyTimeout cobre a primeira subida de um motor: o Reconcile já
+// inicializou o datadir, e falta o servidor abrir a porta.
+const dbReadyTimeout = 60 * time.Second
+
+// SwitchDatabase troca o motor de banco (state.DBMySQL ↔ state.DBMariaDB). O
+// state passa a apontar para o novo motor e o Reconcile faz o resto: grava o
+// my.ini dele, inicializa o datadir na primeira vez e troca o servidor do
+// spec "mysql", que para um e sobe o outro na mesma porta. Cada motor fica
+// com os próprios dados, sem cópia de um para o outro.
+//
+// Se o novo não ficar pronto, volta o state e reconcilia de novo: o banco
+// que estava no ar volta, como na troca de web server.
+func (s *Stack) SwitchDatabase(ctx context.Context, engine string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if engine != state.DBMySQL && engine != state.DBMariaDB {
+		return i18n.Errorf("err.settings.dbEngine", engine)
+	}
+	st, rts, _ := s.snapshot()
+	target := runtime.Kind(engine)
+	if _, ok := DBRuntime(rts, state.State{DBEngine: engine}); !ok {
+		return i18n.Errorf("err.stack.dbEngineMissing", DBName(target))
+	}
+	cur, running := DBRuntime(rts, st)
+	if running && cur.Kind == target {
+		// Mesmo motor (inclusive o "vazio" que já resolvia para ele): só
+		// grava a escolha, sem reiniciar nada.
+		return s.UpdateState(func(st *state.State) { st.DBEngine = engine })
+	}
+	prev := st.DBEngine
+	if err := s.UpdateState(func(st *state.State) { st.DBEngine = engine }); err != nil {
+		return err
+	}
+	s.d.Emit("settings:changed", s.State())
+	_, err := s.reconcileLocked(ctx)
+	if err == nil && s.started {
+		err = s.waitReady(ctx, MySQLSpecID, dbReadyTimeout)
+	}
+	if err == nil {
+		s.d.Logger.Info("stack: banco trocado", "to", engine)
+		return nil
+	}
+	if uerr := s.UpdateState(func(st *state.State) { st.DBEngine = prev }); uerr != nil {
+		return fmt.Errorf("%w; e não deu para voltar o state: %v", err, uerr)
+	}
+	s.d.Emit("settings:changed", s.State())
+	if _, rerr := s.reconcileLocked(ctx); rerr != nil {
+		return fmt.Errorf("%w; e o Reconcile de volta falhou: %v", err, rerr)
+	}
+	back := "—"
+	if running {
+		back = DBName(cur.Kind)
+	}
+	return i18n.Errorf("err.stack.dbSwitchUndone", back, err)
 }
 
 // renderPhpMyAdmin grava o config.inc.php dentro da instalação do phpMyAdmin.

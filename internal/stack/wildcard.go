@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"hyphp/internal/elevate"
+	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/project"
 )
@@ -65,7 +66,7 @@ func (s *Stack) syncWildcard(projs []project.Project) []Warning {
 			// hosts e o resto do produto continua funcionando.
 			return []Warning{{
 				Code:    "wildcard-unavailable",
-				Message: fmt.Sprintf("resolvedor local não subiu em %s (%v); subdomínios de %s não resolvem", dnsAddr, err, strings.Join(domains, ", ")),
+				Message: i18n.T("warn.wildcardUnavailable", dnsAddr, err, strings.Join(domains, ", ")),
 			}}
 		}
 		s.resolver = r
@@ -77,7 +78,7 @@ func (s *Stack) syncWildcard(projs []project.Project) []Warning {
 	}
 	return []Warning{{
 		Code:    "wildcard-pending",
-		Message: fmt.Sprintf("subdomínios de %s ainda não resolvem: falta registrar a regra de DNS", strings.Join(domains, ", ")),
+		Message: i18n.T("warn.wildcardPending", strings.Join(domains, ", ")),
 	}}
 }
 
@@ -88,18 +89,18 @@ func (s *Stack) ApplyWildcardDNS(ctx context.Context) error {
 	ativo := s.resolver != nil
 	s.mu.Unlock()
 	if !ativo {
-		return errors.New("resolvedor local não está no ar; nenhum projeto com wildcard, ou a porta 53 está ocupada")
+		return errors.New(i18n.T("err.stack.resolverDown"))
 	}
 
 	helper, err := elevate.HelperPath()
 	if err != nil {
-		return fmt.Errorf("helper elevado indisponível: %w", err)
+		return i18n.Errorf("err.stack.helperUnavailable", err)
 	}
 	switch err := elevate.RunElevated(helper, []string{
 		"nrpt-add", "--namespace", dnsSuffix, "--server", "127.0.0.1",
 	}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return errors.New("regra de DNS não registrada (UAC cancelado); subdomínios seguem sem resolver")
+		return errors.New(i18n.T("err.stack.nrptAddCancelled"))
 	case err != nil:
 		return fmt.Errorf("helper nrpt-add: %w", err)
 	}
@@ -120,11 +121,11 @@ func (s *Stack) ApplyWildcardDNS(ctx context.Context) error {
 func (s *Stack) RemoveWildcardDNS(ctx context.Context) error {
 	helper, err := elevate.HelperPath()
 	if err != nil {
-		return fmt.Errorf("helper elevado indisponível: %w", err)
+		return i18n.Errorf("err.stack.helperUnavailable", err)
 	}
 	switch err := elevate.RunElevated(helper, []string{"nrpt-remove", "--namespace", dnsSuffix}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return errors.New("regra de DNS não removida (UAC cancelado)")
+		return errors.New(i18n.T("err.stack.nrptDelCancelled"))
 	case err != nil:
 		return fmt.Errorf("helper nrpt-remove: %w", err)
 	}

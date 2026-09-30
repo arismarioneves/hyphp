@@ -17,6 +17,19 @@ const (
 	Nginx  WebServerName = "nginx"
 )
 
+// Valores de State.Theme.
+const (
+	ThemeDark   = "dark"
+	ThemeLight  = "light"
+	ThemeSystem = "system"
+)
+
+// Valores de State.DBEngine.
+const (
+	DBMySQL   = "mysql"
+	DBMariaDB = "mariadb"
+)
+
 // State é o conteúdo de state.json. Campos ausentes no arquivo mantêm o valor de Default().
 type State struct {
 	SchemaVersion   int           `json:"schemaVersion"`   // 1
@@ -35,13 +48,28 @@ type State struct {
 	Roots            []string            `json:"roots"`                   // diretórios-raiz de projetos
 	PortAlloc        map[string][]int    `json:"portAlloc"`               // "php:8.1" → portas reservadas
 	PHPExtensions    map[string][]string `json:"phpExtensions,omitempty"` // série "8.1" → extensões habilitadas; ausente = runtime.DefaultExtensions
-	Editor           string              `json:"editor"`                  // caminho do exe ou "" (usa `code`)
-	Terminal         string              `json:"terminal"`                // "" = wt.exe se existir, senão cmd
-	SidebarCollapsed bool                `json:"sidebarCollapsed"`
-	Autostart        bool                `json:"autostart"`
+	// PHPIni são as diretivas que o usuário definiu por série ("8.3" →
+	// "max_input_vars" → "5000"). Vão para o fim do php.ini, depois dos
+	// padrões do HyPHP, e por isso passam por cima deles.
+	PHPIni           map[string]map[string]string `json:"phpIni,omitempty"`
+	Editor           string                       `json:"editor"`   // caminho do exe ou "" (usa `code`)
+	Terminal         string                       `json:"terminal"` // "" = wt.exe se existir, senão cmd
+	SidebarCollapsed bool                         `json:"sidebarCollapsed"`
+	Autostart        bool                         `json:"autostart"`
 	// AutoUpdateOff desliga a verificação periódica de versões. Invertido de
 	// propósito: o zero-value (ausente em state.json antigo) significa ligado.
 	AutoUpdateOff bool `json:"autoUpdateOff"`
+	// Theme é o tema da interface: "dark", "light" ou "system" (segue o
+	// Windows). O zero-value, de state.json anterior à v3, vale como "dark",
+	// que era o único tema.
+	Theme string `json:"theme"`
+	// Language é o idioma da interface ("pt-BR", "en"). Vazio segue o idioma
+	// do Windows (i18n.Resolve).
+	Language string `json:"language"`
+	// DBEngine é o banco ativo: "mysql" ou "mariadb". Um de cada vez, na
+	// MySQLPort, cada um com o próprio datadir. Vazio vale "mysql", o único
+	// até a v3.
+	DBEngine string `json:"dbEngine"`
 }
 
 // Default é o estado da primeira execução.

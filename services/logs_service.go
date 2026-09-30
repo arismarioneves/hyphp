@@ -129,7 +129,8 @@ func serveLogStream(sup *supervisor.Supervisor, c *application.StreamConn) {
 }
 
 // ForwardServiceEvents assina o supervisor e reemite cada transição como o
-// evento service:state (C12). Devolve a função que encerra a goroutine.
+// evento service:state (C12), e cada remoção como service:removed com o id.
+// Devolve a função que encerra a goroutine.
 func ForwardServiceEvents(app *application.App, sup *supervisor.Supervisor) func() {
 	events, unsubscribe := sup.Subscribe()
 	done := make(chan struct{})
@@ -139,6 +140,10 @@ func ForwardServiceEvents(app *application.App, sup *supervisor.Supervisor) func
 			case <-done:
 				return
 			case ev := <-events:
+				if ev.Removed {
+					app.Event.Emit("service:removed", ev.Status.ID)
+					continue
+				}
 				app.Event.Emit("service:state", ev.Status)
 			}
 		}

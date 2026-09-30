@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/banner.png" alt="HyPHP window running Apache, PHP 7.4, 8.3 and 8.4, MySQL and Mailpit">
+  <img src=".github/assets/banner.png" alt="HyPHP — PHP environment declared per project. The app window runs Apache, PHP 7.4, 8.3 and 8.4, MySQL and Mailpit">
 </p>
 
 <h1 align="center">HyPHP</h1>
@@ -43,6 +43,14 @@ itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised workers.
 - **Reproducible environment** — `hyphp.yaml` committed to the project's repository.
 - **Config is output, not input** — `etc/` is generated and validated (`httpd -t` /
   `nginx -t`) before being applied; an invalid config never takes the environment down.
+- **MySQL or MariaDB** — one active at a time on the same port, each with its own data
+  directory. Switching is immediate and rolls back if the new one does not come up.
+- **php.ini per version** — directives such as `max_input_vars` are edited in the app for
+  each PHP version, showing the effective value and where it comes from.
+- **CLI for the terminal and AI agents** — `hyphp status`, `hyphp start all`,
+  `hyphp logs mysql -f`, `hyphp ini 8.3 max_input_vars 5000`… Every command runs in the
+  open app, with `--json` output and meaningful exit codes. See [CLI](#cli).
+- **English or Portuguese**, dark or light theme (or the same as Windows).
 
 ## Platforms
 
@@ -66,6 +74,32 @@ processes:
   scheduler: php artisan schedule:work
 ```
 
+## CLI
+
+`hyphp` talks to the open app through a named pipe that only your Windows user can reach, and
+the app runs the command with the same services as the window: what the CLI does shows up in
+the UI right away, and the **CLI** tab lists the recent calls and who made them. Put it on your
+PATH from that tab (it lives in `<installation>\cli\hyphp.exe`).
+
+```text
+hyphp status                          version, web server, database, services, warnings
+hyphp services                        services and their states
+hyphp start [service|all]             starts and waits until ready (no argument: everything)
+hyphp stop [service|all]              stops (no argument: everything)
+hyphp restart <service>               restarts and waits until ready
+hyphp logs <service> [-n 50] [-f]     last log lines; -f follows
+hyphp projects                        projects, domain, PHP and folder
+hyphp php | php default <series> | php use <project> <series>
+hyphp ini <series> [<directive> <value> | <directive> --reset]
+hyphp db | db create <name> | db drop <name> --yes | db engine <mysql|mariadb>
+hyphp web <apache|nginx>              switches the web server
+hyphp warnings                        stack warnings
+hyphp app                             shows the window (opens the app if it is closed)
+```
+
+For scripts and AI agents: every command accepts `--json` (errors too), and the exit code is
+`0` ok, `1` app error, `2` wrong usage, `3` app not running.
+
 ## Stack
 
 Go 1.26 · Wails v3 (WebView2) · React 18 + TypeScript · Tailwind v4 · Phosphor Icons
@@ -78,6 +112,7 @@ Orchestrated components, downloaded from their official sources, each under its 
 | Apache httpd | Apache-2.0 | apachelounge.com |
 | nginx | BSD-2-Clause | nginx.org |
 | MySQL Community | GPL-2.0 | dev.mysql.com |
+| MariaDB Server | GPL-2.0 | mariadb.org |
 | Mailpit | MIT | github.com/axllent/mailpit |
 | mkcert | BSD-3-Clause | github.com/FiloSottile/mkcert |
 
@@ -152,20 +187,20 @@ The version lives in four places, which `hyphp-release` checks before publishing
 
 ```powershell
 wails3 task windows:package
-go run ./cmd/hyphp-release -nota "What changed" -nota "Another change"
+go run ./cmd/hyphp-release -note "What changed" -nota "O que mudou" -note "Another change" -nota "Outra mudança"
 ```
 
 The command signs `latest.json` with the release key and creates the release with the
-installer, the manifest and the signature (via `gh`). The release is immutable: the notes
-must be right before publishing.
+installer, the manifest and the signature (via `gh`). Notes go in both languages: each
+`-note` (English) needs its `-nota` (Portuguese), in the same order, and the site shows the
+ones for the selected language. The release is immutable: the notes must be right before
+publishing.
 
-## Relationship with Laragon
+## Support the project
 
-HyPHP is a clean-room implementation. Laragon has no open-source license (the GitHub API
-reports `"license": null`) and does not publish its source code — the repository contains
-only the compiled binary. We reuse **ideas and behavior** (`.test` domains, own
-orchestration, portable layout), which are not protected by copyright, and no configuration
-file, template or artifact derived from its executable.
+HyPHP is free. If it saves you time, you can support its development:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-arismarioneves-FFDD00?logo=buymeacoffee&logoColor=000000)](https://buymeacoffee.com/arismarioneves)
 
 ## License
 

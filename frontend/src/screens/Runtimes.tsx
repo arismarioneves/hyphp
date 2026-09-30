@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { DownloadSimple, FolderOpen, Star, Trash } from '@phosphor-icons/react'
+import { DownloadSimple, FolderOpen, Star, Trash, X } from '@phosphor-icons/react'
 import { AppService, RuntimesService } from '../../bindings/hyphp/services'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
@@ -14,12 +14,17 @@ import type { Extension, Installed, Package, Progress, RuntimeKind } from '../li
 import { useRuntimes } from '../lib/useRuntimes'
 import { useSettings } from '../lib/useSettings'
 import { errorText } from '../lib/errors'
+import { compareVersionDesc } from '../lib/versions'
+import { useT } from '../i18n'
+import type { runtimes } from '../i18n/locales/pt-BR/runtimes'
+import { PhpIniPanel } from './PhpIniPanel'
 
 const TABS: Array<{ kind: RuntimeKind; label: string }> = [
   { kind: 'php', label: 'PHP' },
   { kind: 'apache', label: 'Apache' },
   { kind: 'nginx', label: 'nginx' },
   { kind: 'mysql', label: 'MySQL' },
+  { kind: 'mariadb', label: 'MariaDB' },
   { kind: 'mailpit', label: 'Mailpit' },
   // mkcert estava no catálogo mas não tinha aba: não havia como instalá-lo
   // pela UI, e o aviso tls-unavailable apontava para uma ação inexistente.
@@ -29,34 +34,21 @@ const TABS: Array<{ kind: RuntimeKind; label: string }> = [
   { kind: 'phpmyadmin', label: 'phpMyAdmin' },
 ]
 
-/** Espelha as constantes `Phase*` de internal/pkgmgr/manager.go. */
-const PHASE_LABELS: Record<string, string> = {
-  download: 'Baixando',
-  verify: 'Verificando SHA-256',
-  extract: 'Extraindo',
-  done: 'Concluído',
-  error: 'Erro',
+/**
+ * Espelha as constantes `Phase*` de internal/pkgmgr/manager.go. Guarda a chave
+ * do catálogo: o texto só pode ser resolvido dentro do componente.
+ */
+const PHASE_LABELS: Record<string, keyof typeof runtimes> = {
+  download: 'phaseDownload',
+  verify: 'phaseVerify',
+  extract: 'phaseExtract',
+  done: 'phaseDone',
+  error: 'phaseError',
+  canceled: 'phaseCanceled',
 }
 
 const KB = 1024
 const MB = 1024 * 1024
-
-
-/**
- * Ordena da versão mais nova para a mais antiga comparando segmento a segmento:
- * a ordem lexicográfica colocaria "8.1.9" acima de "8.1.10".
- */
-function compareVersionDesc(a: string, b: string): number {
-  const left = a.split('.')
-  const right = b.split('.')
-  const len = Math.max(left.length, right.length)
-  for (let i = 0; i < len; i++) {
-    const na = Number.parseInt(left[i] || '0', 10) || 0
-    const nb = Number.parseInt(right[i] || '0', 10) || 0
-    if (na !== nb) return nb - na
-  }
-  return 0
-}
 
 function formatBytes(n: number): string {
   if (n < MB) return `${Math.round(n / KB)} KB`
@@ -70,9 +62,12 @@ type InstalledCardProps = {
 }
 
 function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
+  const t = useT('runtimes')
+  const tIni = useT('phpini')
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [busy, setBusy] = useState(false)
   const [showExt, setShowExt] = useState(false)
+  const [showIni, setShowIni] = useState(false)
   const [extensions, setExtensions] = useState<Extension[] | null>(null)
 
   // `Installed.kind` é o enum gerado `runtime.Kind` (nominal no TS): alarga para
@@ -117,7 +112,7 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
             <span className="selectable font-mono text-2xl text-fg">{inst.version}</span>
-            {isDefault && <Badge tone="accent">padrão</Badge>}
+            {isDefault && <Badge tone="accent">{t('default')}</Badge>}
           </div>
           <div className="flex items-center gap-1">
             {inst.compiler && <Badge mono>{inst.compiler}</Badge>}
@@ -141,7 +136,7 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
               disabled={busy}
               onClick={() => void call(() => RuntimesService.SetDefaultPHP(inst.major))}
             >
-              Definir como padrão
+              {t('setDefault')}
             </Button>
           )}
           {isPhp && (
@@ -151,12 +146,22 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
               aria-pressed={showExt}
               onClick={() => setShowExt((v) => !v)}
             >
-              Extensões
+              {t('extensions')}
+            </Button>
+          )}
+          {isPhp && (
+            <Button
+              variant={showIni ? 'secondary' : 'ghost'}
+              size="sm"
+              aria-pressed={showIni}
+              onClick={() => setShowIni((v) => !v)}
+            >
+              {tIni('toggle')}
             </Button>
           )}
           {confirmRemove ? (
             <>
-              <span className="text-xs text-fg-muted">Remover a pasta?</span>
+              <span className="text-xs text-fg-muted">{t('removeConfirm')}</span>
               <Button
                 variant="danger"
                 size="sm"
@@ -164,17 +169,17 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
                 loading={busy}
                 onClick={() => void call(() => RuntimesService.Remove(inst.kind, inst.version))}
               >
-                Remover
+                {t('remove')}
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setConfirmRemove(false)}>
-                Cancelar
+                {t('cancel')}
               </Button>
             </>
           ) : (
             <Button
               variant="ghost"
               size="sm"
-              aria-label={`Remover ${inst.kind} ${inst.version}`}
+              aria-label={t('removeAria', { kind: inst.kind, version: inst.version })}
               icon={<Trash size={14} />}
               disabled={busy}
               onClick={() => setConfirmRemove(true)}
@@ -185,11 +190,11 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
 
       {showExt && isPhp && (
         <div className="mt-4 border-t border-border pt-3">
-          <SectionLabel>EXTENSÕES</SectionLabel>
+          <SectionLabel>{t('extensionsLabel')}</SectionLabel>
           {extensions === null ? (
             <Skeleton lines={4} className="mt-2" />
           ) : extensions.length === 0 ? (
-            <p className="mt-2 text-sm text-fg-faint">Nenhuma DLL em ext/.</p>
+            <p className="mt-2 text-sm text-fg-faint">{t('noDlls')}</p>
           ) : (
             <ul className="mt-2 grid grid-cols-3 gap-x-6 gap-y-1">
               {extensions.map((ext) => (
@@ -198,7 +203,7 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
                   <Toggle
                     checked={ext.enabled}
                     disabled={busy}
-                    label={`Extensão ${ext.name}`}
+                    label={t('extensionAria', { name: ext.name })}
                     onChange={(on) => void toggleExt(ext, on)}
                   />
                 </li>
@@ -207,6 +212,7 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
           )}
         </div>
       )}
+      {showIni && isPhp && <PhpIniPanel major={inst.major} />}
     </Card>
   )
 }
@@ -218,8 +224,12 @@ type AvailableCardProps = {
 }
 
 function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
+  const t = useT('runtimes')
   const [starting, setStarting] = useState(false)
-  const active = progress !== undefined && progress.phase !== 'done' && progress.phase !== 'error'
+  const [canceling, setCanceling] = useState(false)
+  // Cancelado volta ao estado inicial: nem barra nem mensagem, só o botão Baixar.
+  const finished = progress === undefined || ['done', 'error', 'canceled'].includes(progress.phase)
+  const active = !finished
   // só a fase de download tem tamanho conhecido — e nem sempre (total = -1 sem Content-Length).
   const determinate = progress !== undefined && progress.phase === 'download' && progress.total > 0
 
@@ -231,6 +241,19 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
       onError(errorText(e))
     } finally {
       setStarting(false)
+    }
+  }
+
+  // Só o download é cancelável: verificar e extrair levam segundos e não
+  // olham o cancelamento.
+  const cancel = async () => {
+    setCanceling(true)
+    try {
+      await RuntimesService.CancelInstall(pkg.id)
+    } catch (e) {
+      onError(errorText(e))
+    } finally {
+      setCanceling(false)
     }
   }
 
@@ -250,7 +273,19 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
             {pkg.url}
           </span>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {progress?.phase === 'download' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<X size={14} />}
+              loading={canceling}
+              disabled={canceling}
+              onClick={() => void cancel()}
+            >
+              {t('cancel')}
+            </Button>
+          )}
           <Button
             variant="primary"
             size="sm"
@@ -259,11 +294,11 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
             loading={starting}
             onClick={() => void install()}
           >
-            Baixar
+            {t('download')}
           </Button>
         </div>
       </div>
-      {progress && progress.phase !== 'done' && (
+      {progress && progress.phase !== 'done' && progress.phase !== 'canceled' && (
         <div className="mt-3">
           <ProgressBar
             value={determinate ? progress.done / progress.total : 0}
@@ -271,8 +306,8 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
             tone={progress.phase === 'error' ? 'err' : 'accent'}
             label={
               determinate
-                ? `${PHASE_LABELS.download} · ${formatBytes(progress.done)} / ${formatBytes(progress.total)}`
-                : PHASE_LABELS[progress.phase] ?? progress.phase
+                ? `${t(PHASE_LABELS.download)} · ${formatBytes(progress.done)} / ${formatBytes(progress.total)}`
+                : PHASE_LABELS[progress.phase] ? t(PHASE_LABELS[progress.phase]) : progress.phase
             }
           />
           {progress.phase === 'error' && <p className="selectable mt-1 text-xs text-err">{progress.error}</p>}
@@ -283,6 +318,7 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
 }
 
 export function Runtimes({ onNavigate }: ScreenProps) {
+  const t = useT('runtimes')
   const { installed, available, progress, loading } = useRuntimes()
   const { settings } = useSettings()
   const [tab, setTab] = useState<RuntimeKind>('php')
@@ -303,25 +339,25 @@ export function Runtimes({ onNavigate }: ScreenProps) {
   const availableOfKind = available
     .filter((p) => (p.kind as string) === tab && !installedVersions.has(p.version))
     .sort((a, b) => compareVersionDesc(a.version, b.version))
-  const tabLabel = TABS.find((t) => t.kind === tab)?.label ?? tab
+  const tabLabel = TABS.find((x) => x.kind === tab)?.label ?? tab
 
   return (
     <div className="flex flex-col gap-4">
       <div role="tablist" className="flex items-center gap-1 border-b border-border">
-        {TABS.map((t) => (
+        {TABS.map((x) => (
           <button
-            key={t.kind}
+            key={x.kind}
             role="tab"
             type="button"
-            aria-selected={tab === t.kind}
-            onClick={() => setTab(t.kind)}
+            aria-selected={tab === x.kind}
+            onClick={() => setTab(x.kind)}
             className={`-mb-px border-b-2 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-accent ${
-              tab === t.kind ? 'border-accent text-accent-fg' : 'border-transparent text-fg-muted hover:text-fg'
+              tab === x.kind ? 'border-accent text-accent-fg' : 'border-transparent text-fg-muted hover:text-fg'
             }`}
           >
-            {t.label}
+            {x.label}
             <span className="ml-1 font-mono text-xs text-fg-faint">
-              {installed.filter((i) => (i.kind as string) === t.kind).length}
+              {installed.filter((i) => (i.kind as string) === x.kind).length}
             </span>
           </button>
         ))}
@@ -331,14 +367,14 @@ export function Runtimes({ onNavigate }: ScreenProps) {
         <div className="flex items-center justify-between rounded-card border border-err bg-bg-card px-3 py-2 text-sm text-err">
           <span className="selectable">{error}</span>
           <Button variant="ghost" size="sm" onClick={() => setError(null)}>
-            fechar
+            {t('close')}
           </Button>
         </div>
       )}
 
       {tab === 'php' && (
         <div className="flex items-center justify-between gap-2 text-sm text-fg-muted">
-          <span>Coloque qualquer build do php.net em bin/php e ela aparece aqui.</span>
+          <span>{t('phpHint')}</span>
           <div className="flex items-center gap-1">
             <Button
               variant="ghost"
@@ -349,7 +385,7 @@ export function Runtimes({ onNavigate }: ScreenProps) {
                 void AppService.OpenFolder(`${runtimeRoot}\\bin\\php`).catch((e: unknown) => setError(errorText(e)))
               }
             >
-              Abrir pasta bin/php
+              {t('openBinPhp')}
             </Button>
             <Button
               variant="ghost"
@@ -367,30 +403,30 @@ export function Runtimes({ onNavigate }: ScreenProps) {
                   .finally(() => setImporting(false))
               }}
             >
-              {importing ? 'Importando…' : 'Importar de outra pasta'}
+              {importing ? t('importing') : t('importFrom')}
             </Button>
           </div>
         </div>
       )}
 
       <section className="flex flex-col gap-3">
-        <SectionLabel>INSTALADOS</SectionLabel>
+        <SectionLabel>{t('installedLabel')}</SectionLabel>
         {loading && installed.length === 0 ? (
           <Skeleton lines={3} />
         ) : installedOfKind.length === 0 ? (
           <EmptyState
-            title={`Nenhum ${tabLabel} instalado`}
+            title={t('noneInstalled', { name: tabLabel })}
             description={
               // phpMyAdmin não vira serviço: depois de instalado ele é servido
               // numa porta dedicada e se abre pela tela Banco. Mandar o usuário
               // a Serviços aqui seria apontar para uma tela onde nada aparece.
               tab === 'phpmyadmin'
-                ? 'Baixe o pacote do catálogo abaixo; depois da instalação ele é servido numa porta local e se abre pela tela Banco.'
-                : 'Baixe uma versão do catálogo abaixo; o serviço correspondente só aparece em Serviços depois da instalação.'
+                ? t('noneInstalledPma')
+                : t('noneInstalledDescription')
             }
             action={
               <Button variant="secondary" onClick={() => onNavigate(tab === 'phpmyadmin' ? 'database' : 'services')}>
-                {tab === 'phpmyadmin' ? 'Ir para Banco' : 'Ver serviços'}
+                {tab === 'phpmyadmin' ? t('goToDatabase') : t('viewServices')}
               </Button>
             }
           />
@@ -407,9 +443,9 @@ export function Runtimes({ onNavigate }: ScreenProps) {
       </section>
 
       <section className="flex flex-col gap-3">
-        <SectionLabel>DISPONÍVEIS</SectionLabel>
+        <SectionLabel>{t('availableLabel')}</SectionLabel>
         {availableOfKind.length === 0 ? (
-          <p className="text-sm text-fg-faint">Nenhum pacote do catálogo pendente para este tipo.</p>
+          <p className="text-sm text-fg-faint">{t('noneAvailable')}</p>
         ) : (
           availableOfKind.map((pkg) => (
             <AvailableCard key={pkg.id} pkg={pkg} progress={progress[pkg.id]} onError={setError} />

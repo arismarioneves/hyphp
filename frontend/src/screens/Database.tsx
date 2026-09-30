@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowSquareOut, Copy, Database as DatabaseIcon, DownloadSimple, Plus, Trash } from '@phosphor-icons/react'
+import { ArrowSquareOut, Database as DatabaseIcon, DownloadSimple, Plus, Trash } from '@phosphor-icons/react'
 import { AppService, DatabaseService } from '../../bindings/hyphp/services'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
+import { CopyButton } from '../components/CopyButton'
 import { EmptyState } from '../components/EmptyState'
 import { SectionLabel } from '../components/SectionLabel'
 import { Skeleton } from '../components/Skeleton'
@@ -10,35 +11,20 @@ import { StatusDot, type ServiceState } from '../components/StatusDot'
 import type { ScreenProps } from '../lib/screens'
 import type { Credentials, DBInfo } from '../lib/types'
 import { useServices } from '../lib/useServices'
+import { useT } from '../i18n'
 
 /** Mesma validação do mysqlcli.ValidateName no Go: o erro chega antes da ida ao backend. */
 const NAME_RE = /^[a-z0-9_]{1,64}$/
 
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const [done, setDone] = useState(false)
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      aria-label={label}
-      icon={<Copy size={14} />}
-      onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setDone(true)
-          setTimeout(() => setDone(false), 1200)
-        })
-      }}
-    >
-      {done ? 'copiado' : undefined}
-    </Button>
-  )
-}
-
 export function Database({ onNavigate }: ScreenProps) {
+  const t = useT('database')
   const { services } = useServices()
   const mysql = services.find((s) => s.id === 'mysql')
   // `ServiceStatus.state` é o enum gerado `supervisor.State` (nominal).
   const state = (mysql?.state ?? 'stopped') as ServiceState
+  // O serviço "mysql" roda o motor escolhido em Configurações; o nome dele
+  // ("MariaDB 11.4.13") diz qual.
+  const engine = mysql?.name.split(' ')[0] ?? 'MySQL'
 
   const [creds, setCreds] = useState<Credentials | null>(null)
   const [pmaURL, setPmaURL] = useState<string | null>(null)
@@ -78,7 +64,7 @@ export function Database({ onNavigate }: ScreenProps) {
 
   const create = async () => {
     if (!NAME_RE.test(newName)) {
-      setError('Nome inválido: use [a-z0-9_], até 64 caracteres.')
+      setError(t('invalidName'))
       return
     }
     setBusy(true)
@@ -108,14 +94,14 @@ export function Database({ onNavigate }: ScreenProps) {
   }
 
   const connCmd = creds
-    ? `mysql -u${creds.user}${creds.password ? ` -p${creds.password}` : ''} -h${creds.host} -P${creds.port}`
+    ? `${creds.client} -u${creds.user}${creds.password ? ` -p${creds.password}` : ''} -h${creds.host} -P${creds.port}`
     : ''
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <div className="flex items-center justify-between gap-3">
-          <SectionLabel>MYSQL</SectionLabel>
+          <SectionLabel>{engine.toUpperCase()}</SectionLabel>
           {pmaURL === null ? null : pmaURL === '' ? (
             <Button
               variant="secondary"
@@ -123,13 +109,13 @@ export function Database({ onNavigate }: ScreenProps) {
               icon={<DownloadSimple size={14} />}
               onClick={() => onNavigate('runtimes')}
             >
-              Instalar phpMyAdmin
+              {t('installPma')}
             </Button>
           ) : (
             // Com o MySQL parado o phpMyAdmin abre direto numa tela de erro de
             // conexão: desabilitar e dizer o porquê é mais honesto do que
             // mandar o usuário ao navegador para ver a falha lá.
-            <span title={state === 'ready' ? undefined : 'Inicie o MySQL antes: sem servidor o phpMyAdmin abre com erro de conexão.'}>
+            <span title={state === 'ready' ? undefined : t('pmaNeedsMysql', { engine })}>
               <Button
                 variant="secondary"
                 size="sm"
@@ -141,14 +127,14 @@ export function Database({ onNavigate }: ScreenProps) {
                   )
                 }
               >
-                Abrir phpMyAdmin
+                {t('openPma')}
               </Button>
             </span>
           )}
         </div>
         <div className="mt-3 flex items-center gap-3">
           <StatusDot state={state} />
-          <span className="text-sm text-fg">{mysql?.name ?? 'MySQL'}</span>
+          <span className="text-sm text-fg">{mysql?.name ?? engine}</span>
           <span className="text-xs text-fg-faint">{state}</span>
           {mysql?.lastError && <span className="selectable text-xs text-err">{mysql.lastError}</span>}
         </div>
@@ -161,24 +147,24 @@ export function Database({ onNavigate }: ScreenProps) {
               {creds.host}:{creds.port}
             </dd>
             <dd>
-              <CopyButton text={`${creds.host}:${creds.port}`} label="Copiar host" />
+              <CopyButton text={`${creds.host}:${creds.port}`} label={t('copyHost')} />
             </dd>
-            <dt className="text-fg-muted">Usuário</dt>
+            <dt className="text-fg-muted">{t('user')}</dt>
             <dd className="selectable font-mono text-fg">{creds.user}</dd>
             <dd>
-              <CopyButton text={creds.user} label="Copiar usuário" />
+              <CopyButton text={creds.user} label={t('copyUser')} />
             </dd>
-            <dt className="text-fg-muted">Senha</dt>
+            <dt className="text-fg-muted">{t('password')}</dt>
             <dd className="selectable font-mono text-fg">
-              {creds.password === '' ? <span className="text-fg-faint">(vazia)</span> : creds.password}
+              {creds.password === '' ? <span className="text-fg-faint">{t('empty')}</span> : creds.password}
             </dd>
             <dd>
-              <CopyButton text={creds.password} label="Copiar senha" />
+              <CopyButton text={creds.password} label={t('copyPassword')} />
             </dd>
-            <dt className="text-fg-muted">Conexão</dt>
+            <dt className="text-fg-muted">{t('connection')}</dt>
             <dd className="selectable break-all font-mono text-fg">{connCmd}</dd>
             <dd>
-              <CopyButton text={connCmd} label="Copiar comando de conexão" />
+              <CopyButton text={connCmd} label={t('copyConnection')} />
             </dd>
           </dl>
         )}
@@ -194,7 +180,7 @@ export function Database({ onNavigate }: ScreenProps) {
             disabled={state !== 'ready' || busy}
             onClick={() => setCreating(true)}
           >
-            Criar
+            {t('create')}
           </Button>
         }
       >
@@ -211,12 +197,12 @@ export function Database({ onNavigate }: ScreenProps) {
               autoFocus
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="nome_do_banco"
-              aria-label="Nome do novo database"
+              placeholder={t('namePlaceholder')}
+              aria-label={t('newNameAria')}
               className="selectable h-9 w-64 rounded-pill border border-border bg-bg-card px-3 font-mono text-sm text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent"
             />
             <Button type="submit" variant="primary" size="sm" loading={busy} disabled={busy}>
-              Criar
+              {t('create')}
             </Button>
             <Button
               type="button"
@@ -227,31 +213,31 @@ export function Database({ onNavigate }: ScreenProps) {
                 setNewName('')
               }}
             >
-              Cancelar
+              {t('cancel')}
             </Button>
           </form>
         )}
         {state !== 'ready' ? (
           <EmptyState
             icon={<DatabaseIcon size={24} />}
-            title="MySQL não está pronto"
-            description="Inicie o serviço para listar os databases."
+            title={t('notReadyTitle', { engine })}
+            description={t('notReadyDescription')}
             action={
               <Button variant="secondary" size="sm" onClick={() => onNavigate('services')}>
-                Ir para Serviços
+                {t('goToServices')}
               </Button>
             }
           />
         ) : dbs === null ? (
           <Skeleton lines={5} />
         ) : dbs.length === 0 ? (
-          <EmptyState title="Nenhum database de usuário" description="Crie o primeiro com o botão acima." />
+          <EmptyState title={t('noDbsTitle')} description={t('noDbsDescription')} />
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-xs text-fg-faint">
               <tr>
-                <th className="py-1 font-normal">Nome</th>
-                <th className="py-1 text-right font-normal">Tamanho</th>
+                <th className="py-1 font-normal">{t('name')}</th>
+                <th className="py-1 text-right font-normal">{t('size')}</th>
                 <th className="py-1 text-right font-normal" />
               </tr>
             </thead>
@@ -264,7 +250,7 @@ export function Database({ onNavigate }: ScreenProps) {
                     <div className="flex items-center justify-end gap-1">
                       {confirmDrop === db.name ? (
                         <>
-                          <span className="text-xs text-fg-muted">Excluir {db.name}?</span>
+                          <span className="text-xs text-fg-muted">{t('dropConfirm', { name: db.name })}</span>
                           <Button
                             variant="danger"
                             size="sm"
@@ -272,17 +258,17 @@ export function Database({ onNavigate }: ScreenProps) {
                             disabled={busy}
                             onClick={() => void drop(db.name)}
                           >
-                            Excluir
+                            {t('drop')}
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => setConfirmDrop(null)}>
-                            Cancelar
+                            {t('cancel')}
                           </Button>
                         </>
                       ) : (
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label={`Excluir ${db.name}`}
+                          aria-label={t('dropAria', { name: db.name })}
                           icon={<Trash size={14} />}
                           disabled={busy}
                           onClick={() => setConfirmDrop(db.name)}

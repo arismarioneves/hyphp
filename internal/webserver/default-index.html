@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HyPHP — nenhum projeto para este host</title>
+<title>{{page.title}}</title>
 <style>
   :root {
     --bg-app: #0f1826;
@@ -38,12 +38,12 @@
 <body>
 <main>
   <h1>HyPHP</h1>
-  <p class="sub">host sem projeto</p>
-  <p>O web server está no ar, mas nenhum projeto responde por este domínio.</p>
+  <p class="sub">{{page.sub}}</p>
+  <p>{{page.lead}}</p>
   <ol>
-    <li>Abra o HyPHP e vá em <strong>Projetos</strong>.</li>
-    <li>Adicione a pasta onde seus projetos ficam (ex.: <code>C:\DEV</code>).</li>
-    <li>Confira o domínio no <code>hyphp.yaml</code> do projeto (<code>domain: acme.test</code>).</li>
+    <li>{{page.step1}}</li>
+    <li>{{page.step2}}</li>
+    <li>{{page.step3}}</li>
   </ol>
 </main>
 </body>

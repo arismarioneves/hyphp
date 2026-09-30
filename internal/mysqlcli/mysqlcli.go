@@ -7,6 +7,7 @@
 package mysqlcli
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os/exec"
@@ -48,19 +49,27 @@ func ValidateName(name string) error {
 	return nil
 }
 
-// Client é um cliente sem estado; cada chamada roda um mysql.exe.
+// Client é um cliente sem estado; cada chamada roda o cliente de linha de
+// comando do servidor (mysql.exe ou mariadb.exe).
 type Client struct {
-	Exe  string // <inst.Dir>/bin/mysql.exe
+	Exe  string // <inst.Dir>/bin/mysql.exe ou mariadb.exe
 	Host string
 	Port int
 	User string
 }
 
-// New monta o cliente a partir do runtime do MySQL detectado. root sem senha é
-// o resultado do --initialize-insecure; o servidor só escuta em loopback.
+// New monta o cliente a partir do servidor de banco detectado (MySQL ou
+// MariaDB). root sem senha é o resultado da inicialização dos dois motores
+// (--initialize-insecure e mariadb-install-db); o servidor só escuta em
+// loopback. No MariaDB o cliente é o mariadb.exe: o mysql.exe do mesmo zip é
+// o mesmo programa com o nome antigo, que o MariaDB vem aposentando.
 func New(inst runtime.Installed, port int) Client {
+	exe := "mysql.exe"
+	if inst.Kind == runtime.MariaDB {
+		exe = "mariadb.exe"
+	}
 	return Client{
-		Exe:  filepath.Join(inst.Dir, "bin", "mysql.exe"),
+		Exe:  filepath.Join(inst.Dir, "bin", exe),
 		Host: "127.0.0.1",
 		Port: port,
 		User: "root",
@@ -109,11 +118,15 @@ func (c Client) query(ctx context.Context, sql string) (string, error) {
 	}
 	cmd := exec.CommandContext(ctx, c.Exe, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("mysqlcli: %s: %w: %s", filepath.Base(c.Exe), err, strings.TrimSpace(string(out)))
+	// Resultado só do stdout: o cliente do MariaDB 11.4+ avisa no stderr
+	// ("--ssl-verify-server-cert is disabled ... passwordless login") a cada
+	// chamada, e com a saída combinada o aviso virava um database na lista.
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("mysqlcli: %s: %w: %s", filepath.Base(c.Exe), err, strings.TrimSpace(stderr.String()))
 	}
-	return string(out), nil
+	return stdout.String(), nil
 }
 
 // DB é um schema de usuário com o tamanho somado de dados e índices.

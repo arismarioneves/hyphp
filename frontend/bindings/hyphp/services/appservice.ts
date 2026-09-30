@@ -13,9 +13,6 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 /**
  * AddDefaultPHPToUserPath põe a série padrão de PHP no PATH do usuário, para
  * `php` e `composer` no terminal usarem a mesma versão que o HyPHP serve.
- * 
- * Escreve em HKCU\Environment: a Path da máquina exigiria UAC, e o produto só
- * eleva em ApplyHosts e InstallCA (spec §11).
  */
 export function AddDefaultPHPToUserPath(): $CancellablePromise<void> {
     return $Call.ByID(1092327310);
@@ -61,6 +58,14 @@ export function Quit(): $CancellablePromise<void> {
  */
 export function RuntimeRoot(): $CancellablePromise<string> {
     return $Call.ByID(3217706171);
+}
+
+/**
+ * SiteURL retorna a página do HyPHP, a mesma citada no cabeçalho do
+ * hyphp.yaml, para o Sobre de Configurações.
+ */
+export function SiteURL(): $CancellablePromise<string> {
+    return $Call.ByID(3450115475);
 }
 
 /**

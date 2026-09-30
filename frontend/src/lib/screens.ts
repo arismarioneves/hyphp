@@ -6,6 +6,7 @@ export type Screen =
   | 'database'
   | 'mail'
   | 'logs'
+  | 'cli'
   | 'settings';
 
 /** Ordem de exibição na sidebar (settings fica no rodapé). */
@@ -17,19 +18,11 @@ export const SCREENS: readonly Screen[] = [
   'database',
   'mail',
   'logs',
+  'cli',
   'settings',
 ];
 
-export const SCREEN_LABELS: Record<Screen, string> = {
-  dashboard: 'Dashboard',
-  projects: 'Projetos',
-  services: 'Serviços',
-  runtimes: 'Runtimes',
-  database: 'Banco',
-  mail: 'Mail',
-  logs: 'Logs',
-  settings: 'Configurações',
-};
+// O título de cada tela está no catálogo `app`, com o id da tela como chave.
 
 /** Props de toda tela: navegação entre telas é a única dependência comum. */
 export type ScreenProps = { onNavigate: (screen: Screen) => void };

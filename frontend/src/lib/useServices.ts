@@ -21,6 +21,11 @@ export function useServices() {
   useEvent<ServiceStatus>(EVENTS.serviceState, (s) => {
     setServices((prev) => upsertStatus(prev, s))
   })
+  // Sem isto, um serviço removido (pool de uma série que nenhum projeto usa
+  // mais) ficava na lista como "stopped" e deixava o resumo amarelo.
+  useEvent<string>(EVENTS.serviceRemoved, (id) => {
+    setServices((prev) => prev.filter((s) => s.id !== id))
+  })
 
   return { services, loading, refresh }
 }

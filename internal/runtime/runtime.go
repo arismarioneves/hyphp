@@ -23,6 +23,7 @@ const (
 	Apache     Kind = "apache"
 	Nginx      Kind = "nginx"
 	MySQL      Kind = "mysql"
+	MariaDB    Kind = "mariadb"
 	Mailpit    Kind = "mailpit"
 	Mkcert     Kind = "mkcert"
 	PhpMyAdmin Kind = "phpmyadmin"
@@ -45,12 +46,15 @@ const detectTimeout = 5 * time.Second
 
 // mainFile é o arquivo que prova que uma pasta contém o Kind, relativo à pasta
 // do runtime: o executável principal para os runtimes e, no phpMyAdmin, o
-// index.php — ele não tem binário, é código PHP servido pelo web server.
+// index.php — ele não tem binário, é código PHP servido pelo web server. O
+// MariaDB é reconhecido pelo mariadbd.exe, e não pelo mysqld.exe que o zip dele
+// também traz: uma pasta de MySQL não pode passar por MariaDB.
 var mainFile = map[Kind]string{
 	PHP:        "php.exe",
 	Apache:     filepath.Join("bin", "httpd.exe"),
 	Nginx:      "nginx.exe",
 	MySQL:      filepath.Join("bin", "mysqld.exe"),
+	MariaDB:    filepath.Join("bin", "mariadbd.exe"),
 	Mailpit:    "mailpit.exe",
 	Mkcert:     "mkcert.exe",
 	PhpMyAdmin: "index.php",
@@ -58,10 +62,10 @@ var mainFile = map[Kind]string{
 
 // versioned marca os Kinds com uma subpasta por versão (bin/<kind>/<pasta>/).
 // Mailpit e mkcert ficam direto em bin/<kind>/.
-var versioned = map[Kind]bool{PHP: true, Apache: true, Nginx: true, MySQL: true, PhpMyAdmin: true}
+var versioned = map[Kind]bool{PHP: true, Apache: true, Nginx: true, MySQL: true, MariaDB: true, PhpMyAdmin: true}
 
 // scanOrder fixa a ordem de saída de Scan.
-var scanOrder = []Kind{PHP, Apache, Nginx, MySQL, Mailpit, Mkcert, PhpMyAdmin}
+var scanOrder = []Kind{PHP, Apache, Nginx, MySQL, MariaDB, Mailpit, Mkcert, PhpMyAdmin}
 
 // Scan varre bin/<kind>/* e detecta cada runtime que tenha o executável esperado.
 // Pastas sem o executável são ignoradas em silêncio. Falhas de detecção (exe presente
@@ -129,6 +133,8 @@ func Detect(kind Kind, dir string) (Installed, error) {
 		return detectNginx(ctx, abs, exe)
 	case MySQL:
 		return detectMySQL(ctx, abs, exe)
+	case MariaDB:
+		return detectMariaDB(ctx, abs, exe)
 	case Mailpit:
 		return detectMailpit(ctx, abs, exe)
 	case PhpMyAdmin:
@@ -155,6 +161,25 @@ func ByKind(list []Installed, k Kind) []Installed {
 	return out
 }
 
+// Newest devolve o runtime de maior versão do tipo k. É a escolha para o que
+// roda uma instância só (MySQL, web server, Mailpit, phpMyAdmin): a ordem de
+// ByKind é a das pastas em bin/, e "mysql-8.0.46" vem antes de "mysql-8.4.11".
+// Instalar uma versão mais antiga ao lado não troca a que está em uso — no
+// MySQL isso seria um downgrade, que ele recusa.
+func Newest(list []Installed, k Kind) (Installed, bool) {
+	var best Installed
+	found := false
+	for _, i := range list {
+		if i.Kind != k {
+			continue
+		}
+		if !found || CompareVersions(i.Version, best.Version) > 0 {
+			best, found = i, true
+		}
+	}
+	return best, found
+}
+
 // PHPByMajor devolve o PHP de maior patch da série major ("8.1").
 func PHPByMajor(list []Installed, major string) (Installed, bool) {
 	var best Installed
@@ -163,7 +188,7 @@ func PHPByMajor(list []Installed, major string) (Installed, bool) {
 		if i.Kind != PHP || i.Major != major {
 			continue
 		}
-		if !found || compareVersions(i.Version, best.Version) > 0 {
+		if !found || CompareVersions(i.Version, best.Version) > 0 {
 			best, found = i, true
 		}
 	}
@@ -228,9 +253,9 @@ func majorOf(version string) string {
 	return parts[0] + "." + parts[1]
 }
 
-// compareVersions compara componente a componente numericamente; sufixos não
+// CompareVersions compara componente a componente numericamente; sufixos não
 // numéricos ("RC1") são ignorados dentro do componente; componentes ausentes valem 0.
-func compareVersions(a, b string) int {
+func CompareVersions(a, b string) int {
 	as, bs := strings.Split(a, "."), strings.Split(b, ".")
 	for i := 0; i < len(as) || i < len(bs); i++ {
 		var x, y int

@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/mysqlcli"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
@@ -28,8 +29,42 @@ const (
 	initTimeout = 180 * time.Second
 )
 
-// MySQLDataDir é o datadir do servidor embutido (spec §8).
-func MySQLDataDir(varDir string) string { return filepath.Join(varDir, "mysql-data") }
+// DataDir é o datadir do servidor de banco (spec §8). Cada motor tem o seu:
+// o datadir do MySQL 8.4 não abre no MariaDB e vice-versa, e trocar de motor
+// não pode apagar nem misturar os dados do outro.
+func DataDir(varDir string, k runtime.Kind) string {
+	if k == runtime.MariaDB {
+		return filepath.Join(varDir, "mariadb-data")
+	}
+	return filepath.Join(varDir, "mysql-data")
+}
+
+// DBRuntime devolve o servidor de banco que roda: o motor de state.DBEngine,
+// na versão mais nova instalada. Com DBEngine vazio (state.json anterior à v3,
+// ou sem escolha feita) vale o MySQL, e o MariaDB só quando é o único
+// instalado — quem só baixou o MariaDB não precisa passar por Configurações.
+// Motor escolhido e não instalado devolve ok=false, sem cair no outro: o
+// usuário veria os databases de outro servidor sem ter pedido.
+func DBRuntime(rts []runtime.Installed, st state.State) (runtime.Installed, bool) {
+	switch st.DBEngine {
+	case state.DBMariaDB:
+		return runtime.Newest(rts, runtime.MariaDB)
+	case state.DBMySQL:
+		return runtime.Newest(rts, runtime.MySQL)
+	}
+	if inst, ok := runtime.Newest(rts, runtime.MySQL); ok {
+		return inst, true
+	}
+	return runtime.Newest(rts, runtime.MariaDB)
+}
+
+// DBName é o nome do motor para mensagens e para o nome do serviço.
+func DBName(k runtime.Kind) string {
+	if k == runtime.MariaDB {
+		return "MariaDB"
+	}
+	return "MySQL"
+}
 
 // MyIniPath é o arquivo de opções gerado.
 func MyIniPath(etcDir string) string { return filepath.Join(etcDir, "mysql", "my.ini") }
@@ -42,7 +77,7 @@ func WriteMyIni(inst runtime.Installed, port int, etcDir, varDir, logDir string)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", dir, err)
 	}
-	content := render.RenderMyIni(port, inst.Dir, MySQLDataDir(varDir), logDir, netcfg.IPv6Loopback())
+	content := render.RenderMyIni(port, inst.Dir, DataDir(varDir, inst.Kind), logDir, netcfg.IPv6Loopback(), inst.Kind == runtime.MariaDB)
 	changed, err := render.WriteFiles(dir, map[string][]byte{"my.ini": content})
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar my.ini: %w", err)
@@ -50,32 +85,67 @@ func WriteMyIni(inst runtime.Installed, port int, etcDir, varDir, logDir string)
 	return changed, nil
 }
 
-// InitMySQLData garante um datadir utilizável em <varDir>/mysql-data.
+// dbInit descreve como cada motor cria um datadir vazio.
+type dbInit struct {
+	// system é um arquivo que só existe num datadir já inicializado.
+	system string
+	// cmd devolve o executável e os argumentos da inicialização.
+	cmd func(inst runtime.Installed, etcDir, data string) (string, []string)
+	log string
+}
+
+var dbInits = map[runtime.Kind]dbInit{
+	runtime.MySQL: {
+		system: "mysql.ibd",
+		// Lê o mesmo --defaults-file do start normal: o datadir sai do my.ini.
+		cmd: func(inst runtime.Installed, etcDir, _ string) (string, []string) {
+			return filepath.Join(inst.Dir, "bin", "mysqld.exe"),
+				[]string{"--defaults-file=" + MyIniPath(etcDir), "--initialize-insecure", "--console"}
+		},
+		log: "mysql-init.log",
+	},
+	runtime.MariaDB: {
+		system: filepath.Join("mysql", "global_priv.frm"),
+		// O mariadb-install-db cria o datadir com root sem senha, como o
+		// --initialize-insecure do MySQL. Ele grava um my.ini próprio dentro
+		// do datadir, que fica sem uso: o servidor sobe com --defaults-file.
+		cmd: func(inst runtime.Installed, _, data string) (string, []string) {
+			return filepath.Join(inst.Dir, "bin", "mariadb-install-db.exe"), []string{"--datadir=" + data}
+		},
+		log: "mariadb-init.log",
+	},
+}
+
+// InitDBData garante um datadir utilizável para o motor de inst.
 //
 // Idempotente, com três situações distintas:
 //   - marcador presente → nada a fazer;
-//   - datadir com mysql.ibd mas sem marcador (datadir de uma instalação
-//     anterior, ou marcador apagado à mão) → adota, só recria o marcador.
-//     NUNCA apaga dados que o MySQL já inicializou;
-//   - datadir ausente, ou com restos de uma inicialização interrompida (sem
-//     mysql.ibd) → apaga e roda o --initialize-insecure. O mysqld recusa
-//     datadir não vazio, então a limpeza é obrigatória para poder repetir.
+//   - datadir com as tabelas do sistema mas sem marcador (datadir de uma
+//     instalação anterior, ou marcador apagado à mão) → adota, só recria o
+//     marcador. NUNCA apaga dados que o servidor já inicializou;
+//   - datadir ausente, ou com restos de uma inicialização interrompida →
+//     apaga e inicializa. Os dois motores recusam datadir não vazio, então a
+//     limpeza é obrigatória para poder repetir.
 //
-// A saída vai para <logDir>/mysql-init.log: sem ela, a causa de uma falha
-// (porta, permissão, ACL do diretório) fica invisível.
+// A saída vai para <logDir>/mysql-init.log ou mariadb-init.log: sem ela, a
+// causa de uma falha (porta, permissão, ACL do diretório) fica invisível.
 //
-// Grava o my.ini antes de tudo porque o --initialize-insecure lê o mesmo
+// Grava o my.ini antes de tudo porque a inicialização do MySQL lê o mesmo
 // --defaults-file do start normal; a chamada é idempotente (WriteFiles não
 // reescreve conteúdo igual), então repeti-la no ensureMySQL não custa nada.
-func InitMySQLData(ctx context.Context, inst runtime.Installed, port int, etcDir, varDir, logDir string) error {
+func InitDBData(ctx context.Context, inst runtime.Installed, port int, etcDir, varDir, logDir string) error {
 	if _, err := WriteMyIni(inst, port, etcDir, varDir, logDir); err != nil {
 		return err
 	}
-	data := MySQLDataDir(varDir)
+	how, ok := dbInits[inst.Kind]
+	if !ok {
+		return fmt.Errorf("stack: %s não é servidor de banco", inst.Kind)
+	}
+	data := DataDir(varDir, inst.Kind)
 	if _, err := os.Stat(filepath.Join(data, initMarker)); err == nil {
 		return nil
 	}
-	if _, err := os.Stat(filepath.Join(data, "mysql.ibd")); err == nil {
+	if _, err := os.Stat(filepath.Join(data, how.system)); err == nil {
 		return writeMarker(data)
 	}
 	if err := os.RemoveAll(data); err != nil {
@@ -90,18 +160,18 @@ func InitMySQLData(ctx context.Context, inst runtime.Installed, port int, etcDir
 
 	ctx, cancel := context.WithTimeout(ctx, initTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, filepath.Join(inst.Dir, "bin", "mysqld.exe"),
-		"--defaults-file="+MyIniPath(etcDir), "--initialize-insecure", "--console")
+	exe, args := how.cmd(inst, etcDir, data)
+	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Dir = inst.Dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, runErr := cmd.CombinedOutput()
 
-	logPath := filepath.Join(logDir, "mysql-init.log")
+	logPath := filepath.Join(logDir, how.log)
 	if err := os.WriteFile(logPath, out, 0o644); err != nil {
 		return fmt.Errorf("stack: gravar %s: %w", logPath, err)
 	}
 	if runErr != nil {
-		return fmt.Errorf("stack: mysqld --initialize-insecure falhou (veja %s): %w", logPath, runErr)
+		return fmt.Errorf("stack: %s falhou (veja %s): %w", filepath.Base(exe), logPath, runErr)
 	}
 	return writeMarker(data)
 }
@@ -114,32 +184,31 @@ func writeMarker(dataDir string) error {
 	return nil
 }
 
-// ensureMySQLData é o wrapper de instância: resolve os diretórios de runtime.
-func (s *Stack) ensureMySQLData(ctx context.Context, inst runtime.Installed, st state.State) error {
-	return InitMySQLData(ctx, inst, st.MySQLPort, paths.Etc(), paths.Var(), paths.Log())
-}
-
-// ensureMySQL prepara o MySQL antes de desired(): grava o my.ini e inicializa o
-// datadir. Falha → warning db-init-failed e o runtime sai da lista, de modo que
-// desired() não emite o spec. Um mysqld sem datadir subiria, morreria, e o
-// restart automático transformaria isso num loop de processos.
+// ensureMySQL prepara o servidor de banco antes de desired(): grava o my.ini e
+// inicializa o datadir do motor escolhido. Falha → warning db-init-failed e o
+// runtime sai da lista, de modo que desired() não emite o spec. Um servidor
+// sem datadir subiria, morreria, e o restart automático transformaria isso num
+// loop de processos.
 func (s *Stack) ensureMySQL(ctx context.Context, rts []runtime.Installed, st state.State) ([]runtime.Installed, bool, []Warning) {
-	list := runtime.ByKind(rts, runtime.MySQL)
-	if len(list) == 0 {
+	inst, ok := DBRuntime(rts, st)
+	if !ok {
+		if st.DBEngine == state.DBMariaDB || st.DBEngine == state.DBMySQL {
+			name := DBName(runtime.Kind(st.DBEngine))
+			return rts, false, []Warning{{Code: "db-engine-missing", Message: i18n.T("warn.dbEngineMissing", name)}}
+		}
 		return rts, false, nil
 	}
-	inst := list[0]
 	changed, err := WriteMyIni(inst, st.MySQLPort, paths.Etc(), paths.Var(), paths.Log())
 	if err != nil {
-		return dropKind(rts, runtime.MySQL), false, []Warning{{
+		return dropKind(rts, inst.Kind), false, []Warning{{
 			Code: "db-init-failed", Message: err.Error(),
 		}}
 	}
-	if err := s.ensureMySQLData(ctx, inst, st); err != nil {
-		s.d.Logger.Error("inicializar datadir do MySQL", "err", err)
-		return dropKind(rts, runtime.MySQL), changed, []Warning{{
+	if err := InitDBData(ctx, inst, st.MySQLPort, paths.Etc(), paths.Var(), paths.Log()); err != nil {
+		s.d.Logger.Error("inicializar datadir do banco", "motor", inst.Kind, "err", err)
+		return dropKind(rts, inst.Kind), changed, []Warning{{
 			Code:    "db-init-failed",
-			Message: fmt.Sprintf("MySQL não foi inicializado e não será iniciado: %v", err),
+			Message: i18n.T("warn.dbInitFailed", DBName(inst.Kind), err),
 		}}
 	}
 	return rts, changed, nil
@@ -181,8 +250,8 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 	if len(reqs) == 0 {
 		return
 	}
-	list := runtime.ByKind(rts, runtime.MySQL)
-	if len(list) == 0 {
+	inst, ok := DBRuntime(rts, s.State())
+	if !ok {
 		return
 	}
 	s.stateMu.Lock()
@@ -193,7 +262,7 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 	s.dbSync = true
 	s.stateMu.Unlock()
 
-	client := mysqlcli.New(list[0], s.State().MySQLPort)
+	client := mysqlcli.New(inst, s.State().MySQLPort)
 	go func() {
 		defer func() {
 			s.stateMu.Lock()
@@ -206,7 +275,7 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 		if err := s.waitMySQLReady(ctx); err != nil {
 			s.addWarnings([]Warning{{
 				Code:    "db-create-failed",
-				Message: fmt.Sprintf("databases dos projetos não foram criados: %v", err),
+				Message: i18n.T("warn.dbCreateNotReady", err),
 			}})
 			return
 		}
@@ -216,14 +285,14 @@ func (s *Stack) syncDatabases(rts []runtime.Installed, projs []project.Project) 
 				// Nome inválido nunca vira comando: vira aviso.
 				warns = append(warns, Warning{
 					Code: "db-create-failed", ProjectID: req.ProjectID,
-					Message: fmt.Sprintf("database %q de %s ignorado: %v", req.Name, req.ProjectID, err),
+					Message: i18n.T("warn.dbCreateInvalidName", req.Name, req.ProjectID, err),
 				})
 				continue
 			}
 			if err := client.Create(ctx, req.Name); err != nil {
 				warns = append(warns, Warning{
 					Code: "db-create-failed", ProjectID: req.ProjectID,
-					Message: fmt.Sprintf("criar database %s de %s: %v", req.Name, req.ProjectID, err),
+					Message: i18n.T("warn.dbCreateFailed", req.Name, req.ProjectID, err),
 				})
 				continue
 			}
@@ -248,7 +317,7 @@ func (s *Stack) waitMySQLReady(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf("mysql não ficou pronto: %w", ctx.Err())
+			return i18n.Errorf("err.stack.mysqlNotReady", ctx.Err())
 		case ev := <-ch:
 			if ev.Status.ID != MySQLSpecID {
 				continue
@@ -257,7 +326,7 @@ func (s *Stack) waitMySQLReady(ctx context.Context) error {
 			case supervisor.Ready:
 				return nil
 			case supervisor.Failed:
-				return fmt.Errorf("mysql falhou: %s", ev.Status.LastError)
+				return i18n.Errorf("err.stack.mysqlFailed", ev.Status.LastError)
 			}
 		}
 	}

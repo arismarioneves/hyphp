@@ -32,9 +32,13 @@ type Artifact struct {
 
 // Release é uma versão publicada.
 type Release struct {
-	Version      string    `json:"version"`
-	Date         string    `json:"date"`
+	Version string `json:"version"`
+	Date    string `json:"date"`
+	// Notes são as notas em português, o campo de sempre; NotesEN, as mesmas
+	// notas em inglês, na mesma ordem. A 1.0.0 e a 2.0.0 saíram só em
+	// português, e o omitempty mantém o registro delas como foi publicado.
 	Notes        []string  `json:"notes"`
+	NotesEN      []string  `json:"notes_en,omitempty"`
 	WindowsAMD64 *Artifact `json:"windows_amd64,omitempty"`
 }
 

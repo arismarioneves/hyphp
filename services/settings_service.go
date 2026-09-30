@@ -2,13 +2,13 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"sort"
 	"sync"
 	"time"
 
 	"hyphp/internal/autostart"
+	"hyphp/internal/i18n"
 	"hyphp/internal/project"
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
@@ -20,10 +20,29 @@ type SettingsService struct {
 	mu   sync.Mutex
 	stk  *stack.Stack
 	emit func(name string, data any)
+	// onLanguage roda depois que o idioma muda, para o que o Go desenha fora
+	// da UI (o menu do tray) trocar de texto. Nil em testes.
+	onLanguage func()
 }
 
-func NewSettingsService(stk *stack.Stack, emit func(name string, data any)) *SettingsService {
-	return &SettingsService{stk: stk, emit: emit}
+func NewSettingsService(stk *stack.Stack, emit func(name string, data any), onLanguage func()) *SettingsService {
+	return &SettingsService{stk: stk, emit: emit, onLanguage: onLanguage}
+}
+
+// SystemLanguage devolve o idioma que vale quando state.Language está vazio.
+// A UI pergunta ao Go, e não ao navigator do WebView, para os dois lados
+// escolherem igual.
+func (s *SettingsService) SystemLanguage() string {
+	return string(i18n.Resolve(""))
+}
+
+// Languages lista os idiomas oferecidos, na ordem da interface.
+func (s *SettingsService) Languages() []string {
+	out := make([]string, len(i18n.Supported))
+	for i, l := range i18n.Supported {
+		out[i] = string(l)
+	}
+	return out
 }
 
 func (s *SettingsService) Get() state.State {
@@ -99,7 +118,10 @@ func (s *SettingsService) Set(in state.State) error {
 	relevant := cur.DefaultPHP != in.DefaultPHP || cur.PoolSize != in.PoolSize ||
 		cur.HTTPPort != in.HTTPPort || cur.HTTPSPort != in.HTTPSPort ||
 		cur.MySQLPort != in.MySQLPort || cur.MailpitSMTPPort != in.MailpitSMTPPort ||
-		cur.MailpitHTTPPort != in.MailpitHTTPPort || !reflect.DeepEqual(cur.PHPExtensions, in.PHPExtensions)
+		cur.MailpitHTTPPort != in.MailpitHTTPPort || !reflect.DeepEqual(cur.PHPExtensions, in.PHPExtensions) ||
+		// Avisos e a página padrão do web server são escritos pelo Reconcile
+		// no idioma atual: trocar o idioma tem de reescrevê-los.
+		cur.Language != in.Language
 	rootsChanged := !sameSet(cur.Roots, in.Roots)
 
 	// O toggle "Iniciar o HyPHP no login" só valia como campo persistido; sem
@@ -125,9 +147,17 @@ func (s *SettingsService) Set(in state.State) error {
 		st.SidebarCollapsed = in.SidebarCollapsed
 		st.Autostart = in.Autostart
 		st.AutoUpdateOff = in.AutoUpdateOff
+		st.Theme = in.Theme
+		st.Language = in.Language
 	})
 	if err != nil {
 		return err
+	}
+	if cur.Language != in.Language {
+		i18n.SetCurrent(i18n.Resolve(in.Language))
+		if s.onLanguage != nil {
+			s.onLanguage()
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
@@ -151,7 +181,7 @@ func (s *SettingsService) Set(in state.State) error {
 	case relevant || rootsChanged:
 		if _, err := s.stk.Reconcile(ctx); err != nil {
 			s.emit("settings:changed", s.stk.State())
-			return fmt.Errorf("reconciliar: %w", err)
+			return i18n.Errorf("err.reconcile", err)
 		}
 	}
 	s.emit("settings:changed", s.stk.State())
@@ -161,7 +191,7 @@ func (s *SettingsService) Set(in state.State) error {
 func (s *SettingsService) SwitchWebServer(name string) error {
 	ws := state.WebServerName(name)
 	if ws != state.Apache && ws != state.Nginx {
-		return fmt.Errorf("web server %q inválido (apache|nginx)", name)
+		return i18n.Errorf("err.settings.webServer", name)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -174,15 +204,47 @@ func (s *SettingsService) SwitchWebServer(name string) error {
 	return nil
 }
 
+// dbSwitchTimeout cobre, no pior caso, o Reconcile com a primeira
+// inicialização do datadir do motor novo, a espera de ele ficar pronto e o
+// Reconcile de volta se não ficar.
+const dbSwitchTimeout = 3 * time.Minute
+
+// SwitchDatabase troca o motor de banco (mysql|mariadb). Imediata, como a
+// troca de web server: o banco atual para e o outro sobe na mesma porta; se
+// o novo não ficar pronto, o anterior volta.
+func (s *SettingsService) SwitchDatabase(engine string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), dbSwitchTimeout)
+	defer cancel()
+	err := s.stk.SwitchDatabase(ctx, engine)
+	s.emit("settings:changed", s.stk.State())
+	s.emit("stack:warnings", s.stk.Warnings())
+	return err
+}
+
 func validateSettings(st state.State) error {
 	if st.WebServer != state.Apache && st.WebServer != state.Nginx {
-		return fmt.Errorf("webServer %q inválido (apache|nginx)", st.WebServer)
+		return i18n.Errorf("err.settings.webServerField", st.WebServer)
+	}
+	switch st.Theme {
+	case "", state.ThemeDark, state.ThemeLight, state.ThemeSystem:
+	default:
+		return i18n.Errorf("err.settings.theme", st.Theme)
+	}
+	if !i18n.Valid(st.Language) {
+		return i18n.Errorf("err.settings.language", st.Language)
+	}
+	switch st.DBEngine {
+	case "", state.DBMySQL, state.DBMariaDB:
+	default:
+		return i18n.Errorf("err.settings.dbEngine", st.DBEngine)
 	}
 	if st.PoolSize < 1 || st.PoolSize > 16 {
-		return fmt.Errorf("poolSize %d fora de 1..16", st.PoolSize)
+		return i18n.Errorf("err.settings.poolSize", st.PoolSize)
 	}
 	if st.DefaultPHP != "" && !phpMajorRe.MatchString(st.DefaultPHP) {
-		return fmt.Errorf("defaultPhp %q inválido; use major.minor", st.DefaultPHP)
+		return i18n.Errorf("err.settings.defaultPhp", st.DefaultPHP)
 	}
 	ports := map[string]int{
 		"httpPort": st.HTTPPort, "httpsPort": st.HTTPSPort, "mysqlPort": st.MySQLPort,
@@ -191,10 +253,10 @@ func validateSettings(st state.State) error {
 	seen := map[int]string{}
 	for name, port := range ports {
 		if port < 1 || port > 65535 {
-			return fmt.Errorf("%s %d fora de 1..65535", name, port)
+			return i18n.Errorf("err.settings.portRange", name, port)
 		}
 		if other, dup := seen[port]; dup {
-			return fmt.Errorf("%s e %s usam a mesma porta %d", other, name, port)
+			return i18n.Errorf("err.settings.portDup", other, name, port)
 		}
 		seen[port] = name
 	}

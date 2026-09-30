@@ -129,6 +129,41 @@ func TestMySQLProbe(t *testing.T) {
 	}
 }
 
+// handshake monta o começo de um pacote de handshake v10 com a versão do
+// servidor, como o mysqld/mariadbd manda ao aceitar a conexão.
+func handshake(version string) []byte {
+	body := append([]byte{0x0a}, version...)
+	body = append(body, 0, 1, 2, 3) // NUL + começo do connection id
+	return append([]byte{byte(len(body)), 0, 0, 0}, body...)
+}
+
+// Outro mysqld na mesma porta (o do Laragon escutando em "::") não pode
+// passar por pronto: a troca de banco confia no probe para decidir se volta
+// ao motor anterior.
+func TestMySQLProbeVersao(t *testing.T) {
+	tests := []struct {
+		name    string
+		server  string
+		want    string
+		wantErr bool
+	}{
+		{"mysql igual", "8.4.11", "8.4.11", false},
+		{"mariadb 11 com sufixo", "11.4.13-MariaDB", "11.4.13", false},
+		{"mariadb 10 com prefixo de compatibilidade", "5.5.5-10.11.19-MariaDB", "10.11.19", false},
+		{"outro mysql na porta", "8.0.30", "8.4.11", true},
+		{"versão que só começa igual", "8.4.110", "8.4.11", true},
+		{"mysql no lugar do mariadb", "8.4.11", "11.4.13", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := MySQLProbe{Addr: fakeMySQL(t, handshake(tc.server)), Version: tc.want}.Check(testCtx(t))
+			if tc.wantErr != (err != nil) {
+				t.Fatalf("Check() err = %v, wantErr %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestAliveProbe(t *testing.T) {
 	t.Run("passa após Grace", func(t *testing.T) {
 		start := time.Now()

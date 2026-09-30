@@ -1,0 +1,15 @@
+export const services = {
+  groupDb: 'BANCO DE DADOS',
+  groupProc: 'PROCESSOS DE PROJETO',
+  noServicesTitle: 'Nenhum serviço',
+  noServicesDesc: 'Instale um web server e PHP em Runtimes e adicione um projeto.',
+  openRuntimes: 'Abrir Runtimes',
+  service: 'Serviço',
+  port: 'Porta',
+  actions: 'Ações',
+  startName: 'Iniciar {name}',
+  stopName: 'Parar {name}',
+  restartName: 'Reiniciar {name}',
+  logOf: 'Log de {name}',
+  closeLog: 'Fechar log',
+}

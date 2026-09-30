@@ -2,7 +2,7 @@
 // registra a versão no histórico do site (releases/index.json e releases.js).
 //
 //	go run ./cmd/hyphp-release -gerar-chave
-//	go run ./cmd/hyphp-release -nota "Corrige X" -nota "Adiciona Y"
+//	go run ./cmd/hyphp-release -nota "Corrige X" -note "Fixes X" -nota "Adiciona Y" -note "Adds Y"
 //	go run ./cmd/hyphp-release -so-js
 package main
 
@@ -44,8 +44,10 @@ func run() error {
 		data  = flag.String("data", time.Now().Format(time.DateOnly), "data da publicação (AAAA-MM-DD)")
 		chave = flag.String("chave", filepath.Join(home, ".hyphp", "release-ed25519.key"), "chave privada (seed em hex)")
 		ns    notas
+		en    notas
 	)
-	flag.Var(&ns, "nota", "item das notas da versão (repetível)")
+	flag.Var(&ns, "nota", "item das notas da versão, em português (repetível)")
+	flag.Var(&en, "note", "o mesmo item em inglês, na mesma ordem dos -nota (repetível)")
 	flag.Parse()
 
 	if *gerar {
@@ -63,15 +65,15 @@ func run() error {
 	if !priv.Public().(ed25519.PublicKey).Equal(update.PublicKey) {
 		return fmt.Errorf("a chave %s não corresponde a update.PublicKey embutida no app", *chave)
 	}
-	if len(ns) == 0 {
-		// A release é imutável: sem nota agora, o app mostraria a versão nova
-		// sem dizer o que mudou, e não daria para corrigir depois.
-		return errors.New("passe ao menos um -nota")
+	// Antes da checagem de versões: nota faltando é o erro mais comum, e
+	// sai sem depender do resto.
+	if err := checkNotes(ns, en); err != nil {
+		return err
 	}
 	if err := checkVersions(".", version.Current); err != nil {
 		return err
 	}
-	rel, err := Publish(Options{WebDir: *web, Repo: update.GitHubRepo, Installer: *inst, Version: version.Current, Date: *data, Notes: ns, Key: priv, GH: runGH})
+	rel, err := Publish(Options{WebDir: *web, Repo: update.GitHubRepo, Installer: *inst, Version: version.Current, Date: *data, Notes: ns, NotesEN: en, Key: priv, GH: runGH})
 	if err != nil {
 		return err
 	}

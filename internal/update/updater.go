@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/pkgmgr"
 )
 
@@ -374,11 +375,11 @@ func (u *Updater) loadResult() {
 		// começo de um loop de update.
 		u.set(func(s *Status) {
 			s.State = StateFailed
-			s.Error = fmt.Sprintf("o instalador da %s terminou, mas o HyPHP em execução ainda é a %s", r.To, u.c.Current)
+			s.Error = i18n.T("update.installerMismatch", r.To, u.c.Current)
 		})
 	default:
 		u.clean("")
-		u.set(func(s *Status) { s.Message = "HyPHP atualizado para a versão " + r.To + "." })
+		u.set(func(s *Status) { s.Message = i18n.T("update.done", r.To) })
 	}
 }
 

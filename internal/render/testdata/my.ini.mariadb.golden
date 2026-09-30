@@ -1,0 +1,17 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/render/myini.go — reescrito a cada Reconcile.
+
+[mysqld]
+port = 3306
+basedir = "C:/hyphp/bin/mariadb/mariadb-11.4.13-winx64"
+datadir = "C:/hyphp/var/mariadb-data"
+log-error = "C:/hyphp/log/mariadb.log"
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+max_connections = 100
+innodb_buffer_pool_size = 128M
+skip-log-bin
+bind-address = 127.0.0.1,::1
+
+[client]
+port = 3306

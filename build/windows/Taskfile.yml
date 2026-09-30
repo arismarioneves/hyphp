@@ -57,6 +57,7 @@ tasks:
       - cmd: rm -f *.syso
         platforms: [linux, darwin]
       - task: build:helper
+      - task: build:cli
     vars:
       BUILD_FLAGS: '{{if eq .DEV "true"}}{{if or .EXTRA_TAGS (eq .OBFUSCATED "true")}}-tags {{if eq .OBFUSCATED "true"}}wails_obfuscated{{if .EXTRA_TAGS}},{{end}}{{end}}{{.EXTRA_TAGS}} {{end}}-buildvcs=false -gcflags=all="-l"{{else}}-tags production{{if eq .OBFUSCATED "true"}},wails_obfuscated{{end}}{{if .EXTRA_TAGS}},{{.EXTRA_TAGS}}{{end}} -trimpath -buildvcs=false -ldflags="-w -s -H windowsgui"{{end}}'
     env:
@@ -118,9 +119,11 @@ tasks:
     dir: build/windows/nsis
     deps:
       - task: build
-      # O project.nsi copia bin/hyphp-helper.exe; sem esta dependencia o
-      # empacotamento falha (ou pior, embala um helper velho de outro build).
+      # O project.nsi copia bin/hyphp-helper.exe e bin/cli/hyphp.exe; sem
+      # estas dependencias o empacotamento falha (ou pior, embala um binario
+      # velho de outro build).
       - task: build:helper
+      - task: build:cli
     preconditions:
       - sh: '[ "{{.INSTALL_SCOPE}}" = "user" ] || [ "{{.INSTALL_SCOPE}}" = "machine" ]'
         msg: "INSTALL_SCOPE must be 'user' or 'machine', got '{{.INSTALL_SCOPE}}'"
@@ -210,3 +213,11 @@ tasks:
     cmds:
       - go build -ldflags="-w -s" -o bin/hyphp-helper.exe ./cmd/hyphp-helper
       - powershell -NoProfile -Command "Remove-Item cmd\hyphp-helper\rsrc_windows_amd64.syso -ErrorAction SilentlyContinue"
+
+  build:cli:
+    summary: Builds the CLI (bin/cli/hyphp.exe)
+    cmds:
+      # Console, sem manifesto de elevação: roda como quem chamou. A pasta
+      # própria é o que vai para o PATH, com o nome `hyphp`, sem levar junto
+      # o hyphp.exe do app (que é -H windowsgui e não escreve no terminal).
+      - go build -trimpath -buildvcs=false -ldflags="-w -s" -o bin/cli/hyphp.exe ./cmd/hyphp

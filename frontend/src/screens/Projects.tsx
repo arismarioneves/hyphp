@@ -27,6 +27,7 @@ import { useProjects } from '../lib/useProjects'
 import { useRuntimes } from '../lib/useRuntimes'
 import { useServices } from '../lib/useServices'
 import { useSettings } from '../lib/useSettings'
+import { useT } from '../i18n'
 
 /** Valor sentinela do Select: não é uma versão, leva para a tela Runtimes. */
 const DOWNLOAD_OPTION = '__download__'
@@ -34,6 +35,7 @@ const DOWNLOAD_OPTION = '__download__'
 const SEPARATOR_OPTION = '__separator__'
 
 export function Projects({ onNavigate }: ScreenProps) {
+  const t = useT('projects')
   const { projects, loading } = useProjects()
   const { services } = useServices()
   const { installed } = useRuntimes()
@@ -58,9 +60,9 @@ export function Projects({ onNavigate }: ScreenProps) {
   }, [installed])
 
   const phpOptions: SelectOption[] = [
-    ...phpMajors.map((m) => ({ value: m, label: `PHP ${m}${settings?.defaultPhp === m ? ' (padrão)' : ''}` })),
+    ...phpMajors.map((m) => ({ value: m, label: `PHP ${m}${settings?.defaultPhp === m ? t('defaultSuffix') : ''}` })),
     { value: SEPARATOR_OPTION, label: '────────', disabled: true },
-    { value: DOWNLOAD_OPTION, label: 'Baixar outra versão…' },
+    { value: DOWNLOAD_OPTION, label: t('downloadOther') },
   ]
 
   const call = async (fn: () => Promise<unknown>) => {
@@ -90,11 +92,11 @@ export function Projects({ onNavigate }: ScreenProps) {
     return (
       <EmptyState
         icon={<FolderOpen size={32} />}
-        title="Nenhum projeto"
-        description="Adicione um diretório-raiz (ex.: C:\DEV). Cada subpasta com index.php, public/ ou composer.json vira um projeto."
+        title={t('noProjectsTitle')}
+        description={t('noProjectsDesc')}
         action={
           <Button variant="primary" icon={<FolderPlus size={16} />} onClick={() => void addRoot()} disabled={busy}>
-            Adicionar diretório
+            {t('addDirectory')}
           </Button>
         }
       />
@@ -132,7 +134,7 @@ export function Projects({ onNavigate }: ScreenProps) {
       disabled={busy}
       className="w-full"
     >
-      Adicionar diretório
+      {t('addDirectory')}
     </Button>
   )
 
@@ -156,28 +158,28 @@ export function Projects({ onNavigate }: ScreenProps) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Abrir no navegador"
+                  aria-label={t('openBrowser')}
                   icon={<ArrowSquareOut size={16} />}
                   onClick={() => void call(() => AppService.OpenExternal(`https://${selected.domain}`))}
                 />
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Abrir pasta"
+                  aria-label={t('openFolder')}
                   icon={<FolderOpen size={16} />}
                   onClick={() => void call(() => AppService.OpenFolder(selected.root))}
                 />
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Abrir no editor"
+                  aria-label={t('openEditor')}
                   icon={<Code size={16} />}
                   onClick={() => void call(() => AppService.OpenInEditor(selected.root))}
                 />
                 <Button
                   variant="ghost"
                   size="sm"
-                  aria-label="Abrir terminal"
+                  aria-label={t('openTerminal')}
                   icon={<Terminal size={16} />}
                   onClick={() => void call(() => AppService.OpenTerminal(selected.root))}
                 />
@@ -185,22 +187,22 @@ export function Projects({ onNavigate }: ScreenProps) {
             }
           >
             <dl className="grid grid-cols-[140px_1fr] gap-y-2 text-sm">
-              <dt className="text-fg-muted">Domínio</dt>
+              <dt className="text-fg-muted">{t('domain')}</dt>
               <dd className="selectable font-mono text-fg">{selected.domain}</dd>
-              <dt className="text-fg-muted">Caminho</dt>
+              <dt className="text-fg-muted">{t('path')}</dt>
               <dd className="selectable break-all font-mono text-fg">{selected.root}</dd>
-              <dt className="text-fg-muted">Docroot</dt>
+              <dt className="text-fg-muted">{t('docroot')}</dt>
               <dd className="selectable break-all font-mono text-fg">{selected.docrootAbs}</dd>
-              <dt className="text-fg-muted">Web server</dt>
+              <dt className="text-fg-muted">{t('webServer')}</dt>
               <dd className="flex items-center gap-2 text-fg">
                 <span>{isNginx ? 'nginx' : 'Apache'}</span>
                 {selected.hasHtaccess && isNginx && (
                   <span className="inline-flex items-center gap-1 text-xs text-warn">
-                    <WarningIcon size={14} /> rewrites do .htaccess não se aplicam sob nginx
+                    <WarningIcon size={14} /> {t('htaccessNginx')}
                   </span>
                 )}
               </dd>
-              <dt className="text-fg-muted">Manifesto</dt>
+              <dt className="text-fg-muted">{t('manifest')}</dt>
               <dd>
                 {selected.hasManifest ? (
                   <Badge tone="ok" mono>
@@ -214,7 +216,7 @@ export function Projects({ onNavigate }: ScreenProps) {
                     disabled={busy}
                     onClick={() => void call(() => ProjectsService.CreateManifest(selected.id))}
                   >
-                    Criar hyphp.yaml
+                    {t('createManifest')}
                   </Button>
                 )}
               </dd>
@@ -225,7 +227,7 @@ export function Projects({ onNavigate }: ScreenProps) {
             <SectionLabel>PHP</SectionLabel>
             <div className="mt-3 flex items-center gap-4">
               <Select
-                aria-label="Versão de PHP do projeto"
+                aria-label={t('phpVersionAria')}
                 value={selected.phpEffective || selected.php || ''}
                 options={phpOptions}
                 disabled={busy}
@@ -240,9 +242,9 @@ export function Projects({ onNavigate }: ScreenProps) {
               />
               {selected.php && !phpMajors.includes(selected.php) && (
                 <span className="inline-flex items-center gap-1 text-sm text-warn">
-                  <WarningIcon size={14} /> PHP {selected.php} não está instalado
+                  <WarningIcon size={14} /> {t('phpNotInstalled', { version: selected.php })}
                   <Button variant="ghost" size="sm" onClick={() => onNavigate('runtimes')}>
-                    baixar
+                    {t('download')}
                   </Button>
                 </span>
               )}
@@ -259,12 +261,12 @@ export function Projects({ onNavigate }: ScreenProps) {
           </Card>
 
           <Card>
-            <SectionLabel>REDE</SectionLabel>
+            <SectionLabel>{t('network')}</SectionLabel>
             <div className="mt-3 flex items-center justify-between text-sm">
               <div className="flex flex-col">
                 <span className="text-fg">Wildcard DNS (*.{selected.domain})</span>
                 <span className="text-xs text-fg-muted">
-                  Sobe o resolvedor local em 127.0.0.1:53 e registra regra NRPT (UAC).
+                  {t('wildcardDesc')}
                 </span>
               </div>
               <Toggle
@@ -277,9 +279,9 @@ export function Projects({ onNavigate }: ScreenProps) {
           </Card>
 
           <Card>
-            <SectionLabel>PROCESSOS</SectionLabel>
+            <SectionLabel>{t('processes')}</SectionLabel>
             {processes.length === 0 ? (
-              <p className="mt-3 text-sm text-fg-faint">Nenhum processo declarado em `processes:` no hyphp.yaml.</p>
+              <p className="mt-3 text-sm text-fg-faint">{t('noProcesses')}</p>
             ) : (
               <ul className="mt-3 divide-y divide-border">
                 {processes.map((s) => (
@@ -290,7 +292,7 @@ export function Projects({ onNavigate }: ScreenProps) {
                       <span className="text-xs text-fg-faint">
                         {s.state}
                         {s.pid ? ` · PID ${s.pid}` : ''}
-                        {s.restarts ? ` · ${s.restarts} restarts` : ''}
+                        {s.restarts ? t('restarts', { count: s.restarts }) : ''}
                       </span>
                       <Button
                         variant={openLog === s.id ? 'secondary' : 'ghost'}

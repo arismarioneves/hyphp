@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 
+	"hyphp/internal/i18n"
 	"hyphp/internal/project"
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
@@ -52,7 +52,7 @@ const dialogCancelledMsg = "cancelled by user"
 // escolhido. Devolve "" quando o usuário cancela.
 func (p *ProjectsService) PickRoot() (string, error) {
 	dir, err := p.app.Dialog.OpenFile().
-		SetTitle("Selecionar diretório de projetos").
+		SetTitle(i18n.T("dialog.pickRoot")).
 		CanChooseDirectories(true).
 		CanChooseFiles(false).
 		PromptForSingleSelection()
@@ -60,7 +60,7 @@ func (p *ProjectsService) PickRoot() (string, error) {
 		if strings.Contains(err.Error(), dialogCancelledMsg) {
 			return "", nil
 		}
-		return "", fmt.Errorf("diálogo de pasta: %w", err)
+		return "", i18n.Errorf("err.dialog", err)
 	}
 	return dir, nil
 }
@@ -76,14 +76,14 @@ func (p *ProjectsService) Roots() []string {
 func (p *ProjectsService) AddRoot(dir string) error {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return fmt.Errorf("resolver %q: %w", dir, err)
+		return i18n.Errorf("err.projects.resolve", dir, err)
 	}
 	st, err := os.Stat(abs)
 	if err != nil {
-		return fmt.Errorf("diretório %s: %w", abs, err)
+		return i18n.Errorf("err.projects.dir", abs, err)
 	}
 	if !st.IsDir() {
-		return fmt.Errorf("%s não é um diretório", abs)
+		return i18n.Errorf("err.projects.notDir", abs)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -104,7 +104,7 @@ func (p *ProjectsService) AddRoot(dir string) error {
 func (p *ProjectsService) RemoveRoot(dir string) error {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
-		return fmt.Errorf("resolver %q: %w", dir, err)
+		return i18n.Errorf("err.projects.resolve", dir, err)
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -135,7 +135,7 @@ func (p *ProjectsService) Rescan() error {
 // avisa php-missing e a UI oferece o download.
 func (p *ProjectsService) SetPHP(id, major string) error {
 	if major != "" && !phpMajorRe.MatchString(major) {
-		return fmt.Errorf("versão %q inválida; use major.minor (ex.: 8.1)", major)
+		return i18n.Errorf("err.projects.badVersion", major)
 	}
 	return p.editManifest(id, func(m *project.Manifest) { m.PHP = major })
 }
@@ -183,7 +183,7 @@ func (p *ProjectsService) find(id string) (project.Project, error) {
 			return pr, nil
 		}
 	}
-	return project.Project{}, fmt.Errorf("projeto %q não encontrado", id)
+	return project.Project{}, i18n.Errorf("err.projects.notFound", id)
 }
 
 // rescanLocked: Discover → SetProjects → watcher → project:changed → Reconcile.
@@ -205,7 +205,7 @@ func (p *ProjectsService) rescanLocked() error {
 	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
 	defer cancel()
 	if _, err := p.stk.Reconcile(ctx); err != nil {
-		return fmt.Errorf("reconciliar: %w", err)
+		return i18n.Errorf("err.reconcile", err)
 	}
 	return nil
 }

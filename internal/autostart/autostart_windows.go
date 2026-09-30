@@ -14,8 +14,10 @@ import (
 const runKey = `Software\Microsoft\Windows\CurrentVersion\Run`
 
 // valueName é o nome da entrada; fixo para que ligar duas vezes não crie
-// duplicata e para que desligar encontre o que gravamos.
-const valueName = "HyPHP"
+// duplicata e para que desligar encontre o que gravamos. É var só para os
+// testes gravarem com outro nome: eles usam o registro real do usuário, e com
+// o nome de verdade cada `go test` apagava o autostart do HyPHP instalado.
+var valueName = "HyPHP"
 
 // Apply cria ou remove a entrada de autostart.
 func Apply(enabled bool) error {

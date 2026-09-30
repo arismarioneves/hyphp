@@ -14,6 +14,7 @@ import (
 	"github.com/wailsapp/wails/v3/pkg/events"
 
 	"hyphp/internal/autostart"
+	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
 	"hyphp/internal/pkgmgr"
@@ -68,6 +69,9 @@ func main() {
 		logger.Error("carregar state.json", "path", statePath, "err", err)
 		os.Exit(1)
 	}
+	// Antes de qualquer texto do Go: avisos, tray e diálogos saem no idioma
+	// escolhido (ou no do Windows).
+	i18n.SetCurrent(i18n.Resolve(st.Language))
 
 	// Reconciliar o autostart com o registro. Dois casos reais que de outro
 	// modo quebram calados:
@@ -106,6 +110,8 @@ func main() {
 		stopFwd func()
 		stopUpd context.CancelFunc
 		updItem *application.MenuItem
+		// relabelTray reescreve o menu no idioma atual; no-op até o tray existir.
+		relabelTray = func() {}
 	)
 
 	app := application.New(application.Options{
@@ -203,6 +209,12 @@ func main() {
 			stk.SetMkcert(newMkcert(logger))
 			reconcile("runtime:changed")
 		},
+		StopUsing: func(dir string) error {
+			if stk == nil {
+				return nil
+			}
+			return stk.StopUsingDir(dir)
+		},
 	})
 	rts := rtSvc.Installed()
 
@@ -274,7 +286,7 @@ func main() {
 	})
 
 	// hyphp: services
-	app.RegisterService(application.NewService(services.NewAppService(services.AppDeps{
+	appSvc := services.NewAppService(services.AppDeps{
 		Quit: app.Quit, State: &st, StatePath: statePath, Logger: logger,
 		// Mesma regra do Reconcile (stack/desired.go): state.DefaultPHP manda e,
 		// vazio, vale a maior série instalada. O PATH do usuário precisa apontar
@@ -287,19 +299,40 @@ func main() {
 			}
 			return runtime.PHPByMajor(phps, major)
 		},
-	})))
-	app.RegisterService(application.NewService(projSvc))
-	app.RegisterService(application.NewService(services.NewServicesService(services.ServicesDeps{Sup: sup, Logger: logger})))
-	app.RegisterService(application.NewService(rtSvc))
-	app.RegisterService(application.NewService(services.NewSettingsService(stk, emit)))
-	app.RegisterService(application.NewService(services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})))
-	app.RegisterService(application.NewService(services.NewDatabaseService(services.DatabaseDeps{
+	})
+	svcSvc := services.NewServicesService(services.ServicesDeps{Sup: sup, Logger: logger})
+	setSvc := services.NewSettingsService(stk, emit, func() { relabelTray() })
+	logsSvc := services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})
+	dbSvc := services.NewDatabaseService(services.DatabaseDeps{
 		Sup:      sup,
 		Stack:    stk,
 		Runtimes: rtSvc.Installed, // method value: Scan cacheado do RuntimesService
 		Logger:   logger,
-	})))
+	})
+	app.RegisterService(application.NewService(appSvc))
+	app.RegisterService(application.NewService(projSvc))
+	app.RegisterService(application.NewService(svcSvc))
+	app.RegisterService(application.NewService(rtSvc))
+	app.RegisterService(application.NewService(setSvc))
+	app.RegisterService(application.NewService(logsSvc))
+	app.RegisterService(application.NewService(dbSvc))
 	app.RegisterService(application.NewService(services.NewUpdateService(upd, app.Quit)))
+	// A CLI (cmd/hyphp) fala com o app pelo pipe do usuário e roda os mesmos
+	// serviços que a UI; o hyphp.exe dela mora em cli\ ao lado do app.
+	exe, _ := os.Executable()
+	app.RegisterService(application.NewService(services.NewCLIService(services.CLIDeps{
+		App: appSvc, Services: svcSvc, Projects: projSvc, Runtimes: rtSvc, Settings: setSvc, Database: dbSvc, Sup: sup,
+		ShowWindow: func() {
+			if window != nil {
+				window.Show()
+				window.Restore()
+				window.Focus()
+			}
+		},
+		Emit:   emit,
+		Logger: logger,
+		Exe:    filepath.Join(filepath.Dir(exe), "cli", "hyphp.exe"),
+	})))
 	services.RegisterLogStreams(app, sup)
 	stopFwd = services.ForwardServiceEvents(app, sup)
 
@@ -312,7 +345,7 @@ func main() {
 		MinWidth:         960,
 		MinHeight:        600,
 		Frameless:        true,
-		BackgroundColour: application.NewRGB(15, 24, 38),
+		BackgroundColour: windowBackground(st.Theme, systemDarkMode()),
 		URL:              "/",
 	})
 	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
@@ -324,12 +357,17 @@ func main() {
 	tray = app.SystemTray.New()
 	tray.SetIcon(trayIcon)
 	tray.SetTooltip("HyPHP")
-	menu := app.NewMenu()
-	menu.Add("Abrir").OnClick(func(*application.Context) {
+	showWindow := func() {
 		window.Show()
+		window.Restore()
 		window.Focus()
-	})
-	menu.Add("Iniciar tudo").OnClick(func(*application.Context) { // hyphp: 06
+	}
+	// Clique esquerdo abre o app, como em todo ícone de bandeja do Windows; o
+	// padrão do Wails era não fazer nada, e só o menu do clique direito abria.
+	tray.OnClick(showWindow)
+	menu := app.NewMenu()
+	openItem := menu.Add(i18n.T("tray.open")).OnClick(func(*application.Context) { showWindow() })
+	startItem := menu.Add(i18n.T("tray.startAll")).OnClick(func(*application.Context) { // hyphp: 06
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 			defer cancel()
@@ -338,7 +376,7 @@ func main() {
 			}
 		}()
 	})
-	menu.Add("Parar tudo").OnClick(func(*application.Context) { // hyphp: 06
+	stopItem := menu.Add(i18n.T("tray.stopAll")).OnClick(func(*application.Context) { // hyphp: 06
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 			defer cancel()
@@ -347,8 +385,21 @@ func main() {
 			}
 		}()
 	})
+	// Só a ação que faz sentido agora: com algo rodando, Parar; com tudo
+	// parado, Iniciar. Decide na hora de abrir o menu, que é quando o estado
+	// importa, sem assinar cada transição dos serviços.
+	syncStartStop := func() {
+		running := anyRunning(sup.List())
+		startItem.SetHidden(running)
+		stopItem.SetHidden(!running)
+	}
+	syncStartStop()
+	tray.OnRightClick(func() {
+		syncStartStop()
+		tray.OpenMenu()
+	})
 	// Oculto até haver versão pronta; syncUpdateItem mostra e rotula.
-	updItem = menu.Add("Atualizar e reiniciar").SetHidden(true).OnClick(func(*application.Context) {
+	updItem = menu.Add(i18n.T("tray.update")).SetHidden(true).OnClick(func(*application.Context) {
 		go func() {
 			if err := upd.Apply(app.Quit); err != nil {
 				logger.Warn("aplicar atualização (tray)", "err", err)
@@ -356,8 +407,19 @@ func main() {
 		}()
 	})
 	menu.AddSeparator()
-	menu.Add("Sair").OnClick(func(*application.Context) { app.Quit() })
+	quitItem := menu.Add(i18n.T("tray.quit")).OnClick(func(*application.Context) { app.Quit() })
 	tray.SetMenu(menu)
+	// Trocar o idioma em Configurações reescreve o menu; o rótulo do item de
+	// update depende da versão pronta, e syncUpdateItem cuida dele.
+	relabelTray = func() {
+		application.InvokeAsync(func() {
+			openItem.SetLabel(i18n.T("tray.open"))
+			startItem.SetLabel(i18n.T("tray.startAll"))
+			stopItem.SetLabel(i18n.T("tray.stopAll"))
+			quitItem.SetLabel(i18n.T("tray.quit"))
+			syncUpdateItem(updItem, upd.Status())
+		})
+	}
 
 	// hyphp: 06 — subir a stack depois que a janela existe (a UI já escuta
 	// service:state / stack:warnings / project:changed no primeiro render).
@@ -396,9 +458,30 @@ func syncUpdateItem(item *application.MenuItem, s update.Status) {
 		ready := s.State == update.StateReady
 		item.SetHidden(!ready)
 		if ready {
-			item.SetLabel("Atualizar para " + s.Available + " e reiniciar")
+			item.SetLabel(i18n.T("tray.updateTo", s.Available))
 		}
 	})
+}
+
+// windowBackground é a cor da janela antes de o WebView pintar: sem casar com
+// o tema, abrir o app no tema claro piscaria o fundo escuro.
+func windowBackground(theme string, systemDark bool) application.RGBA {
+	if theme == state.ThemeLight || (theme == state.ThemeSystem && !systemDark) {
+		return application.NewRGB(245, 247, 251) // --bg-app do tema claro
+	}
+	return application.NewRGB(15, 24, 38) // --bg-app do tema escuro
+}
+
+// anyRunning diz se algum serviço está no ar ou a caminho. Stopping conta:
+// oferecer "Iniciar tudo" enquanto a parada ainda termina faria o clique
+// esbarrar em "serviço já está stopping".
+func anyRunning(list []supervisor.Status) bool {
+	for _, s := range list {
+		if s.State != supervisor.Stopped && s.State != supervisor.Failed {
+			return true
+		}
+	}
+	return false
 }
 
 // webServers monta o mapa de web servers a partir do que está instalado em
@@ -407,11 +490,11 @@ func syncUpdateItem(item *application.MenuItem, s update.Status) {
 // passar a valer sem reiniciar.
 func webServers(rts []runtime.Installed) map[state.WebServerName]webserver.WebServer {
 	web := map[state.WebServerName]webserver.WebServer{}
-	if list := runtime.ByKind(rts, runtime.Apache); len(list) > 0 {
-		web[state.Apache] = apache.New(list[0])
+	if inst, ok := runtime.Newest(rts, runtime.Apache); ok {
+		web[state.Apache] = apache.New(inst)
 	}
-	if list := runtime.ByKind(rts, runtime.Nginx); len(list) > 0 {
-		web[state.Nginx] = nginx.New(list[0])
+	if inst, ok := runtime.Newest(rts, runtime.Nginx); ok {
+		web[state.Nginx] = nginx.New(inst)
 	}
 	return web
 }

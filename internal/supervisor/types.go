@@ -52,9 +52,11 @@ type Status struct {
 	LastError string    `json:"lastError"`
 }
 
-// Event é publicado em toda transição de estado.
+// Event é publicado em toda transição de estado e quando um serviço é
+// removido (Removed; Status é o último retrato, já fora de List()).
 type Event struct {
-	Status Status
+	Status  Status
+	Removed bool
 }
 
 const (

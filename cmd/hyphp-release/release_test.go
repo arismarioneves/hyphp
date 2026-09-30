@@ -53,7 +53,7 @@ func fakeGH(calls *[]ghCall, fail error) func(args ...string) error {
 
 func publicar(t *testing.T, web, inst, v string, priv ed25519.PrivateKey, calls *[]ghCall) error {
 	t.Helper()
-	_, err := Publish(Options{WebDir: web, Repo: testRepo, Installer: inst, Version: v, Date: "2026-09-26", Notes: []string{"nota " + v}, Key: priv, GH: fakeGH(calls, nil)})
+	_, err := Publish(Options{WebDir: web, Repo: testRepo, Installer: inst, Version: v, Date: "2026-09-26", Notes: []string{"nota " + v}, NotesEN: []string{"note " + v}, Key: priv, GH: fakeGH(calls, nil)})
 	return err
 }
 
@@ -86,7 +86,7 @@ func TestPublishCriaReleaseQueOAppAceita(t *testing.T) {
 	if !slices.Equal(c.args[:len(want)], want) {
 		t.Fatalf("args = %q", c.args)
 	}
-	if got := string(c.files["notas.md"]); got != "- nota 1.0.0\n" {
+	if got := string(c.files["notas.md"]); got != "## English\n\n- note 1.0.0\n\n## Português\n\n- nota 1.0.0\n" {
 		t.Errorf("notas da release = %q", got)
 	}
 	body, sig := c.files["latest.json"], c.files["latest.json.sig"]
@@ -96,6 +96,9 @@ func TestPublishCriaReleaseQueOAppAceita(t *testing.T) {
 	l, err := update.ParseLatest(body)
 	if err != nil {
 		t.Fatalf("app recusaria o manifesto: %v", err)
+	}
+	if !slices.Equal(l.Notes, []string{"nota 1.0.0"}) || !slices.Equal(l.NotesEN, []string{"note 1.0.0"}) {
+		t.Errorf("notas do manifesto: pt %q, en %q", l.Notes, l.NotesEN)
 	}
 	exe, ok := c.files[l.WindowsAMD64.Path]
 	if !ok || l.WindowsAMD64.Path != "hyphp-1.0.0-windows-amd64-setup.exe" {
@@ -160,12 +163,39 @@ func TestPublishRecusaRepublicarOuRegredir(t *testing.T) {
 func TestPublishGHFalhouNaoMexeNoSite(t *testing.T) {
 	web, inst, _, priv := ambiente(t)
 	var calls []ghCall
-	_, err := Publish(Options{WebDir: web, Repo: testRepo, Installer: inst, Version: "1.0.0", Date: "2026-09-26", Notes: []string{"x"}, Key: priv, GH: fakeGH(&calls, errors.New("tag v1.0.0 não existe"))})
+	_, err := Publish(Options{WebDir: web, Repo: testRepo, Installer: inst, Version: "1.0.0", Date: "2026-09-26", Notes: []string{"x"}, NotesEN: []string{"x"}, Key: priv, GH: fakeGH(&calls, errors.New("tag v1.0.0 não existe"))})
 	if err == nil || !strings.Contains(err.Error(), "tag v1.0.0") {
 		t.Fatalf("erro do gh não voltou: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(web, "releases")); !os.IsNotExist(err) {
 		t.Error("o site ganhou arquivos de uma release que falhou")
+	}
+}
+
+// O site mostra as notas do idioma escolhido e a release não aceita correção:
+// publicar com um idioma faltando, ou com uma nota sem tradução, é recusado
+// antes do gh.
+func TestPublishExigeNotasNosDoisIdiomas(t *testing.T) {
+	casos := []struct {
+		nome   string
+		pt, en []string
+	}{
+		{"sem inglês", []string{"Corrige X"}, nil},
+		{"sem português", nil, []string{"Fixes X"}},
+		{"nota sem tradução", []string{"Corrige X", "Adiciona Y"}, []string{"Fixes X"}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			web, inst, _, priv := ambiente(t)
+			var calls []ghCall
+			_, err := Publish(Options{WebDir: web, Repo: testRepo, Installer: inst, Version: "1.0.0", Date: "2026-09-26", Notes: c.pt, NotesEN: c.en, Key: priv, GH: fakeGH(&calls, nil)})
+			if err == nil {
+				t.Fatal("publicou sem as notas nos dois idiomas")
+			}
+			if len(calls) != 0 {
+				t.Error("a recusa chegou no gh")
+			}
+		})
 	}
 }
 
