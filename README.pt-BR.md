@@ -1,5 +1,5 @@
 <p align="center">
-  <img src=".github/assets/banner.png" alt="Janela do HyPHP com Apache, PHP 7.4, 8.3 e 8.4, MySQL e Mailpit no ar">
+  <img src=".github/assets/banner.png" alt="HyPHP — ambiente PHP declarado por projeto. A janela do app com Apache, PHP 7.4, 8.3 e 8.4, MySQL e Mailpit no ar">
 </p>
 
 <h1 align="center">HyPHP</h1>
