@@ -158,12 +158,14 @@ The version lives in four places, which `hyphp-release` checks before publishing
 
 ```powershell
 wails3 task windows:package
-go run ./cmd/hyphp-release -nota "What changed" -nota "Another change"
+go run ./cmd/hyphp-release -note "What changed" -nota "O que mudou" -note "Another change" -nota "Outra mudança"
 ```
 
 The command signs `latest.json` with the release key and creates the release with the
-installer, the manifest and the signature (via `gh`). The release is immutable: the notes
-must be right before publishing.
+installer, the manifest and the signature (via `gh`). Notes go in both languages: each
+`-note` (English) needs its `-nota` (Portuguese), in the same order, and the site shows the
+ones for the selected language. The release is immutable: the notes must be right before
+publishing.
 
 ## Support the project
 

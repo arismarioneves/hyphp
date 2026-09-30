@@ -155,12 +155,13 @@ publicar: `internal/version/version.go`, `info.version` em `build/config.yml`,
 
 ```powershell
 wails3 task windows:package
-go run ./cmd/hyphp-release -nota "O que mudou" -nota "Outra mudança"
+go run ./cmd/hyphp-release -nota "O que mudou" -note "What changed" -nota "Outra mudança" -note "Another change"
 ```
 
 O comando assina o `latest.json` com a chave de release e cria a release com o
-instalador, o manifesto e a assinatura (via `gh`). A release é imutável: as
-notas precisam estar certas antes de publicar.
+instalador, o manifesto e a assinatura (via `gh`). As notas vão nos dois idiomas: cada
+`-nota` (português) precisa do seu `-note` (inglês), na mesma ordem, e o site mostra as do
+idioma escolhido. A release é imutável: as notas precisam estar certas antes de publicar.
 
 ## Apoie o projeto
 

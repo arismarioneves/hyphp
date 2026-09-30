@@ -26,8 +26,9 @@ type Options struct {
 	Repo      string // "<dono>/<repo>" das releases no GitHub
 	Installer string // instalador gerado por `wails3 task windows:package`
 	Version   string
-	Date      string // AAAA-MM-DD
-	Notes     []string
+	Date      string   // AAAA-MM-DD
+	Notes     []string // em português
+	NotesEN   []string // em inglês, os mesmos itens na mesma ordem
 	Key       ed25519.PrivateKey
 	// GH roda o GitHub CLI com os argumentos dados; o teste troca por um
 	// falso que só registra a chamada.
@@ -57,6 +58,9 @@ func Publish(o Options) (update.Release, error) {
 			return update.Release{}, fmt.Errorf("versão %s não é maior que a última publicada (%s)", o.Version, idx.Releases[0].Version)
 		}
 	}
+	if err := checkNotes(o.Notes, o.NotesEN); err != nil {
+		return update.Release{}, err
+	}
 	size, sum, err := hashFile(o.Installer)
 	if err != nil {
 		return update.Release{}, err
@@ -66,6 +70,7 @@ func Publish(o Options) (update.Release, error) {
 		Version: o.Version,
 		Date:    o.Date,
 		Notes:   append([]string{}, o.Notes...),
+		NotesEN: append([]string{}, o.NotesEN...),
 		// Só o nome: o app resolve o path contra a pasta do manifesto, que no
 		// GitHub é releases/latest/download/.
 		WindowsAMD64: &update.Artifact{Path: name, Size: size, SHA256: sum},
@@ -85,7 +90,7 @@ func Publish(o Options) (update.Release, error) {
 		return update.Release{}, err
 	}
 	notes := filepath.Join(stage, "notas.md")
-	if err := os.WriteFile(notes, notesMarkdown(rel.Notes), 0o644); err != nil {
+	if err := os.WriteFile(notes, notesMarkdown(rel.Notes, rel.NotesEN), 0o644); err != nil {
 		return update.Release{}, err
 	}
 	// --verify-tag: a tag tem de estar no GitHub antes, senão o gh criaria
@@ -136,10 +141,30 @@ func stageAssets(dir, installer, name string, rel update.Release, key ed25519.Pr
 	return []string{exe, latestPath, sigPath}, nil
 }
 
-// notesMarkdown vira a descrição da release: uma linha "- " por nota.
-func notesMarkdown(notes []string) []byte {
+// checkNotes exige as notas nos dois idiomas, com o mesmo número de itens: o
+// site mostra as do idioma escolhido, e a release é imutável, então uma
+// tradução que faltar agora não entra depois. Sem nenhuma nota, o app
+// mostraria a versão nova sem dizer o que mudou.
+func checkNotes(pt, en []string) error {
+	if len(pt) == 0 || len(en) == 0 {
+		return errors.New("passe as notas nos dois idiomas: ao menos um -nota (português) e um -note (inglês)")
+	}
+	if len(pt) != len(en) {
+		return fmt.Errorf("%d -nota e %d -note: cada nota precisa da tradução, na mesma ordem", len(pt), len(en))
+	}
+	return nil
+}
+
+// notesMarkdown vira a descrição da release: inglês primeiro, o idioma
+// padrão do site, depois português, uma linha "- " por nota.
+func notesMarkdown(pt, en []string) []byte {
 	var b []byte
-	for _, n := range notes {
+	b = append(b, "## English\n\n"...)
+	for _, n := range en {
+		b = append(b, "- "+n+"\n"...)
+	}
+	b = append(b, "\n## Português\n\n"...)
+	for _, n := range pt {
 		b = append(b, "- "+n+"\n"...)
 	}
 	return b
