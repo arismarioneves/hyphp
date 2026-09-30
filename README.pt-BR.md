@@ -45,6 +45,9 @@ commitável), Apache ou nginx, e workers supervisionados.
   de dados. A troca é imediata e volta ao anterior se o novo não subir.
 - **php.ini por versão** — diretivas como `max_input_vars` são editadas no app para cada
   versão de PHP, com o valor efetivo e de onde ele vem.
+- **CLI para o terminal e agentes de IA** — `hyphp status`, `hyphp start all`,
+  `hyphp logs mysql -f`, `hyphp ini 8.3 max_input_vars 5000`… Cada comando roda no app
+  aberto, com saída `--json` e códigos de saída que dizem o que houve. Veja [CLI](#cli).
 - **Português ou inglês**, tema escuro ou claro (ou igual ao do Windows).
 
 ## Plataformas
@@ -68,6 +71,32 @@ processes:
   queue: php artisan queue:work --tries=3
   scheduler: php artisan schedule:work
 ```
+
+## CLI
+
+O `hyphp` conversa com o app aberto por um named pipe que só o seu usuário do Windows alcança,
+e o app roda o comando com os mesmos serviços da janela: o que a CLI faz aparece na hora na
+interface, e a aba **CLI** mostra as chamadas recentes e quem as fez. Ponha no PATH por essa
+aba (ela fica em `<instalação>\cli\hyphp.exe`).
+
+```text
+hyphp status                          versão, web server, banco, serviços, avisos
+hyphp services                        serviços e estados
+hyphp start [serviço|all]             inicia e espera ficar pronto (sem argumento: tudo)
+hyphp stop [serviço|all]              para (sem argumento: tudo)
+hyphp restart <serviço>               reinicia e espera ficar pronto
+hyphp logs <serviço> [-n 50] [-f]     últimas linhas do log; -f acompanha
+hyphp projects                        projetos, domínio, PHP e pasta
+hyphp php | php default <série> | php use <projeto> <série>
+hyphp ini <série> [<diretiva> <valor> | <diretiva> --reset]
+hyphp db | db create <nome> | db drop <nome> --yes | db engine <mysql|mariadb>
+hyphp web <apache|nginx>              troca o web server
+hyphp warnings                        avisos da stack
+hyphp app                             mostra a janela (abre o app se estiver fechado)
+```
+
+Para scripts e agentes de IA: todo comando aceita `--json` (os erros também), e o código de
+saída é `0` ok, `1` erro do app, `2` uso errado, `3` app fechado.
 
 ## Stack
 

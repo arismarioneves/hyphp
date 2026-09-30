@@ -47,6 +47,9 @@ itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised workers.
   directory. Switching is immediate and rolls back if the new one does not come up.
 - **php.ini per version** — directives such as `max_input_vars` are edited in the app for
   each PHP version, showing the effective value and where it comes from.
+- **CLI for the terminal and AI agents** — `hyphp status`, `hyphp start all`,
+  `hyphp logs mysql -f`, `hyphp ini 8.3 max_input_vars 5000`… Every command runs in the
+  open app, with `--json` output and meaningful exit codes. See [CLI](#cli).
 - **English or Portuguese**, dark or light theme (or the same as Windows).
 
 ## Platforms
@@ -70,6 +73,32 @@ processes:
   queue: php artisan queue:work --tries=3
   scheduler: php artisan schedule:work
 ```
+
+## CLI
+
+`hyphp` talks to the open app through a named pipe that only your Windows user can reach, and
+the app runs the command with the same services as the window: what the CLI does shows up in
+the UI right away, and the **CLI** tab lists the recent calls and who made them. Put it on your
+PATH from that tab (it lives in `<installation>\cli\hyphp.exe`).
+
+```text
+hyphp status                          version, web server, database, services, warnings
+hyphp services                        services and their states
+hyphp start [service|all]             starts and waits until ready (no argument: everything)
+hyphp stop [service|all]              stops (no argument: everything)
+hyphp restart <service>               restarts and waits until ready
+hyphp logs <service> [-n 50] [-f]     last log lines; -f follows
+hyphp projects                        projects, domain, PHP and folder
+hyphp php | php default <series> | php use <project> <series>
+hyphp ini <series> [<directive> <value> | <directive> --reset]
+hyphp db | db create <name> | db drop <name> --yes | db engine <mysql|mariadb>
+hyphp web <apache|nginx>              switches the web server
+hyphp warnings                        stack warnings
+hyphp app                             shows the window (opens the app if it is closed)
+```
+
+For scripts and AI agents: every command accepts `--json` (errors too), and the exit code is
+`0` ok, `1` app error, `2` wrong usage, `3` app not running.
 
 ## Stack
 
