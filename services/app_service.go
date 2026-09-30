@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 
@@ -152,10 +153,10 @@ func (a *AppService) logged(acao, path string, err error) error {
 	return err
 }
 
-// pathComPHP devolve o PATH com dir à frente e se houve mudança. Comparação
+// pathComDir devolve o PATH com dir à frente e se houve mudança. Comparação
 // sem diferenciar maiúsculas porque caminho no Windows é case-insensitive:
 // comparar byte a byte reinseriria o mesmo diretório a cada chamada.
-func pathComPHP(atual, dir string) (string, bool) {
+func pathComDir(atual, dir string) (string, bool) {
 	for _, p := range strings.Split(atual, ";") {
 		if strings.EqualFold(strings.TrimRight(strings.TrimSpace(p), `\`), strings.TrimRight(dir, `\`)) {
 			return atual, false
@@ -169,15 +170,36 @@ func pathComPHP(atual, dir string) (string, bool) {
 
 // AddDefaultPHPToUserPath põe a série padrão de PHP no PATH do usuário, para
 // `php` e `composer` no terminal usarem a mesma versão que o HyPHP serve.
-//
-// Escreve em HKCU\Environment: a Path da máquina exigiria UAC, e o produto só
-// eleva em ApplyHosts e InstallCA (spec §11).
 func (a *AppService) AddDefaultPHPToUserPath() error {
 	inst, ok := a.d.DefaultPHP()
 	if !ok {
 		return errors.New(i18n.T("err.app.noPHP"))
 	}
+	return addToUserPath(inst.Dir)
+}
 
+// readUserPath lê a Path de HKCU\Environment ("" se não existir).
+func readUserPath() (string, error) {
+	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.QUERY_VALUE)
+	if err != nil {
+		return "", fmt.Errorf("abrir HKCU\\Environment: %w", err)
+	}
+	defer k.Close()
+	atual, _, err := k.GetStringValue("Path")
+	if err != nil && !errors.Is(err, registry.ErrNotExist) {
+		return "", fmt.Errorf("ler Path do usuário: %w", err)
+	}
+	return atual, nil
+}
+
+// addToUserPath põe dir no início da Path do usuário, se ainda não estiver.
+//
+// Escreve em HKCU\Environment: a Path da máquina exigiria UAC, e o produto só
+// eleva em ApplyHosts e InstallCA (spec §11). Depois avisa o Windows
+// (WM_SETTINGCHANGE "Environment"): sem isso o Explorer segue com o ambiente
+// antigo, e um terminal aberto pelo menu Iniciar não acharia o diretório novo
+// até o próximo login.
+func addToUserPath(dir string) error {
 	k, err := registry.OpenKey(registry.CURRENT_USER, `Environment`, registry.QUERY_VALUE|registry.SET_VALUE)
 	if err != nil {
 		return fmt.Errorf("abrir HKCU\\Environment: %w", err)
@@ -188,7 +210,7 @@ func (a *AppService) AddDefaultPHPToUserPath() error {
 	if err != nil && !errors.Is(err, registry.ErrNotExist) {
 		return fmt.Errorf("ler Path do usuário: %w", err)
 	}
-	novo, mudou := pathComPHP(atual, inst.Dir)
+	novo, mudou := pathComDir(atual, dir)
 	if !mudou {
 		return nil
 	}
@@ -197,7 +219,27 @@ func (a *AppService) AddDefaultPHPToUserPath() error {
 	if err := k.SetExpandStringValue("Path", novo); err != nil {
 		return fmt.Errorf("gravar Path do usuário: %w", err)
 	}
+	broadcastEnvironment()
 	return nil
+}
+
+var procSendMessageTimeout = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageTimeoutW")
+
+// broadcastEnvironment manda WM_SETTINGCHANGE "Environment" a todas as
+// janelas de topo. SMTO_ABORTIFHUNG com 5 s: uma janela travada não prende o
+// app. O resultado não importa: a Path já está gravada.
+func broadcastEnvironment() {
+	const (
+		hwndBroadcast   = 0xffff
+		wmSettingChange = 0x001A
+		smtoAbortIfHung = 0x0002
+	)
+	env, err := windows.UTF16PtrFromString("Environment")
+	if err != nil {
+		return
+	}
+	var res uintptr
+	_, _, _ = procSendMessageTimeout.Call(hwndBroadcast, wmSettingChange, 0, uintptr(unsafe.Pointer(env)), smtoAbortIfHung, 5000, uintptr(unsafe.Pointer(&res)))
 }
 
 func mustDir(path string) error {

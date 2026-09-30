@@ -286,7 +286,7 @@ func main() {
 	})
 
 	// hyphp: services
-	app.RegisterService(application.NewService(services.NewAppService(services.AppDeps{
+	appSvc := services.NewAppService(services.AppDeps{
 		Quit: app.Quit, State: &st, StatePath: statePath, Logger: logger,
 		// Mesma regra do Reconcile (stack/desired.go): state.DefaultPHP manda e,
 		// vazio, vale a maior série instalada. O PATH do usuário precisa apontar
@@ -299,19 +299,40 @@ func main() {
 			}
 			return runtime.PHPByMajor(phps, major)
 		},
-	})))
-	app.RegisterService(application.NewService(projSvc))
-	app.RegisterService(application.NewService(services.NewServicesService(services.ServicesDeps{Sup: sup, Logger: logger})))
-	app.RegisterService(application.NewService(rtSvc))
-	app.RegisterService(application.NewService(services.NewSettingsService(stk, emit, func() { relabelTray() })))
-	app.RegisterService(application.NewService(services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})))
-	app.RegisterService(application.NewService(services.NewDatabaseService(services.DatabaseDeps{
+	})
+	svcSvc := services.NewServicesService(services.ServicesDeps{Sup: sup, Logger: logger})
+	setSvc := services.NewSettingsService(stk, emit, func() { relabelTray() })
+	logsSvc := services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})
+	dbSvc := services.NewDatabaseService(services.DatabaseDeps{
 		Sup:      sup,
 		Stack:    stk,
 		Runtimes: rtSvc.Installed, // method value: Scan cacheado do RuntimesService
 		Logger:   logger,
-	})))
+	})
+	app.RegisterService(application.NewService(appSvc))
+	app.RegisterService(application.NewService(projSvc))
+	app.RegisterService(application.NewService(svcSvc))
+	app.RegisterService(application.NewService(rtSvc))
+	app.RegisterService(application.NewService(setSvc))
+	app.RegisterService(application.NewService(logsSvc))
+	app.RegisterService(application.NewService(dbSvc))
 	app.RegisterService(application.NewService(services.NewUpdateService(upd, app.Quit)))
+	// A CLI (cmd/hyphp) fala com o app pelo pipe do usuário e roda os mesmos
+	// serviços que a UI; o hyphp.exe dela mora em cli\ ao lado do app.
+	exe, _ := os.Executable()
+	app.RegisterService(application.NewService(services.NewCLIService(services.CLIDeps{
+		App: appSvc, Services: svcSvc, Projects: projSvc, Runtimes: rtSvc, Settings: setSvc, Database: dbSvc, Sup: sup,
+		ShowWindow: func() {
+			if window != nil {
+				window.Show()
+				window.Restore()
+				window.Focus()
+			}
+		},
+		Emit:   emit,
+		Logger: logger,
+		Exe:    filepath.Join(filepath.Dir(exe), "cli", "hyphp.exe"),
+	})))
 	services.RegisterLogStreams(app, sup)
 	stopFwd = services.ForwardServiceEvents(app, sup)
 

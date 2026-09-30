@@ -99,6 +99,12 @@ Section
     ; ficam impossiveis numa instalacao limpa.
     File "..\..\..\bin\hyphp-helper.exe"
 
+    ; A CLI (hyphp status, hyphp start...) numa pasta propria: e ela que vai
+    ; para o PATH, com o nome hyphp, sem levar o hyphp.exe do app junto.
+    SetOutPath "$INSTDIR\cli"
+    File "..\..\..\bin\cli\hyphp.exe"
+    SetOutPath $INSTDIR
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
 

@@ -173,7 +173,7 @@ func Newest(list []Installed, k Kind) (Installed, bool) {
 		if i.Kind != k {
 			continue
 		}
-		if !found || compareVersions(i.Version, best.Version) > 0 {
+		if !found || CompareVersions(i.Version, best.Version) > 0 {
 			best, found = i, true
 		}
 	}
@@ -188,7 +188,7 @@ func PHPByMajor(list []Installed, major string) (Installed, bool) {
 		if i.Kind != PHP || i.Major != major {
 			continue
 		}
-		if !found || compareVersions(i.Version, best.Version) > 0 {
+		if !found || CompareVersions(i.Version, best.Version) > 0 {
 			best, found = i, true
 		}
 	}
@@ -253,9 +253,9 @@ func majorOf(version string) string {
 	return parts[0] + "." + parts[1]
 }
 
-// compareVersions compara componente a componente numericamente; sufixos não
+// CompareVersions compara componente a componente numericamente; sufixos não
 // numéricos ("RC1") são ignorados dentro do componente; componentes ausentes valem 0.
-func compareVersions(a, b string) int {
+func CompareVersions(a, b string) int {
 	as, bs := strings.Split(a, "."), strings.Split(b, ".")
 	for i := 0; i < len(as) || i < len(bs); i++ {
 		var x, y int

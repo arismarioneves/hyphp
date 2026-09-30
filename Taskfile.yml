@@ -42,6 +42,7 @@ tasks:
       HYPHP_ROOT: '{{.ROOT_DIR}}/.runtime'
     cmds:
       - task: build:helper
+      - task: windows:build:cli
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
   build:helper:

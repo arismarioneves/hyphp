@@ -101,18 +101,18 @@ func TestRuntimeRootSegueHYPHPROOT(t *testing.T) {
 // A montagem do novo PATH é a parte que pode corromper o ambiente do usuário,
 // e é pura — o teste cobre exatamente ela. O registro em si fica de fora: o
 // teste não pode mexer no HKCU\Environment da máquina de quem roda a suíte.
-func TestPathComPHPNaoDuplica(t *testing.T) {
+func TestPathComDirNaoDuplica(t *testing.T) {
 	const dir = `C:\hyphp\bin\php\php-8.1.10`
 	atual := `C:\Windows;` + dir + `;C:\Git\cmd`
 
-	if got, mudou := pathComPHP(atual, dir); mudou {
+	if got, mudou := pathComDir(atual, dir); mudou {
 		t.Errorf("mudou = true para PATH que já contém o diretório; got %q", got)
 	}
 }
 
-func TestPathComPHPAcrescentaNoInicio(t *testing.T) {
+func TestPathComDirAcrescentaNoInicio(t *testing.T) {
 	const dir = `C:\hyphp\bin\php\php-8.1.10`
-	got, mudou := pathComPHP(`C:\Windows;C:\Git\cmd`, dir)
+	got, mudou := pathComDir(`C:\Windows;C:\Git\cmd`, dir)
 	if !mudou {
 		t.Fatal("mudou = false")
 	}
@@ -124,8 +124,8 @@ func TestPathComPHPAcrescentaNoInicio(t *testing.T) {
 }
 
 // PATH vazio é possível num perfil novo e não pode virar ";dir".
-func TestPathComPHPVazio(t *testing.T) {
-	got, mudou := pathComPHP("", `C:\php`)
+func TestPathComDirVazio(t *testing.T) {
+	got, mudou := pathComDir("", `C:\php`)
 	if !mudou || got != `C:\php` {
 		t.Errorf("got %q, %v", got, mudou)
 	}
