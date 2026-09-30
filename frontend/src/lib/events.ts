@@ -12,6 +12,7 @@ export const EVENTS = {
   stackWarnings: 'stack:warnings',
   settingsChanged: 'settings:changed',
   updateStatus: 'update:status',
+  cliActivity: 'cli:activity',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]

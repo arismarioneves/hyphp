@@ -1,5 +1,4 @@
 export const database = {
-  copied: 'copiado',
   invalidName: 'Nome inválido: use [a-z0-9_], até 64 caracteres.',
   installPma: 'Instalar phpMyAdmin',
   pmaNeedsMysql: 'Inicie o {engine} antes: sem servidor o phpMyAdmin abre com erro de conexão.',

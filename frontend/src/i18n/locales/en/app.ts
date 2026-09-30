@@ -8,6 +8,7 @@ export const app: typeof base = {
   database: 'Database',
   mail: 'Mail',
   logs: 'Logs',
+  cli: 'CLI',
   settings: 'Settings',
   status: 'Status',
   statusTitle: 'Service summary — click to open Services',

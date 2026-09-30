@@ -9,6 +9,7 @@ import { aggregateState, summarize } from './lib/status';
 import { useApplyTheme } from './lib/theme';
 import { useServices } from './lib/useServices';
 import { useSettings } from './lib/useSettings';
+import { Cli } from './screens/Cli';
 import { Dashboard } from './screens/Dashboard';
 import { Database } from './screens/Database';
 import { Logs } from './screens/Logs';
@@ -29,6 +30,7 @@ const SCREENS: Record<Screen, (props: ScreenProps) => ReactElement> = {
   database: Database,
   mail: Mail,
   logs: Logs,
+  cli: Cli,
   settings: Settings,
 };
 

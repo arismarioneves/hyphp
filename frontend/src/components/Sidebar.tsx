@@ -12,6 +12,7 @@ import {
   Sliders,
   SquaresFour,
   Stack,
+  TerminalWindow,
 } from '@phosphor-icons/react';
 import type { Screen } from '../lib/screens';
 import { useT } from '../i18n';
@@ -33,6 +34,7 @@ const MAIN_ITEMS: { screen: Screen; icon: Icon }[] = [
   { screen: 'database', icon: Database },
   { screen: 'mail', icon: EnvelopeSimple },
   { screen: 'logs', icon: Scroll },
+  { screen: 'cli', icon: TerminalWindow },
 ];
 
 type NavItemProps = {

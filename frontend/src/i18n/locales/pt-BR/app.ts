@@ -7,6 +7,7 @@ export const app = {
   database: 'Banco',
   mail: 'Mail',
   logs: 'Logs',
+  cli: 'CLI',
   settings: 'Configurações',
   status: 'Status',
   statusTitle: 'Resumo dos serviços — clique para abrir Serviços',

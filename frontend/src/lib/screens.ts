@@ -6,6 +6,7 @@ export type Screen =
   | 'database'
   | 'mail'
   | 'logs'
+  | 'cli'
   | 'settings';
 
 /** Ordem de exibição na sidebar (settings fica no rodapé). */
@@ -17,6 +18,7 @@ export const SCREENS: readonly Screen[] = [
   'database',
   'mail',
   'logs',
+  'cli',
   'settings',
 ];
 

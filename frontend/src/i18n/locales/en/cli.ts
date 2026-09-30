@@ -1,0 +1,26 @@
+import type { cli as base } from '../pt-BR/cli'
+
+export const cli: typeof base = {
+  label: 'CLI',
+  intro: 'Control HyPHP from the terminal: every command runs in this open app, with the same services as this window.',
+  listening: 'Listening',
+  notListening: 'Not connected',
+  address: 'Address',
+  copyAddress: 'Copy address',
+  executable: 'Executable',
+  copyExecutable: 'Copy path',
+  path: 'PATH',
+  onPath: 'on PATH',
+  addToPath: 'Add to PATH',
+  addToPathHint: 'Terminals opened after this find `hyphp`.',
+  exeMissing: 'This installation has no CLI ({exe}). Reinstall HyPHP to get it.',
+  aiHint: 'AI agents: every command accepts --json, and the exit code says whether it worked (0 ok, 3 app not running).',
+  activity: 'ACTIVITY',
+  activityHint: 'The last 100 commands received, newest first.',
+  noActivityTitle: 'No commands yet',
+  noActivityDescription: 'Run `hyphp status` in a terminal.',
+  commands: 'COMMANDS',
+  copyCommand: 'Copy {usage}',
+  ok: 'ok',
+  failed: 'error',
+}

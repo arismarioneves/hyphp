@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ArrowSquareOut, Copy, Database as DatabaseIcon, DownloadSimple, Plus, Trash } from '@phosphor-icons/react'
+import { ArrowSquareOut, Database as DatabaseIcon, DownloadSimple, Plus, Trash } from '@phosphor-icons/react'
 import { AppService, DatabaseService } from '../../bindings/hyphp/services'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
+import { CopyButton } from '../components/CopyButton'
 import { EmptyState } from '../components/EmptyState'
 import { SectionLabel } from '../components/SectionLabel'
 import { Skeleton } from '../components/Skeleton'
@@ -14,27 +15,6 @@ import { useT } from '../i18n'
 
 /** Mesma validação do mysqlcli.ValidateName no Go: o erro chega antes da ida ao backend. */
 const NAME_RE = /^[a-z0-9_]{1,64}$/
-
-function CopyButton({ text, label }: { text: string; label: string }) {
-  const t = useT('database')
-  const [done, setDone] = useState(false)
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      aria-label={label}
-      icon={<Copy size={14} />}
-      onClick={() => {
-        void navigator.clipboard.writeText(text).then(() => {
-          setDone(true)
-          setTimeout(() => setDone(false), 1200)
-        })
-      }}
-    >
-      {done ? t('copied') : undefined}
-    </Button>
-  )
-}
 
 export function Database({ onNavigate }: ScreenProps) {
   const t = useT('database')

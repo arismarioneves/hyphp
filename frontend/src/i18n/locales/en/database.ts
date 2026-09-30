@@ -1,7 +1,6 @@
 import type { database as base } from '../pt-BR/database'
 
 export const database: typeof base = {
-  copied: 'copied',
   invalidName: 'Invalid name: use [a-z0-9_], up to 64 characters.',
   installPma: 'Install phpMyAdmin',
   pmaNeedsMysql: 'Start {engine} first: without a server phpMyAdmin opens with a connection error.',
