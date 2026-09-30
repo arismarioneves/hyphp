@@ -20,6 +20,7 @@ import (
 
 	"hyphp/internal/i18n"
 	"hyphp/internal/pkgmgr"
+	"hyphp/internal/render"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
 )
@@ -49,7 +50,13 @@ type RuntimesService struct {
 	installed  []runtime.Installed
 	scanned    bool
 	installing map[string]context.CancelFunc // packageID → cancela o download em andamento
-	ctx        context.Context // de ServiceStartup; Background() antes disso
+	ctx        context.Context               // de ServiceStartup; Background() antes disso
+
+	// Consultas ao php.exe da série (runtime.PHPIniBuiltins/PHPIniKnows). São
+	// campos para que os testes das regras de php.ini não dependam de um PHP
+	// instalado na máquina.
+	iniBuiltins func(ctx context.Context, inst runtime.Installed, ext, names []string) (map[string]string, error)
+	iniKnows    func(ctx context.Context, inst runtime.Installed, ext []string, name, value string) (bool, error)
 }
 
 func NewRuntimesService(d RuntimesDeps) *RuntimesService {
@@ -57,7 +64,10 @@ func NewRuntimesService(d RuntimesDeps) *RuntimesService {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
 	}
-	return &RuntimesService{d: d, installing: map[string]context.CancelFunc{}, ctx: context.Background()}
+	return &RuntimesService{
+		d: d, installing: map[string]context.CancelFunc{}, ctx: context.Background(),
+		iniBuiltins: runtime.PHPIniBuiltins, iniKnows: runtime.PHPIniKnows,
+	}
 }
 
 // ServiceStartup (Wails) inicia o watcher de bin/. ctx é cancelado no shutdown.
@@ -396,6 +406,139 @@ func (r *RuntimesService) enabledExtensions(major string) []string {
 		return list
 	}
 	return runtime.DefaultExtensions
+}
+
+// IniSetting é uma linha do painel de php.ini: o valor efetivo da diretiva na
+// série e de onde ele vem.
+type IniSetting struct {
+	Name         string `json:"name"`
+	Value        string `json:"value"`        // o que vai valer nos workers
+	DefaultValue string `json:"defaultValue"` // o que vale sem a escolha do usuário
+	Source       string `json:"source"`       // "user" | "hyphp" | "php"
+}
+
+// curatedIni são as diretivas que o painel mostra sempre: as que projetos
+// comuns (Moodle, Magento, WordPress com importação grande) pedem para mudar.
+var curatedIni = []string{
+	"memory_limit", "max_execution_time", "max_input_time", "max_input_vars",
+	"post_max_size", "upload_max_filesize", "display_errors", "error_reporting",
+	"date.timezone", "opcache.enable",
+}
+
+// iniProbeTimeout limita cada consulta ao php.exe; o PHP responde em
+// milissegundos, mas um antivírus inspecionando o exe não pode travar a UI.
+const iniProbeTimeout = 15 * time.Second
+
+// IniSettings lista as diretivas curadas e as que o usuário definiu para a
+// série, com valor efetivo, padrão e origem. Curadas primeiro, na ordem da
+// lista; depois as extras por nome.
+func (r *RuntimesService) IniSettings(major string) ([]IniSetting, error) {
+	inst, ok := runtime.PHPByMajor(r.Installed(), major)
+	if !ok {
+		return nil, i18n.Errorf("err.runtimes.phpMissing", major)
+	}
+	user := r.d.State.PHPIni[major]
+	names := slices.Clone(curatedIni)
+	var extras []string
+	for name := range user {
+		if !slices.Contains(names, name) {
+			extras = append(extras, name)
+		}
+	}
+	sort.Strings(extras)
+	names = append(names, extras...)
+
+	ctx, cancel := context.WithTimeout(r.ctx, iniProbeTimeout)
+	defer cancel()
+	builtin, err := r.iniBuiltins(ctx, inst, r.enabledExtensions(major), slices.DeleteFunc(slices.Clone(names), func(n string) bool { return !runtime.ValidIniName(n) }))
+	if err != nil {
+		return nil, i18n.Errorf("err.runtimes.iniProbe", major, err)
+	}
+	hyphp := map[string]string{}
+	for _, d := range render.PHPIniDefaults() {
+		hyphp[d.Name] = d.Value
+	}
+
+	out := make([]IniSetting, 0, len(names))
+	for _, name := range names {
+		s := IniSetting{Name: name}
+		if v, ok := hyphp[name]; ok {
+			s.DefaultValue, s.Source = v, "hyphp"
+		} else if v, ok := builtin[name]; ok {
+			s.DefaultValue, s.Source = v, "php"
+		} else if _, ok := user[name]; !ok {
+			continue // curada que este PHP não conhece (ex.: extensão ausente)
+		}
+		s.Value = s.DefaultValue
+		if v, ok := user[name]; ok {
+			s.Value, s.Source = v, "user"
+		}
+		out = append(out, s)
+	}
+	return out, nil
+}
+
+// SetIniSetting define name=value no php.ini da série e persiste em
+// state.PHPIni. O Reconcile que o notify dispara regrava o php.ini e reinicia
+// só os workers dessa série.
+func (r *RuntimesService) SetIniSetting(major, name, value string) error {
+	name = strings.TrimSpace(name)
+	value = strings.TrimSpace(value)
+	if !runtime.ValidIniName(name) {
+		return i18n.Errorf("err.runtimes.iniName", name)
+	}
+	if render.IsManagedIniDirective(name) {
+		return i18n.Errorf("err.runtimes.iniManaged", name)
+	}
+	if value == "" || strings.ContainsAny(value, "\r\n") {
+		return i18n.Errorf("err.runtimes.iniValue", name)
+	}
+	inst, ok := runtime.PHPByMajor(r.Installed(), major)
+	if !ok {
+		return i18n.Errorf("err.runtimes.phpMissing", major)
+	}
+	ctx, cancel := context.WithTimeout(r.ctx, iniProbeTimeout)
+	defer cancel()
+	known, err := r.iniKnows(ctx, inst, r.enabledExtensions(major), name, value)
+	if err != nil {
+		return i18n.Errorf("err.runtimes.iniProbe", major, err)
+	}
+	if !known {
+		return i18n.Errorf("err.runtimes.iniUnknown", major, name)
+	}
+
+	if r.d.State.PHPIni == nil {
+		r.d.State.PHPIni = map[string]map[string]string{}
+	}
+	if r.d.State.PHPIni[major] == nil {
+		r.d.State.PHPIni[major] = map[string]string{}
+	}
+	r.d.State.PHPIni[major][name] = value
+	return r.saveIni()
+}
+
+// ResetIniSetting apaga a escolha do usuário; a diretiva volta ao padrão do
+// HyPHP ou do PHP. Sem diretivas, a série sai do mapa para o state.json não
+// acumular objetos vazios.
+func (r *RuntimesService) ResetIniSetting(major, name string) error {
+	if _, ok := r.d.State.PHPIni[major][name]; !ok {
+		return nil
+	}
+	delete(r.d.State.PHPIni[major], name)
+	if len(r.d.State.PHPIni[major]) == 0 {
+		delete(r.d.State.PHPIni, major)
+	}
+	return r.saveIni()
+}
+
+// saveIni persiste state.PHPIni e dispara o Reconcile, como SetExtension.
+func (r *RuntimesService) saveIni() error {
+	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
+		return i18n.Errorf("err.runtimes.saveState", err)
+	}
+	r.emit("settings:changed", *r.d.State)
+	r.notify(r.Installed())
+	return nil
 }
 
 func (r *RuntimesService) find(kind runtime.Kind, version string) (runtime.Installed, bool) {

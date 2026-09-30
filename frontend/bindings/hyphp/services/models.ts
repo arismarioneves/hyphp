@@ -22,6 +22,29 @@ export interface DBInfo {
 }
 
 /**
+ * IniSetting é uma linha do painel de php.ini: o valor efetivo da diretiva na
+ * série e de onde ele vem.
+ */
+export interface IniSetting {
+    "name": string;
+
+    /**
+     * o que vai valer nos workers
+     */
+    "value": string;
+
+    /**
+     * o que vale sem a escolha do usuário
+     */
+    "defaultValue": string;
+
+    /**
+     * "user" | "hyphp" | "php"
+     */
+    "source": string;
+}
+
+/**
  * LogSource é uma origem de log oferecida à tela Logs.
  */
 export interface LogSource {

@@ -42,10 +42,14 @@ type State struct {
 	Roots            []string            `json:"roots"`                   // diretórios-raiz de projetos
 	PortAlloc        map[string][]int    `json:"portAlloc"`               // "php:8.1" → portas reservadas
 	PHPExtensions    map[string][]string `json:"phpExtensions,omitempty"` // série "8.1" → extensões habilitadas; ausente = runtime.DefaultExtensions
-	Editor           string              `json:"editor"`                  // caminho do exe ou "" (usa `code`)
-	Terminal         string              `json:"terminal"`                // "" = wt.exe se existir, senão cmd
-	SidebarCollapsed bool                `json:"sidebarCollapsed"`
-	Autostart        bool                `json:"autostart"`
+	// PHPIni são as diretivas que o usuário definiu por série ("8.3" →
+	// "max_input_vars" → "5000"). Vão para o fim do php.ini, depois dos
+	// padrões do HyPHP, e por isso passam por cima deles.
+	PHPIni           map[string]map[string]string `json:"phpIni,omitempty"`
+	Editor           string                       `json:"editor"`   // caminho do exe ou "" (usa `code`)
+	Terminal         string                       `json:"terminal"` // "" = wt.exe se existir, senão cmd
+	SidebarCollapsed bool                         `json:"sidebarCollapsed"`
+	Autostart        bool                         `json:"autostart"`
 	// AutoUpdateOff desliga a verificação periódica de versões. Invertido de
 	// propósito: o zero-value (ausente em state.json antigo) significa ligado.
 	AutoUpdateOff bool `json:"autoUpdateOff"`

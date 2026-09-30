@@ -12,6 +12,10 @@ import * as pkgmgr$0 from "../internal/pkgmgr/models.js";
 // @ts-ignore: Unused imports
 import * as runtime$0 from "../internal/runtime/models.js";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
 /**
  * Available devolve os pacotes do catálogo cuja (Kind, Version) não está instalada.
  */
@@ -41,6 +45,15 @@ export function Extensions(major: string): $CancellablePromise<runtime$0.Extensi
  */
 export function ImportFrom(dir: string): $CancellablePromise<void> {
     return $Call.ByID(2554744644, dir);
+}
+
+/**
+ * IniSettings lista as diretivas curadas e as que o usuário definiu para a
+ * série, com valor efetivo, padrão e origem. Curadas primeiro, na ordem da
+ * lista; depois as extras por nome.
+ */
+export function IniSettings(major: string): $CancellablePromise<$models.IniSetting[] | null> {
+    return $Call.ByID(2495167728, major);
 }
 
 /**
@@ -85,6 +98,15 @@ export function Rescan(): $CancellablePromise<void> {
 }
 
 /**
+ * ResetIniSetting apaga a escolha do usuário; a diretiva volta ao padrão do
+ * HyPHP ou do PHP. Sem diretivas, a série sai do mapa para o state.json não
+ * acumular objetos vazios.
+ */
+export function ResetIniSetting(major: string, name: string): $CancellablePromise<void> {
+    return $Call.ByID(616363750, major, name);
+}
+
+/**
  * SetDefaultPHP grava state.DefaultPHP e notifica (settings:changed + runtime:changed).
  */
 export function SetDefaultPHP(major: string): $CancellablePromise<void> {
@@ -96,4 +118,13 @@ export function SetDefaultPHP(major: string): $CancellablePromise<void> {
  */
 export function SetExtension(major: string, name: string, on: boolean): $CancellablePromise<void> {
     return $Call.ByID(3681623404, major, name, on);
+}
+
+/**
+ * SetIniSetting define name=value no php.ini da série e persiste em
+ * state.PHPIni. O Reconcile que o notify dispara regrava o php.ini e reinicia
+ * só os workers dessa série.
+ */
+export function SetIniSetting(major: string, name: string, value: string): $CancellablePromise<void> {
+    return $Call.ByID(4262887465, major, name, value);
 }

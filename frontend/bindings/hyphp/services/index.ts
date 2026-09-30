@@ -23,5 +23,6 @@ export {
 export type {
     Credentials,
     DBInfo,
+    IniSetting,
     LogSource
 } from "./models.js";

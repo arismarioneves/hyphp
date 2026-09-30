@@ -235,7 +235,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	iniChanged := map[string]bool{}
 	for _, pool := range out.Pools {
 		inst, _ := runtime.PHPByMajor(runtime.ByKind(rts, runtime.PHP), pool.Version)
-		changed, err := s.renderPHPIni(inst, pool.Version, out.Extensions[pool.Version], st.MailpitSMTPPort)
+		changed, err := s.renderPHPIni(inst, pool.Version, out.Extensions[pool.Version], st.MailpitSMTPPort, st.PHPIni[pool.Version])
 		if err != nil {
 			return s.finish(warnings), err
 		}
@@ -452,7 +452,7 @@ func ensureWebDirs(etcDir string) {
 }
 
 // renderPHPIni grava etc/php/<major>/php.ini se o conteúdo mudou.
-func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string, smtpPort int) (bool, error) {
+func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string, smtpPort int, userIni map[string]string) (bool, error) {
 	dir := filepath.Join(paths.Etc(), "php", major)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", dir, err)
@@ -461,7 +461,7 @@ func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string,
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", tmpDir, err)
 	}
-	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort)
+	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, userIni)
 	changed, err := render.WriteFiles(dir, map[string][]byte{"php.ini": content})
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar php.ini %s: %w", major, err)

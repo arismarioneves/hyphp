@@ -7,9 +7,10 @@ import { dashboard } from './dashboard'
 import { projects } from './projects'
 import { services } from './services'
 import { runtimes } from './runtimes'
+import { phpini } from './phpini'
 import { database } from './database'
 import { mail } from './mail'
 import { logs } from './logs'
 import { settings } from './settings'
 
-export const ptBR = { common, app, dashboard, projects, services, runtimes, database, mail, logs, settings }
+export const ptBR = { common, app, dashboard, projects, services, runtimes, phpini, database, mail, logs, settings }

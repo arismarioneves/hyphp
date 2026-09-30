@@ -16,6 +16,7 @@ import { useSettings } from '../lib/useSettings'
 import { errorText } from '../lib/errors'
 import { useT } from '../i18n'
 import type { runtimes } from '../i18n/locales/pt-BR/runtimes'
+import { PhpIniPanel } from './PhpIniPanel'
 
 const TABS: Array<{ kind: RuntimeKind; label: string }> = [
   { kind: 'php', label: 'PHP' },
@@ -77,9 +78,11 @@ type InstalledCardProps = {
 
 function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
   const t = useT('runtimes')
+  const tIni = useT('phpini')
   const [confirmRemove, setConfirmRemove] = useState(false)
   const [busy, setBusy] = useState(false)
   const [showExt, setShowExt] = useState(false)
+  const [showIni, setShowIni] = useState(false)
   const [extensions, setExtensions] = useState<Extension[] | null>(null)
 
   // `Installed.kind` é o enum gerado `runtime.Kind` (nominal no TS): alarga para
@@ -161,6 +164,16 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
               {t('extensions')}
             </Button>
           )}
+          {isPhp && (
+            <Button
+              variant={showIni ? 'secondary' : 'ghost'}
+              size="sm"
+              aria-pressed={showIni}
+              onClick={() => setShowIni((v) => !v)}
+            >
+              {tIni('toggle')}
+            </Button>
+          )}
           {confirmRemove ? (
             <>
               <span className="text-xs text-fg-muted">{t('removeConfirm')}</span>
@@ -214,6 +227,7 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
           )}
         </div>
       )}
+      {showIni && isPhp && <PhpIniPanel major={inst.major} />}
     </Card>
   )
 }

@@ -77,6 +77,13 @@ export interface State {
     "phpExtensions"?: { [_ in string]?: string[] | null } | null;
 
     /**
+     * PHPIni são as diretivas que o usuário definiu por série ("8.3" →
+     * "max_input_vars" → "5000"). Vão para o fim do php.ini, depois dos
+     * padrões do HyPHP, e por isso passam por cima deles.
+     */
+    "phpIni"?: { [_ in string]?: { [_ in string]?: string } | null } | null;
+
+    /**
      * caminho do exe ou "" (usa `code`)
      */
     "editor": string;
