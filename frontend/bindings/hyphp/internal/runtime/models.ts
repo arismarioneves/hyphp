@@ -68,6 +68,7 @@ export enum Kind {
     Apache = "apache",
     Nginx = "nginx",
     MySQL = "mysql",
+    MariaDB = "mariadb",
     Mailpit = "mailpit",
     Mkcert = "mkcert",
     PhpMyAdmin = "phpmyadmin",

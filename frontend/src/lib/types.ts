@@ -41,5 +41,5 @@ export type Progress = {
   error: string
 }
 
-export type RuntimeKind = 'php' | 'apache' | 'nginx' | 'mysql' | 'mailpit' | 'mkcert' | 'phpmyadmin'
+export type RuntimeKind = 'php' | 'apache' | 'nginx' | 'mysql' | 'mariadb' | 'mailpit' | 'mkcert' | 'phpmyadmin'
 export type WebServerName = 'apache' | 'nginx'

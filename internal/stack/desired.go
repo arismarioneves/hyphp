@@ -513,18 +513,26 @@ const (
 	MailpitSpecID = "mailpit"
 )
 
-// mysqlSpec devolve o spec do MySQL, ou ok=false quando não há MySQL em bin/.
+// mysqlSpec devolve o spec do servidor de banco — MySQL ou MariaDB, pelo
+// DBRuntime —, ou ok=false quando não há o que subir. O ID continua "mysql"
+// nos dois motores: é o serviço de banco da stack, e a UI, o Banco e o
+// phpMyAdmin o procuram por esse nome. inst.Exe já é o servidor do motor
+// (mysqld.exe ou mariadbd.exe).
 func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
-	inst, ok := runtime.Newest(in.Runtimes, runtime.MySQL)
+	inst, ok := DBRuntime(in.Runtimes, in.State)
 	if !ok {
 		return supervisor.Spec{}, false
+	}
+	logName := "mysql.log"
+	if inst.Kind == runtime.MariaDB {
+		logName = "mariadb.log"
 	}
 	addr := fmt.Sprintf("127.0.0.1:%d", in.State.MySQLPort)
 	return supervisor.Spec{
 		ID:    MySQLSpecID,
-		Name:  "MySQL " + inst.Version,
+		Name:  DBName(inst.Kind) + " " + inst.Version,
 		Group: "db",
-		Exe:   filepath.Join(inst.Dir, "bin", "mysqld.exe"),
+		Exe:   inst.Exe,
 		Args: []string{
 			"--defaults-file=" + MyIniPath(in.EtcDir),
 			"--console",
@@ -534,7 +542,7 @@ func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 		Probe:        &supervisor.MySQLProbe{Addr: addr},
 		ProbeTimeout: 60 * time.Second,
 		Restart:      defaultRestart(),
-		LogPath:      filepath.Join(in.LogDir, "mysql.log"),
+		LogPath:      filepath.Join(in.LogDir, logName),
 	}, true
 }
 

@@ -22,4 +22,5 @@ export const dashboard: typeof base = {
   fixRegisterDns: 'Register DNS rule',
   fixInstallCompatiblePhp: 'Install compatible PHP',
   fixReviewProject: 'Review project',
+  fixInstallDb: 'Install database',
 }

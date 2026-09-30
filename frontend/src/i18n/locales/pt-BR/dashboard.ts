@@ -20,4 +20,5 @@ export const dashboard = {
   fixRegisterDns: 'Registrar regra de DNS',
   fixInstallCompatiblePhp: 'Instalar PHP compatível',
   fixReviewProject: 'Revisar projeto',
+  fixInstallDb: 'Instalar banco',
 }

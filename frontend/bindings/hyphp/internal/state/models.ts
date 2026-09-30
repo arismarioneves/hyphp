@@ -113,6 +113,13 @@ export interface State {
      * do Windows (i18n.Resolve).
      */
     "language": string;
+
+    /**
+     * DBEngine é o banco ativo: "mysql" ou "mariadb". Um de cada vez, na
+     * MySQLPort, cada um com o próprio datadir. Vazio vale "mysql", o único
+     * até a v3.
+     */
+    "dbEngine": string;
 }
 
 /**

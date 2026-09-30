@@ -26,6 +26,11 @@ type Credentials struct {
 	Password string `json:"password"`
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
+	// Engine é o motor no ar ("mysql" ou "mariadb", vazio sem banco) e
+	// Client o comando de linha do cliente dele, para o comando de conexão
+	// que a tela mostra.
+	Engine string `json:"engine"`
+	Client string `json:"client"`
 }
 
 // ErrMySQLIndisponivel é devolvido quando não há MySQL instalado ou o serviço
@@ -117,7 +122,14 @@ func (d *DatabaseService) Drop(name string) error {
 // resultado do --initialize-insecure. É ambiente de desenvolvimento escutando
 // só em loopback; a senha vazia é decisão registrada, não descuido.
 func (d *DatabaseService) Credentials() Credentials {
-	return Credentials{User: "root", Password: "", Host: "127.0.0.1", Port: d.stk.State().MySQLPort}
+	c := Credentials{User: "root", Password: "", Host: "127.0.0.1", Port: d.stk.State().MySQLPort, Client: "mysql"}
+	if inst, ok := stack.DBRuntime(d.runtimes(), d.stk.State()); ok {
+		c.Engine = string(inst.Kind)
+		if inst.Kind == runtime.MariaDB {
+			c.Client = "mariadb"
+		}
+	}
+	return c
 }
 
 // PhpMyAdminURL é a URL do vhost dedicado da ferramenta, ou "" quando ela não
@@ -130,11 +142,11 @@ func (d *DatabaseService) PhpMyAdminURL() string {
 	return fmt.Sprintf("http://127.0.0.1:%d", d.stk.State().PhpMyAdminPort)
 }
 
-// client exige MySQL instalado e ready.
+// client exige o servidor de banco instalado e ready.
 func (d *DatabaseService) client() (mysqlcli.Client, error) {
-	// O mesmo MySQL que a stack sobe: o cliente de outra versão até
-	// conectaria, mas mysqldump e afins têm de casar com o servidor.
-	inst, ok := runtime.Newest(d.runtimes(), runtime.MySQL)
+	// O mesmo servidor que a stack sobe (motor e versão): o cliente de outro
+	// até conectaria, mas mysqldump e afins têm de casar com o servidor.
+	inst, ok := stack.DBRuntime(d.runtimes(), d.stk.State())
 	if !ok {
 		return mysqlcli.Client{}, ErrMySQLIndisponivel
 	}

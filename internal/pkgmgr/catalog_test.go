@@ -19,7 +19,7 @@ func TestLoadEmbedded(t *testing.T) {
 	if c.UpdatedAt == "" || len(c.Packages) == 0 {
 		t.Fatalf("catálogo vazio: %+v", c)
 	}
-	known := map[runtime.Kind]bool{runtime.PHP: true, runtime.Apache: true, runtime.Nginx: true, runtime.MySQL: true, runtime.Mailpit: true, runtime.Mkcert: true, runtime.PhpMyAdmin: true}
+	known := map[runtime.Kind]bool{runtime.PHP: true, runtime.Apache: true, runtime.Nginx: true, runtime.MySQL: true, runtime.MariaDB: true, runtime.Mailpit: true, runtime.Mkcert: true, runtime.PhpMyAdmin: true}
 	ids := map[string]bool{}
 	for _, p := range c.Packages {
 		t.Run(p.ID, func(t *testing.T) {

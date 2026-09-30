@@ -215,10 +215,35 @@ func TestParseMySQLVersion(t *testing.T) {
 			"8.4.11", "x64", false,
 		},
 		{"sem Ver", "mysqld: unknown option '--versionx'", "", "", true},
+		// O zip do MariaDB traz um mysqld.exe que responde assim.
+		{"mysqld do MariaDB", "C:/x/mariadb-10.11.19-winx64/bin/mysqld.exe  Ver 10.11.19-MariaDB for Win64 on AMD64 (MariaDB Server)", "", "", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			version, arch, err := parseMySQLVersion(c.out)
+			if (err != nil) != c.wantErr {
+				t.Fatalf("err = %v; wantErr %v", err, c.wantErr)
+			}
+			if version != c.version || arch != c.arch {
+				t.Fatalf("got (%q, %q); want (%q, %q)", version, arch, c.version, c.arch)
+			}
+		})
+	}
+}
+
+// Saídas reais do mariadbd.exe --no-defaults --version (10.11.19 e 12.3.3).
+func TestParseMariaDBVersion(t *testing.T) {
+	cases := []struct {
+		name, out, version, arch string
+		wantErr                  bool
+	}{
+		{"10.11", "C:/DEV/.mariadb/mariadb-10.11.19-winx64/bin/mariadbd.exe  Ver 10.11.19-MariaDB for Win64 on AMD64 (MariaDB Server)", "10.11.19", "x64", false},
+		{"12.3", "C:/DEV/.mariadb/mariadb-12.3.3-winx64/bin/mariadbd.exe  Ver 12.3.3-MariaDB for Win64 on AMD64 (MariaDB Server)\r\n", "12.3.3", "x64", false},
+		{"mysqld do MySQL não é MariaDB", "mysqld.exe  Ver 8.4.11 for Win64 on x86_64 (MySQL Community Server - GPL)", "", "", true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			version, arch, err := parseMariaDBVersion(c.out)
 			if (err != nil) != c.wantErr {
 				t.Fatalf("err = %v; wantErr %v", err, c.wantErr)
 			}

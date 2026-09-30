@@ -24,6 +24,12 @@ const (
 	ThemeSystem = "system"
 )
 
+// Valores de State.DBEngine.
+const (
+	DBMySQL   = "mysql"
+	DBMariaDB = "mariadb"
+)
+
 // State é o conteúdo de state.json. Campos ausentes no arquivo mantêm o valor de Default().
 type State struct {
 	SchemaVersion   int           `json:"schemaVersion"`   // 1
@@ -60,6 +66,10 @@ type State struct {
 	// Language é o idioma da interface ("pt-BR", "en"). Vazio segue o idioma
 	// do Windows (i18n.Resolve).
 	Language string `json:"language"`
+	// DBEngine é o banco ativo: "mysql" ou "mariadb". Um de cada vez, na
+	// MySQLPort, cada um com o próprio datadir. Vazio vale "mysql", o único
+	// até a v3.
+	DBEngine string `json:"dbEngine"`
 }
 
 // Default é o estado da primeira execução.

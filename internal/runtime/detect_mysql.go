@@ -26,6 +26,12 @@ func detectMySQL(ctx context.Context, dir, exe string) (Installed, error) {
 //
 //	C:\...\mysqld.exe  Ver 8.0.30 for Win64 on x86_64 (MySQL Community Server - GPL)
 func parseMySQLVersion(out string) (version, arch string, err error) {
+	// O zip do MariaDB também tem um mysqld.exe, que responde no mesmo
+	// formato. Uma pasta dele largada em bin/mysql subiria como MySQL 11.x e
+	// com o datadir do MySQL.
+	if mariadbVersionRe.MatchString(out) {
+		return "", "", fmt.Errorf("runtime: este mysqld é do MariaDB; a pasta vai em bin/mariadb: %q", strings.TrimSpace(out))
+	}
 	m := mysqlVersionRe.FindStringSubmatch(out)
 	if m == nil {
 		return "", "", fmt.Errorf("runtime: saída inesperada do mysqld: %q", strings.TrimSpace(out))

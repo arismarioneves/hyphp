@@ -14,6 +14,7 @@ import type { Extension, Installed, Package, Progress, RuntimeKind } from '../li
 import { useRuntimes } from '../lib/useRuntimes'
 import { useSettings } from '../lib/useSettings'
 import { errorText } from '../lib/errors'
+import { compareVersionDesc } from '../lib/versions'
 import { useT } from '../i18n'
 import type { runtimes } from '../i18n/locales/pt-BR/runtimes'
 import { PhpIniPanel } from './PhpIniPanel'
@@ -23,6 +24,7 @@ const TABS: Array<{ kind: RuntimeKind; label: string }> = [
   { kind: 'apache', label: 'Apache' },
   { kind: 'nginx', label: 'nginx' },
   { kind: 'mysql', label: 'MySQL' },
+  { kind: 'mariadb', label: 'MariaDB' },
   { kind: 'mailpit', label: 'Mailpit' },
   // mkcert estava no catálogo mas não tinha aba: não havia como instalá-lo
   // pela UI, e o aviso tls-unavailable apontava para uma ação inexistente.
@@ -47,23 +49,6 @@ const PHASE_LABELS: Record<string, keyof typeof runtimes> = {
 
 const KB = 1024
 const MB = 1024 * 1024
-
-
-/**
- * Ordena da versão mais nova para a mais antiga comparando segmento a segmento:
- * a ordem lexicográfica colocaria "8.1.9" acima de "8.1.10".
- */
-function compareVersionDesc(a: string, b: string): number {
-  const left = a.split('.')
-  const right = b.split('.')
-  const len = Math.max(left.length, right.length)
-  for (let i = 0; i < len; i++) {
-    const na = Number.parseInt(left[i] || '0', 10) || 0
-    const nb = Number.parseInt(right[i] || '0', 10) || 0
-    if (na !== nb) return nb - na
-  }
-  return 0
-}
 
 function formatBytes(n: number): string {
   if (n < MB) return `${Math.round(n / KB)} KB`

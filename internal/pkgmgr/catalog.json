@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-09-25",
+  "updatedAt": "2026-09-30",
   "packages": [
     {
       "id": "php-7.2.34-nts-vc15-x64",
@@ -120,6 +120,46 @@
       "compiler": "",
       "arch": "x64",
       "notes": "MySQL Community Server 8.0, ZIP Archive Windows x86 64-bit (248009349 bytes). MD5 publicado 003f527d5df61b663ff191038cd676bd conferido; SHA-256 calculado localmente em 2026-09-20. Compativel com datadir do 8.0.30 do Laragon (upgrade in-place)."
+    },
+    {
+      "id": "mariadb-12.3.3-winx64",
+      "kind": "mariadb",
+      "version": "12.3.3",
+      "url": "https://archive.mariadb.org/mariadb-12.3.3/winx64-packages/mariadb-12.3.3-winx64.zip",
+      "sha256": "4b5706b47148b47c8f36963c8352d1ddee37a1287b4690428f631a74b09b85a0",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "MariaDB Server 12.3.3 (LTS ate 2029-06), ZIP winx64 (104081715 bytes). SHA-256 da API oficial downloads.mariadb.org/rest-api/mariadb/12.3/latest/, conferido no download em 2026-09-30. Raiz unica mariadb-12.3.3-winx64/; bin/ tem mariadbd.exe, mariadb-install-db.exe e mariadb.exe."
+    },
+    {
+      "id": "mariadb-11.8.9-winx64",
+      "kind": "mariadb",
+      "version": "11.8.9",
+      "url": "https://archive.mariadb.org/mariadb-11.8.9/winx64-packages/mariadb-11.8.9-winx64.zip",
+      "sha256": "830c46727d9278eae212ae3eca44eeb9e71b2a68704e95f344a64fba7b1963f5",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "MariaDB Server 11.8.9 (LTS ate 2030-02), ZIP winx64 (97016251 bytes). SHA-256 da API oficial downloads.mariadb.org/rest-api/mariadb/11.8/latest/, conferido no download em 2026-09-30. Raiz unica mariadb-11.8.9-winx64/; bin/ tem mariadbd.exe, mariadb-install-db.exe e mariadb.exe."
+    },
+    {
+      "id": "mariadb-11.4.13-winx64",
+      "kind": "mariadb",
+      "version": "11.4.13",
+      "url": "https://archive.mariadb.org/mariadb-11.4.13/winx64-packages/mariadb-11.4.13-winx64.zip",
+      "sha256": "d62986d433eeebfde218560b276103831604a61e929e87f1a17f5aebd80257e2",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "MariaDB Server 11.4.13 (LTS ate 2029-05), ZIP winx64 (95024126 bytes). SHA-256 da API oficial downloads.mariadb.org/rest-api/mariadb/11.4/latest/, conferido no download em 2026-09-30. Raiz unica mariadb-11.4.13-winx64/; bin/ tem mariadbd.exe, mariadb-install-db.exe e mariadb.exe."
+    },
+    {
+      "id": "mariadb-10.11.19-winx64",
+      "kind": "mariadb",
+      "version": "10.11.19",
+      "url": "https://archive.mariadb.org/mariadb-10.11.19/winx64-packages/mariadb-10.11.19-winx64.zip",
+      "sha256": "398ea30e5036010bbebe01d2b1804280424dcc2626e36d8e95155c04d25a0490",
+      "compiler": "",
+      "arch": "x64",
+      "notes": "MariaDB Server 10.11.19 (LTS ate 2028-02), ZIP winx64 (93557290 bytes). SHA-256 da API oficial downloads.mariadb.org/rest-api/mariadb/10.11/latest/, conferido no download em 2026-09-30. Raiz unica mariadb-10.11.19-winx64/; bin/ tem mariadbd.exe, mariadb-install-db.exe e mariadb.exe."
     },
     {
       "id": "mailpit-1.31.1",

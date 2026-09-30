@@ -10,6 +10,7 @@ import { Skeleton } from '../components/Skeleton'
 import { StatusDot, type ServiceState } from '../components/StatusDot'
 import type { Screen, ScreenProps } from '../lib/screens'
 import { phpPools } from '../lib/status'
+import { newestVersions } from '../lib/versions'
 import type { Installed, RuntimeKind, ServiceStatus } from '../lib/types'
 import { useProjects } from '../lib/useProjects'
 import { useRuntimes } from '../lib/useRuntimes'
@@ -37,6 +38,7 @@ const ONDE_RESOLVER: Record<string, { tela?: Screen; run?: () => Promise<void>; 
   // em Runtimes que ela está.
   'pma-sem-php': { tela: 'runtimes', acao: 'fixInstallCompatiblePhp' },
   'docroot-sem-indice': { tela: 'projects', acao: 'fixReviewProject' },
+  'db-engine-missing': { tela: 'runtimes', acao: 'fixInstallDb' },
 }
 
 // `Installed.kind` é o enum gerado `runtime.Kind`; comparar com os literais de
@@ -50,8 +52,7 @@ function phpVersionFor(installed: Installed[], major: string): string {
 }
 
 function stackRows(services: ServiceStatus[], installed: Installed[]): StackRow[] {
-  const versions: Record<string, string> = {}
-  for (const i of installed) versions[i.kind as string] ??= i.version
+  const versions = newestVersions(installed)
 
   const rows: StackRow[] = []
   const web = services.find((s) => s.group === 'web')
@@ -73,8 +74,13 @@ function stackRows(services: ServiceStatus[], installed: Installed[]): StackRow[
       extra: `${pool.ready}/${pool.total} workers`,
     })
   }
+  // O serviço "mysql" roda o motor escolhido; o nome que o Go dá a ele
+  // ("MySQL 8.4.11", "MariaDB 11.4.13") já traz motor e versão.
   const db = services.find((s) => s.id === 'mysql')
-  if (db) rows.push({ key: db.id, state: db.state as ServiceState, name: 'MySQL', version: versions.mysql ?? '—' })
+  if (db) {
+    const [engine, ...rest] = db.name.split(' ')
+    rows.push({ key: db.id, state: db.state as ServiceState, name: engine, version: rest.join(' ') || '—' })
+  }
   const mail = services.find((s) => s.id === 'mailpit')
   if (mail) rows.push({ key: mail.id, state: mail.state as ServiceState, name: 'Mailpit', version: versions.mailpit ?? '—' })
   return rows
@@ -136,7 +142,7 @@ export function Dashboard({ onNavigate }: ScreenProps) {
     ? [
         { label: 'HTTP', port: settings.httpPort },
         { label: 'HTTPS', port: settings.httpsPort },
-        { label: 'MySQL', port: settings.mysqlPort },
+        { label: services.find((s) => s.id === 'mysql')?.name.split(' ')[0] ?? 'MySQL', port: settings.mysqlPort },
         { label: 'SMTP (Mailpit)', port: settings.mailpitSmtpPort },
         { label: 'Mailpit UI', port: settings.mailpitHttpPort },
         ...services

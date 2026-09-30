@@ -161,14 +161,22 @@ func TestPHPIniDefaultsBatemComArquivo(t *testing.T) {
 }
 
 func TestRenderMyIniGolden(t *testing.T) {
-	got := RenderMyIni(3306, "C:/hyphp/bin/mysql/mysql-8.0.30-winx64", "C:/hyphp/var/mysql", "C:/hyphp/log", true)
+	got := RenderMyIni(3306, "C:/hyphp/bin/mysql/mysql-8.0.30-winx64", "C:/hyphp/var/mysql", "C:/hyphp/log", true, false)
 	checkGolden(t, "my.ini.golden", got)
+}
+
+// O MariaDB recusa opção desconhecida: com `mysqlx` no arquivo ele nem sobe.
+// O resto (skip-log-bin, bind-address com dois endereços) foi conferido num
+// MariaDB 10.11.19 e num 12.3.3 reais.
+func TestRenderMyIniMariaDBGolden(t *testing.T) {
+	got := RenderMyIni(3306, "C:/hyphp/bin/mariadb/mariadb-11.4.13-winx64", "C:/hyphp/var/mariadb-data", "C:/hyphp/log", true, true)
+	checkGolden(t, "my.ini.mariadb.golden", got)
 }
 
 // Sem ::1 na máquina o mysqld aborta ao não conseguir escutar num dos
 // endereços da lista; aí só o IPv4 pode ir para o bind-address.
 func TestRenderMyIniSemIPv6(t *testing.T) {
-	got := string(RenderMyIni(3306, "C:/m", "C:/d", "C:/l", false))
+	got := string(RenderMyIni(3306, "C:/m", "C:/d", "C:/l", false, false))
 	if !strings.Contains(got, "\nbind-address = 127.0.0.1\n") {
 		t.Fatalf("bind-address devia ser só 127.0.0.1:\n%s", got)
 	}

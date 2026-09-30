@@ -197,7 +197,7 @@ func (r *RuntimesService) Remove(kind, version string) error {
 // direto em bin/<kind>/, sem pasta por versão, e pesam poucos megabytes no
 // catálogo: importá-los exigiria tratar um segundo layout de destino sem poupar
 // download nenhum.
-var kindsImportaveis = []runtime.Kind{runtime.PHP, runtime.Apache, runtime.Nginx, runtime.MySQL}
+var kindsImportaveis = []runtime.Kind{runtime.PHP, runtime.Apache, runtime.Nginx, runtime.MySQL, runtime.MariaDB}
 
 // copyRuntimeTree copia recursivamente src para dst. Copia, não move: a pasta
 // de origem costuma ser de outra ferramenta que o usuário ainda usa, e o HyPHP

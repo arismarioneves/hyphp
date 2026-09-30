@@ -929,6 +929,64 @@ func (s *Stack) rollbackWeb(oldSpec supervisor.Spec, hadOld, oldRunning bool, ca
 	return i18n.Errorf("err.stack.webSwitchUndone", cause)
 }
 
+// ---- troca de banco -------------------------------------------------------
+
+// dbReadyTimeout cobre a primeira subida de um motor: o Reconcile já
+// inicializou o datadir, e falta o servidor abrir a porta.
+const dbReadyTimeout = 60 * time.Second
+
+// SwitchDatabase troca o motor de banco (state.DBMySQL ↔ state.DBMariaDB). O
+// state passa a apontar para o novo motor e o Reconcile faz o resto: grava o
+// my.ini dele, inicializa o datadir na primeira vez e troca o servidor do
+// spec "mysql", que para um e sobe o outro na mesma porta. Cada motor fica
+// com os próprios dados, sem cópia de um para o outro.
+//
+// Se o novo não ficar pronto, volta o state e reconcilia de novo: o banco
+// que estava no ar volta, como na troca de web server.
+func (s *Stack) SwitchDatabase(ctx context.Context, engine string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if engine != state.DBMySQL && engine != state.DBMariaDB {
+		return i18n.Errorf("err.settings.dbEngine", engine)
+	}
+	st, rts, _ := s.snapshot()
+	target := runtime.Kind(engine)
+	if _, ok := DBRuntime(rts, state.State{DBEngine: engine}); !ok {
+		return i18n.Errorf("err.stack.dbEngineMissing", DBName(target))
+	}
+	cur, running := DBRuntime(rts, st)
+	if running && cur.Kind == target {
+		// Mesmo motor (inclusive o "vazio" que já resolvia para ele): só
+		// grava a escolha, sem reiniciar nada.
+		return s.UpdateState(func(st *state.State) { st.DBEngine = engine })
+	}
+	prev := st.DBEngine
+	if err := s.UpdateState(func(st *state.State) { st.DBEngine = engine }); err != nil {
+		return err
+	}
+	s.d.Emit("settings:changed", s.State())
+	_, err := s.reconcileLocked(ctx)
+	if err == nil && s.started {
+		err = s.waitReady(ctx, MySQLSpecID, dbReadyTimeout)
+	}
+	if err == nil {
+		s.d.Logger.Info("stack: banco trocado", "to", engine)
+		return nil
+	}
+	if uerr := s.UpdateState(func(st *state.State) { st.DBEngine = prev }); uerr != nil {
+		return fmt.Errorf("%w; e não deu para voltar o state: %v", err, uerr)
+	}
+	s.d.Emit("settings:changed", s.State())
+	if _, rerr := s.reconcileLocked(ctx); rerr != nil {
+		return fmt.Errorf("%w; e o Reconcile de volta falhou: %v", err, rerr)
+	}
+	back := "—"
+	if running {
+		back = DBName(cur.Kind)
+	}
+	return i18n.Errorf("err.stack.dbSwitchUndone", back, err)
+}
+
 // renderPhpMyAdmin grava o config.inc.php dentro da instalação do phpMyAdmin.
 //
 // O arquivo mora junto do código, e não em etc/, porque é lá que o phpMyAdmin

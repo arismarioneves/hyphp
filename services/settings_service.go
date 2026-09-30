@@ -204,6 +204,25 @@ func (s *SettingsService) SwitchWebServer(name string) error {
 	return nil
 }
 
+// dbSwitchTimeout cobre, no pior caso, o Reconcile com a primeira
+// inicialização do datadir do motor novo, a espera de ele ficar pronto e o
+// Reconcile de volta se não ficar.
+const dbSwitchTimeout = 3 * time.Minute
+
+// SwitchDatabase troca o motor de banco (mysql|mariadb). Imediata, como a
+// troca de web server: o banco atual para e o outro sobe na mesma porta; se
+// o novo não ficar pronto, o anterior volta.
+func (s *SettingsService) SwitchDatabase(engine string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	ctx, cancel := context.WithTimeout(context.Background(), dbSwitchTimeout)
+	defer cancel()
+	err := s.stk.SwitchDatabase(ctx, engine)
+	s.emit("settings:changed", s.stk.State())
+	s.emit("stack:warnings", s.stk.Warnings())
+	return err
+}
+
 func validateSettings(st state.State) error {
 	if st.WebServer != state.Apache && st.WebServer != state.Nginx {
 		return i18n.Errorf("err.settings.webServerField", st.WebServer)
@@ -215,6 +234,11 @@ func validateSettings(st state.State) error {
 	}
 	if !i18n.Valid(st.Language) {
 		return i18n.Errorf("err.settings.language", st.Language)
+	}
+	switch st.DBEngine {
+	case "", state.DBMySQL, state.DBMariaDB:
+	default:
+		return i18n.Errorf("err.settings.dbEngine", st.DBEngine)
 	}
 	if st.PoolSize < 1 || st.PoolSize > 16 {
 		return i18n.Errorf("err.settings.poolSize", st.PoolSize)

@@ -37,6 +37,10 @@ export const settings: typeof base = {
   webServerHint:
     'One server active at a time (both use 80/443). Switching validates the new config before stopping the current one; if it fails, the previous one stays up.',
   downloadInRuntimes: 'Download in Runtimes',
+  database: 'DATABASE',
+  switchingDatabase: 'Switching database: stopping the current one and starting the other…',
+  databaseHint:
+    'One database active at a time, on the same port. Each keeps its own data: MySQL databases do not show up in MariaDB, and vice versa.',
   defaultPhp: 'Default version',
   defaultPhpHint: 'Used by projects without `php:` in hyphp.yaml.',
   installPhp: 'Install PHP',

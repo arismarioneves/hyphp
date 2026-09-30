@@ -73,6 +73,15 @@ export function Set($in: state$0.State): $CancellablePromise<void> {
     return $Call.ByID(992415247, $in);
 }
 
+/**
+ * SwitchDatabase troca o motor de banco (mysql|mariadb). Imediata, como a
+ * troca de web server: o banco atual para e o outro sobe na mesma porta; se
+ * o novo não ficar pronto, o anterior volta.
+ */
+export function SwitchDatabase(engine: string): $CancellablePromise<void> {
+    return $Call.ByID(389183800, engine);
+}
+
 export function SwitchWebServer(name: string): $CancellablePromise<void> {
     return $Call.ByID(2073644598, name);
 }

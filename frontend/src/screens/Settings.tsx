@@ -22,6 +22,7 @@ import { useWarnings } from '../lib/useWarnings'
 import { errorText } from '../lib/errors'
 import { LANGS, useLang, useT } from '../i18n'
 import type { UpdateStatus } from '../lib/types'
+import { newestVersions } from '../lib/versions'
 import type { Messages } from '../i18n/types'
 import type { Vars } from '../i18n/format'
 
@@ -33,6 +34,12 @@ const WILDCARD_PENDING = 'wildcard-pending'
 const WEB_SERVERS: Array<{ name: WebServerName; label: string }> = [
   { name: WebServerName.Apache, label: 'Apache' },
   { name: WebServerName.Nginx, label: 'nginx' },
+]
+
+// Valores de state.DBEngine (internal/state).
+const DB_ENGINES = [
+  { name: 'mysql', label: 'MySQL' },
+  { name: 'mariadb', label: 'MariaDB' },
 ]
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
@@ -143,8 +150,10 @@ function PortInput({ label, value, onChange }: { label: string; value: number; o
   )
 }
 
+// Serve para os web servers e para os motores de banco: nos dois, um card por
+// opção, e o clique troca na hora.
 type WebServerCardProps = {
-  name: WebServerName
+  name: string
   label: string
   version: string | null
   active: boolean
@@ -245,6 +254,8 @@ export function Settings({ onNavigate }: ScreenProps) {
   const [saveError, setSaveError] = useState<string | null>(null)
   const [switching, setSwitching] = useState(false)
   const [switchError, setSwitchError] = useState<string | null>(null)
+  const [switchingDb, setSwitchingDb] = useState(false)
+  const [switchDbError, setSwitchDbError] = useState<string | null>(null)
   const [roots, setRoots] = useState<string[]>([])
   const [rootsError, setRootsError] = useState<string | null>(null)
   const [version, setVersion] = useState('')
@@ -273,17 +284,16 @@ export function Settings({ onNavigate }: ScreenProps) {
   const set = <K extends keyof State>(key: K, value: State[K]) => setDraft({ ...draft, [key]: value })
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings)
 
+  const versions = newestVersions(installed)
   // `Installed.kind` é o enum gerado `runtime.Kind` (nominal): comparar com o
   // literal exige alargar para string.
-  const webVersions: Record<string, string> = {}
   const majorSeen: Record<string, true> = {}
-  for (const i of installed) {
-    const kind = i.kind as string
-    if (kind === 'apache' || kind === 'nginx') webVersions[kind] = i.version
-    if (kind === 'php') majorSeen[i.major] = true
-  }
+  for (const i of installed) if ((i.kind as string) === 'php') majorSeen[i.major] = true
   const phpMajors = Object.keys(majorSeen).sort()
-  const missingWebServer = WEB_SERVERS.some((w) => webVersions[w.name] === undefined)
+  const missingWebServer = WEB_SERVERS.some((w) => versions[w.name] === undefined)
+  // Mesma regra de stack.DBRuntime: sem escolha gravada vale o MySQL se
+  // estiver instalado, senão o MariaDB.
+  const activeDb = settings.dbEngine || (versions.mysql === undefined && versions.mariadb ? 'mariadb' : 'mysql')
 
   const doSave = async () => {
     setSaving(true)
@@ -294,6 +304,18 @@ export function Settings({ onNavigate }: ScreenProps) {
       setSaveError(errorText(e))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const switchDb = async (name: string) => {
+    setSwitchingDb(true)
+    setSwitchDbError(null)
+    try {
+      await SettingsService.SwitchDatabase(name)
+    } catch (e) {
+      setSwitchDbError(errorText(e))
+    } finally {
+      setSwitchingDb(false)
     }
   }
 
@@ -357,7 +379,7 @@ export function Settings({ onNavigate }: ScreenProps) {
               key={w.name}
               name={w.name}
               label={w.label}
-              version={webVersions[w.name] ?? null}
+              version={versions[w.name] ?? null}
               active={settings.webServer === w.name}
               switching={switching}
               onSelect={() => void switchWeb(w.name)}
@@ -369,6 +391,32 @@ export function Settings({ onNavigate }: ScreenProps) {
         <div className="flex items-center justify-between gap-3">
           <p className="text-xs text-fg-muted">{t('webServerHint')}</p>
           {missingWebServer && (
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('runtimes')}>
+              {t('downloadInRuntimes')}
+            </Button>
+          )}
+        </div>
+      </Section>
+
+      <Section label={t('database')}>
+        <div className="flex gap-3">
+          {DB_ENGINES.map((e) => (
+            <WebServerCard
+              key={e.name}
+              name={e.name}
+              label={e.label}
+              version={versions[e.name] ?? null}
+              active={activeDb === e.name}
+              switching={switchingDb}
+              onSelect={() => void switchDb(e.name)}
+            />
+          ))}
+        </div>
+        {switchingDb && <ProgressBar indeterminate label={t('switchingDatabase')} />}
+        {switchDbError && <p className="selectable text-sm text-err">{switchDbError}</p>}
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-fg-muted">{t('databaseHint')}</p>
+          {DB_ENGINES.some((e) => versions[e.name] === undefined) && (
             <Button variant="ghost" size="sm" onClick={() => onNavigate('runtimes')}>
               {t('downloadInRuntimes')}
             </Button>
@@ -412,7 +460,7 @@ export function Settings({ onNavigate }: ScreenProps) {
       <Section label={t('ports')}>
         <PortInput label="HTTP" value={draft.httpPort} onChange={(n) => set('httpPort', n)} />
         <PortInput label="HTTPS" value={draft.httpsPort} onChange={(n) => set('httpsPort', n)} />
-        <PortInput label="MySQL" value={draft.mysqlPort} onChange={(n) => set('mysqlPort', n)} />
+        <PortInput label="MySQL / MariaDB" value={draft.mysqlPort} onChange={(n) => set('mysqlPort', n)} />
         <PortInput label="SMTP (Mailpit)" value={draft.mailpitSmtpPort} onChange={(n) => set('mailpitSmtpPort', n)} />
         <PortInput label="Mailpit UI" value={draft.mailpitHttpPort} onChange={(n) => set('mailpitHttpPort', n)} />
       </Section>

@@ -42,6 +42,9 @@ export function Database({ onNavigate }: ScreenProps) {
   const mysql = services.find((s) => s.id === 'mysql')
   // `ServiceStatus.state` é o enum gerado `supervisor.State` (nominal).
   const state = (mysql?.state ?? 'stopped') as ServiceState
+  // O serviço "mysql" roda o motor escolhido em Configurações; o nome dele
+  // ("MariaDB 11.4.13") diz qual.
+  const engine = mysql?.name.split(' ')[0] ?? 'MySQL'
 
   const [creds, setCreds] = useState<Credentials | null>(null)
   const [pmaURL, setPmaURL] = useState<string | null>(null)
@@ -111,14 +114,14 @@ export function Database({ onNavigate }: ScreenProps) {
   }
 
   const connCmd = creds
-    ? `mysql -u${creds.user}${creds.password ? ` -p${creds.password}` : ''} -h${creds.host} -P${creds.port}`
+    ? `${creds.client} -u${creds.user}${creds.password ? ` -p${creds.password}` : ''} -h${creds.host} -P${creds.port}`
     : ''
 
   return (
     <div className="flex flex-col gap-4">
       <Card>
         <div className="flex items-center justify-between gap-3">
-          <SectionLabel>MYSQL</SectionLabel>
+          <SectionLabel>{engine.toUpperCase()}</SectionLabel>
           {pmaURL === null ? null : pmaURL === '' ? (
             <Button
               variant="secondary"
@@ -132,7 +135,7 @@ export function Database({ onNavigate }: ScreenProps) {
             // Com o MySQL parado o phpMyAdmin abre direto numa tela de erro de
             // conexão: desabilitar e dizer o porquê é mais honesto do que
             // mandar o usuário ao navegador para ver a falha lá.
-            <span title={state === 'ready' ? undefined : t('pmaNeedsMysql')}>
+            <span title={state === 'ready' ? undefined : t('pmaNeedsMysql', { engine })}>
               <Button
                 variant="secondary"
                 size="sm"
@@ -151,7 +154,7 @@ export function Database({ onNavigate }: ScreenProps) {
         </div>
         <div className="mt-3 flex items-center gap-3">
           <StatusDot state={state} />
-          <span className="text-sm text-fg">{mysql?.name ?? 'MySQL'}</span>
+          <span className="text-sm text-fg">{mysql?.name ?? engine}</span>
           <span className="text-xs text-fg-faint">{state}</span>
           {mysql?.lastError && <span className="selectable text-xs text-err">{mysql.lastError}</span>}
         </div>
@@ -237,7 +240,7 @@ export function Database({ onNavigate }: ScreenProps) {
         {state !== 'ready' ? (
           <EmptyState
             icon={<DatabaseIcon size={24} />}
-            title={t('notReadyTitle')}
+            title={t('notReadyTitle', { engine })}
             description={t('notReadyDescription')}
             action={
               <Button variant="secondary" size="sm" onClick={() => onNavigate('services')}>

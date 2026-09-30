@@ -35,6 +35,10 @@ export const settings = {
   webServerHint:
     'Um servidor ativo por vez (ambos usam 80/443). A troca valida a nova config antes de parar o atual; se falhar, o anterior continua no ar.',
   downloadInRuntimes: 'Baixar em Runtimes',
+  database: 'BANCO DE DADOS',
+  switchingDatabase: 'Trocando o banco: parando o atual e subindo o outro…',
+  databaseHint:
+    'Um banco ativo por vez, na mesma porta. Cada um guarda os próprios dados: os databases do MySQL não aparecem no MariaDB, e vice-versa.',
   defaultPhp: 'Versão padrão',
   defaultPhpHint: 'Usada por projetos sem `php:` no hyphp.yaml.',
   installPhp: 'Instalar PHP',
