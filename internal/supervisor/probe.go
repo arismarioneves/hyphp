@@ -1,11 +1,13 @@
 package supervisor
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -54,11 +56,22 @@ func (p HTTPProbe) Check(ctx context.Context) error {
 }
 
 // MySQLProbe passa quando o servidor envia um handshake com protocol
-// version 10 (0x0a). Lê só os 5 primeiros bytes do pacote: 3 de tamanho,
-// 1 de sequência e 1 de versão do protocolo.
-type MySQLProbe struct{ Addr string }
+// version 10 (0x0a). Com Version preenchida, a versão que o handshake
+// anuncia também tem de bater: no Windows outro mysqld escutando em "::"
+// (o do Laragon, por exemplo) atende o 127.0.0.1 da mesma porta, e só pelo
+// protocolo o probe dava "pronto" para um servidor que nem é o nosso.
+type MySQLProbe struct {
+	Addr    string
+	Version string // "8.4.11", "11.4.13"; vazio = não confere
+}
 
-const mysqlProtocolV10 = 0x0a
+const (
+	mysqlProtocolV10 = 0x0a
+	// Pacote de handshake: 3 bytes de tamanho, 1 de sequência, 1 de versão
+	// do protocolo e a versão do servidor terminada em NUL. 256 cobre a
+	// versão com folga sem ler o resto (salt, capacidades).
+	mysqlHandshakeMax = 256
+)
 
 func (p MySQLProbe) Check(ctx context.Context) error {
 	var d net.Dialer
@@ -81,7 +94,31 @@ func (p MySQLProbe) Check(ctx context.Context) error {
 	if hdr[4] != mysqlProtocolV10 {
 		return fmt.Errorf("mysql %s: protocol version %#x, want %#x", p.Addr, hdr[4], mysqlProtocolV10)
 	}
+	if p.Version == "" {
+		return nil
+	}
+	// O resto do pacote tem size-1 bytes (o byte do protocolo já foi lido);
+	// max(…, 0) protege de um tamanho declarado 0.
+	size := int(hdr[0]) | int(hdr[1])<<8 | int(hdr[2])<<16
+	buf := make([]byte, min(max(size-1, 0), mysqlHandshakeMax))
+	n, err := io.ReadFull(conn, buf)
+	end := bytes.IndexByte(buf[:n], 0)
+	if end < 0 {
+		return fmt.Errorf("mysql %s: handshake without server version: %v", p.Addr, err)
+	}
+	if got := string(buf[:end]); !sameServerVersion(got, p.Version) {
+		return fmt.Errorf("mysql %s: server on this port is %q, not %s (another server using the port?)", p.Addr, got, p.Version)
+	}
 	return nil
+}
+
+// sameServerVersion compara a versão do handshake com a do runtime. O MySQL
+// anuncia "8.4.11"; o MariaDB, "11.4.13-MariaDB", e o 10.x ainda prefixa
+// "5.5.5-" para clientes antigos ("5.5.5-10.11.19-MariaDB").
+func sameServerVersion(got, want string) bool {
+	got = strings.TrimPrefix(got, "5.5.5-")
+	rest, ok := strings.CutPrefix(got, want)
+	return ok && (rest == "" || rest[0] == '-')
 }
 
 // AliveProbe é para serviços sem porta (workers de fila): passa após Grace.

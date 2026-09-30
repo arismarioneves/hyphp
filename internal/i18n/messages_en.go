@@ -38,6 +38,10 @@ var messagesEN = map[string]string{
 
 	"err.stack.composerNotFound":  "composer not found in the project PATH",
 	"err.stack.exeNotFound":       "%s not found in the project PATH",
+	"err.stack.serviceGone":       "%s left the supervisor before becoming ready",
+	"err.stack.serviceState":      "%s is %s: %s",
+	"err.stack.notReady":          "%s did not become ready within %s (state %s)",
+	"err.stack.notReadyCause":     "%s did not become ready within %s (state %s; last failure: %s)",
 	"err.stack.mysqlNotReady":     "mysql did not become ready: %w",
 	"err.stack.mysqlFailed":       "mysql failed: %s",
 	"err.stack.mkcertMissing":     "mkcert not found in bin/mkcert/mkcert.exe",

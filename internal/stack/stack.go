@@ -2,6 +2,7 @@ package stack
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -810,16 +811,23 @@ func (s *Stack) waitReady(ctx context.Context, id string, timeout time.Duration)
 	for {
 		st, ok := s.d.Sup.Status(id)
 		if !ok {
-			return fmt.Errorf("stack: %s desapareceu do supervisor", id)
+			return i18n.Errorf("err.stack.serviceGone", id)
 		}
+		// O nome ("MariaDB 11.4.13") diz mais do que o ID, que no banco é
+		// "mysql" para os dois motores; a última falha do processo mostra
+		// por que ele não ficou pronto sem precisar abrir o log.
+		name := cmp.Or(st.Name, id)
 		switch st.State {
 		case supervisor.Ready:
 			return nil
 		case supervisor.Failed, supervisor.Stopped:
-			return fmt.Errorf("stack: %s em estado %s: %s", id, st.State, st.LastError)
+			return i18n.Errorf("err.stack.serviceState", name, st.State, st.LastError)
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("stack: %s não ficou pronto em %s (estado %s)", id, timeout, st.State)
+			if st.LastError != "" {
+				return i18n.Errorf("err.stack.notReadyCause", name, timeout, st.State, st.LastError)
+			}
+			return i18n.Errorf("err.stack.notReady", name, timeout, st.State)
 		}
 		select {
 		case <-ctx.Done():

@@ -539,7 +539,7 @@ func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 		},
 		Dir:          inst.Dir,
 		Port:         in.State.MySQLPort,
-		Probe:        &supervisor.MySQLProbe{Addr: addr},
+		Probe:        &supervisor.MySQLProbe{Addr: addr, Version: inst.Version},
 		ProbeTimeout: 60 * time.Second,
 		Restart:      defaultRestart(),
 		LogPath:      filepath.Join(in.LogDir, logName),

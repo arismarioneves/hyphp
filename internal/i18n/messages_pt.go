@@ -42,6 +42,10 @@ var messagesPT = map[string]string{
 	// Erros da stack que chegam à UI por ação do usuário.
 	"err.stack.composerNotFound":  "composer não encontrado no PATH do projeto",
 	"err.stack.exeNotFound":       "%s não encontrado no PATH do projeto",
+	"err.stack.serviceGone":       "%s saiu do supervisor antes de ficar pronto",
+	"err.stack.serviceState":      "%s em estado %s: %s",
+	"err.stack.notReady":          "%s não ficou pronto em %s (estado %s)",
+	"err.stack.notReadyCause":     "%s não ficou pronto em %s (estado %s; última falha: %s)",
 	"err.stack.mysqlNotReady":     "mysql não ficou pronto: %w",
 	"err.stack.mysqlFailed":       "mysql falhou: %s",
 	"err.stack.mkcertMissing":     "mkcert não encontrado em bin/mkcert/mkcert.exe",
