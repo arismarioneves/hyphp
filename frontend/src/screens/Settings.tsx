@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { FolderPlus, Trash } from '@phosphor-icons/react'
+import { ArrowSquareOut, FolderPlus, Trash } from '@phosphor-icons/react'
 import { AppService, ProjectsService, SettingsService } from '../../bindings/hyphp/services'
 // O enum gerado `state.WebServerName` é nominal: o literal 'apache' não é
 // atribuível a `State.webServer`, e a união de `lib/types` só serve para leitura.
@@ -260,6 +260,7 @@ export function Settings({ onNavigate }: ScreenProps) {
   const [rootsError, setRootsError] = useState<string | null>(null)
   const [version, setVersion] = useState('')
   const [runtimeRoot, setRuntimeRoot] = useState('')
+  const [siteURL, setSiteURL] = useState('')
   const [pathBusy, setPathBusy] = useState(false)
   const [pathMsg, setPathMsg] = useState('')
   const [pathError, setPathError] = useState<string | null>(null)
@@ -277,6 +278,7 @@ export function Settings({ onNavigate }: ScreenProps) {
     void ProjectsService.Roots().then((r) => setRoots(r ?? []))
     void AppService.Version().then(setVersion)
     void AppService.RuntimeRoot().then(setRuntimeRoot)
+    void AppService.SiteURL().then(setSiteURL)
   }, [])
 
   if (!settings || !draft) return <Skeleton lines={10} />
@@ -371,7 +373,10 @@ export function Settings({ onNavigate }: ScreenProps) {
   }
 
   return (
-    <div className="flex flex-col gap-4 pb-16">
+    // O respiro no fim só existe com a barra de "alterações não salvas" à
+    // vista: ela é fixa no rodapé e cobriria o último card. Sem ela, o fim
+    // da tela fica igual ao das outras.
+    <div className={`flex flex-col gap-4 ${dirty ? 'pb-16' : ''}`}>
       <Section label={t('webServer')}>
         <div className="flex gap-3">
           {WEB_SERVERS.map((w) => (
@@ -575,6 +580,20 @@ export function Settings({ onNavigate }: ScreenProps) {
       <Section label={t('about')}>
         <Row label={t('version')}>
           <span className="selectable font-mono text-sm text-fg">{version || '—'}</span>
+        </Row>
+        <Row label={t('site')}>
+          {siteURL ? (
+            <button
+              type="button"
+              onClick={() => void AppService.OpenExternal(siteURL)}
+              className="inline-flex items-center gap-1 font-mono text-sm text-accent-fg hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {siteURL.replace(/^https:\/\//, '').replace(/\/$/, '')}
+              <ArrowSquareOut size={12} />
+            </button>
+          ) : (
+            <span className="font-mono text-sm text-fg">—</span>
+          )}
         </Row>
         <Row label={t('runtimeRoot')}>
           <span className="selectable font-mono text-sm text-fg">{runtimeRoot || '—'}</span>

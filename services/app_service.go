@@ -18,6 +18,7 @@ import (
 
 	"hyphp/internal/i18n"
 	"hyphp/internal/paths"
+	"hyphp/internal/project"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
 	"hyphp/internal/version"
@@ -45,6 +46,10 @@ func NewAppService(d AppDeps) *AppService {
 
 // Version retorna a versão do HyPHP.
 func (a *AppService) Version() string { return version.Current }
+
+// SiteURL retorna a página do HyPHP, a mesma citada no cabeçalho do
+// hyphp.yaml, para o Sobre de Configurações.
+func (a *AppService) SiteURL() string { return project.SiteURL }
 
 // RuntimeRoot retorna a raiz de runtime em uso (bin/, etc/, var/, log/).
 func (a *AppService) RuntimeRoot() string { return paths.Root() }

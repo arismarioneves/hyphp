@@ -70,6 +70,7 @@ export const settings = {
   autoUpdateHint: 'A cada 6 horas. O download é automático; a instalação espera o seu clique.',
   about: 'SOBRE',
   version: 'Versão',
+  site: 'Site',
   runtimeRoot: 'Raiz de runtime',
   quit: 'Sair do HyPHP',
   unsaved: 'Alterações não salvas',

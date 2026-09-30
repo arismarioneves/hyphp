@@ -72,6 +72,7 @@ export const settings: typeof base = {
   autoUpdateHint: 'Every 6 hours. Downloads are automatic; installing waits for your click.',
   about: 'ABOUT',
   version: 'Version',
+  site: 'Website',
   runtimeRoot: 'Runtime root',
   quit: 'Quit HyPHP',
   unsaved: 'Unsaved changes',

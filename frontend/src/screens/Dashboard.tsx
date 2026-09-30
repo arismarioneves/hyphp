@@ -220,19 +220,26 @@ export function Dashboard({ onNavigate }: ScreenProps) {
           ) : (
             <ul className="mt-3 divide-y divide-border">
               {projects.map((p) => (
+                // Uma linha por projeto, como na tela Projetos: o nome encolhe
+                // com reticências, e o selo e o domínio não quebram.
                 <li key={p.id} className="flex items-center gap-3 py-2">
-                  <span className="text-sm text-fg">{p.name}</span>
+                  <span className="min-w-0 truncate text-sm text-fg" title={p.name}>
+                    {p.name}
+                  </span>
                   {/* phpEffective já vem resolvido pelo Go (manifesto →
                       padrão → maior instalada); repetir a regra aqui foi o que
                       fazia todo projeto sem `php:` aparecer como "PHP —". */}
-                  <Badge mono>PHP {p.phpEffective || p.php || '—'}</Badge>
+                  <span className="shrink-0">
+                    <Badge mono>PHP {p.phpEffective || p.php || '—'}</Badge>
+                  </span>
                   <button
                     type="button"
                     onClick={() => void AppService.OpenExternal(`https://${p.domain}`)}
-                    className="ml-auto inline-flex items-center gap-1 font-mono text-sm text-accent-fg hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+                    title={p.domain}
+                    className="ml-auto inline-flex min-w-0 max-w-[60%] shrink-0 items-center gap-1 whitespace-nowrap font-mono text-sm text-accent-fg hover:underline focus-visible:outline-2 focus-visible:outline-accent"
                   >
-                    {p.domain}
-                    <ArrowSquareOut size={12} />
+                    <span className="truncate">{p.domain}</span>
+                    <ArrowSquareOut size={12} className="shrink-0" />
                   </button>
                 </li>
               ))}

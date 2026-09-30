@@ -64,6 +64,14 @@ export function RuntimeRoot(): $CancellablePromise<string> {
 }
 
 /**
+ * SiteURL retorna a página do HyPHP, a mesma citada no cabeçalho do
+ * hyphp.yaml, para o Sobre de Configurações.
+ */
+export function SiteURL(): $CancellablePromise<string> {
+    return $Call.ByID(3450115475);
+}
+
+/**
  * Version retorna a versão do HyPHP.
  */
 export function Version(): $CancellablePromise<string> {
