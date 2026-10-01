@@ -131,6 +131,11 @@ func main() {
 		Windows: application.WindowsOptions{
 			DisableQuitOnLastWindowClosed: true,
 		},
+		// No Mac fechar a janela só a esconde (o app segue na barra de menus),
+		// o mesmo comportamento da bandeja no Windows.
+		Mac: application.MacOptions{
+			ApplicationShouldTerminateAfterLastWindowClosed: false,
+		},
 		SingleInstance: &application.SingleInstanceOptions{
 			UniqueID: "com.hyphp",
 			OnSecondInstanceLaunch: func(data application.SecondInstanceData) {
