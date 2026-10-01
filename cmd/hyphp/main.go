@@ -16,9 +16,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -298,14 +296,8 @@ func runApp(ctx context.Context, client *cli.Client, stdout, stderr io.Writer, o
 	if !errors.Is(err, cli.ErrAppNotRunning) {
 		return done(stdout, stderr, o, client, err)
 	}
-	exe, err := os.Executable()
-	if err != nil {
+	if err := startGUI(); err != nil {
 		return fail(stdout, stderr, o, err)
-	}
-	// A CLI mora em <instalação>\cli\hyphp.exe; o app, em <instalação>\hyphp.exe.
-	gui := filepath.Join(filepath.Dir(filepath.Dir(exe)), "hyphp.exe")
-	if err := exec.Command(gui).Start(); err != nil {
-		return fail(stdout, stderr, o, errors.New(i18n.T("cli.app.startFailed", gui, err)))
 	}
 	deadline := time.Now().Add(30 * time.Second)
 	for time.Now().Before(deadline) {

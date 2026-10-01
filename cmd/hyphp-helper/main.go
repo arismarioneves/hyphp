@@ -1,3 +1,5 @@
+//go:build windows
+
 // Command hyphp-helper é o único binário elevado do HyPHP (spec §11). Faz três coisas que
 // exigem administrador — gravar o arquivo hosts, registrar/remover regra NRPT e instalar a CA
 // do mkcert — e nada além disso. Todo o conteúdo já chega pronto do hyphp.exe não-elevado.
