@@ -12,8 +12,6 @@ import (
 	"sort"
 	"sync"
 	"time"
-
-	"golang.org/x/sys/windows"
 )
 
 // ErrClosed é devolvido por Start e Add depois de Close().
@@ -37,7 +35,7 @@ type entry struct {
 	status   Status
 	ring     *LogRing
 	cmd      *exec.Cmd
-	job      windows.Handle
+	proc     procHandle
 	cancel   context.CancelFunc
 	restarts int
 	logFile  *os.File
@@ -53,30 +51,31 @@ type entry struct {
 
 // Supervisor mantém a máquina de estados de todos os serviços.
 type Supervisor struct {
-	mu        sync.Mutex
-	entries   map[string]*entry
-	order     []string
-	subs      map[int]chan Event
-	nextSub   int
-	logger    *slog.Logger
-	globalJob windows.Handle
-	closed    bool
+	mu         sync.Mutex
+	entries    map[string]*entry
+	order      []string
+	subs       map[int]chan Event
+	nextSub    int
+	logger     *slog.Logger
+	globalProc procHandle
+	closed     bool
 }
 
-// New cria o supervisor e garante o Job Object global kill-on-close.
+// New cria o supervisor e chama attachSelf: no Windows, o Job Object global
+// kill-on-close que leva os serviços junto se o app morrer.
 func New(logger *slog.Logger) (*Supervisor, error) {
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	job, err := AttachSelfToKillOnCloseJob()
+	proc, err := attachSelf()
 	if err != nil {
 		return nil, fmt.Errorf("job object global: %w", err)
 	}
 	return &Supervisor{
-		entries:   make(map[string]*entry),
-		subs:      make(map[int]chan Event),
-		logger:    logger,
-		globalJob: job,
+		entries:    make(map[string]*entry),
+		subs:       make(map[int]chan Event),
+		logger:     logger,
+		globalProc: proc,
 	}, nil
 }
 
@@ -301,7 +300,7 @@ func (s *Supervisor) Stop(id string) error {
 	stopping := make(chan struct{})
 	e.stopping = stopping
 	e.status.State = Stopping
-	cmd, job, cancel, done := e.cmd, e.job, e.cancel, e.done
+	cmd, proc, cancel, done := e.cmd, e.proc, e.cancel, e.done
 	ev := Event{Status: e.status}
 	chans := s.subscribersLocked()
 	s.mu.Unlock()
@@ -313,7 +312,7 @@ func (s *Supervisor) Stop(id string) error {
 	}
 	var errs []error
 	if cmd != nil {
-		if err := stopProcessFn(cmd, job, stopTimeout); err != nil {
+		if err := stopProcessFn(cmd, proc, stopTimeout); err != nil {
 			errs = append(errs, fmt.Errorf("parar %s: %w", id, err))
 		}
 	}
@@ -326,18 +325,19 @@ func (s *Supervisor) Stop(id string) error {
 	}
 	s.releaseProcess(e)
 	// Liberado antes do Stopped: um Stop que chegue a partir daqui já não
-	// acha cmd nem job e só confirma a parada.
+	// acha cmd nem handle e só confirma a parada.
 	s.mu.Lock()
 	e.stopping = nil
 	s.mu.Unlock()
-	// C18.3: mesmo com erro o estado vira Stopped — o job foi fechado, então
-	// o que sobrou da árvore já morreu.
+	// C18.3: mesmo com erro o estado vira Stopped — o handle foi fechado (job
+	// no Windows, SIGKILL ao grupo no macOS), então o que sobrou da árvore já
+	// morreu.
 	s.setState(e, Stopped, nil)
 	return errors.Join(errs...)
 }
 
 // Restart para e inicia de novo. O Start acontece mesmo se o Stop reclamar:
-// o estado já é Stopped e o job foi fechado.
+// o estado já é Stopped e o handle do processo foi fechado.
 func (s *Supervisor) Restart(id string) error {
 	stopErr := s.Stop(id)
 	startErr := s.Start(id)
@@ -515,7 +515,7 @@ func (s *Supervisor) launch(e *entry) error {
 			out = io.MultiWriter(e.ring, f)
 		}
 	}
-	cmd, job, err := startProcess(spec, out)
+	cmd, proc, err := startProcess(spec, out)
 	if err != nil {
 		if f != nil {
 			f.Close()
@@ -523,7 +523,7 @@ func (s *Supervisor) launch(e *entry) error {
 		return err
 	}
 	s.mu.Lock()
-	e.cmd, e.job, e.logFile = cmd, job, f
+	e.cmd, e.proc, e.logFile = cmd, proc, f
 	e.status.PID = cmd.Process.Pid
 	e.status.StartedAt = time.Now()
 	s.mu.Unlock()
@@ -533,29 +533,27 @@ func (s *Supervisor) launch(e *entry) error {
 // stopProcessFn é variável para o teste contar e segurar as paradas.
 var stopProcessFn = stopProcess
 
-// releaseProcess fecha o job do serviço (matando o que sobrou da árvore), o
-// arquivo de log e a última linha parcial do ring.
+// releaseProcess fecha o handle do serviço (matando o que sobrou da árvore),
+// o arquivo de log e a última linha parcial do ring.
 func (s *Supervisor) releaseProcess(e *entry) {
 	s.mu.Lock()
-	job, f := s.takeProcessLocked(e)
+	proc, f := s.takeProcessLocked(e)
 	s.mu.Unlock()
-	closeProcess(e, job, f)
+	closeProcess(e, proc, f)
 }
 
-// takeProcessLocked tira cmd, job e log da entry. Separado de closeProcess
+// takeProcessLocked tira cmd, handle e log da entry. Separado de closeProcess
 // para o laço de restart poder tirá-los na mesma seção crítica em que confere
 // que nenhum Stop está em curso.
-func (s *Supervisor) takeProcessLocked(e *entry) (windows.Handle, *os.File) {
-	job, f := e.job, e.logFile
-	e.cmd, e.job, e.logFile = nil, 0, nil
+func (s *Supervisor) takeProcessLocked(e *entry) (procHandle, *os.File) {
+	proc, f := e.proc, e.logFile
+	e.cmd, e.proc, e.logFile = nil, procHandle{}, nil
 	e.status.PID = 0
-	return job, f
+	return proc, f
 }
 
-func closeProcess(e *entry, job windows.Handle, f *os.File) {
-	if job != 0 {
-		windows.CloseHandle(job)
-	}
+func closeProcess(e *entry, proc procHandle, f *os.File) {
+	closeProcessHandle(proc)
 	if f != nil {
 		f.Close()
 	}
@@ -594,11 +592,11 @@ func (s *Supervisor) run(e *entry, ctx context.Context) {
 			e.status.Restarts = attempt
 		}
 		// Tirados sob o mesmo lock da checagem de Stopping: soltar o lock antes
-		// deixava um Stop capturar o job que este laço fecharia em seguida.
-		job, f := s.takeProcessLocked(e)
+		// deixava um Stop capturar o handle que este laço fecharia em seguida.
+		proc, f := s.takeProcessLocked(e)
 		s.mu.Unlock()
 
-		closeProcess(e, job, f)
+		closeProcess(e, proc, f)
 		if !allowed {
 			s.setState(e, Failed, reason)
 			return
@@ -680,12 +678,12 @@ func (s *Supervisor) supervise(e *entry, ctx context.Context, exited <-chan erro
 // para o laço não seguir com um processo meio morto.
 func (s *Supervisor) killAndDrain(e *entry, exited <-chan error) {
 	s.mu.Lock()
-	cmd, job := e.cmd, e.job
+	cmd, proc := e.cmd, e.proc
 	s.mu.Unlock()
 	if cmd == nil {
 		return
 	}
-	if err := stopProcessFn(cmd, job, stopTimeout); err != nil {
+	if err := stopProcessFn(cmd, proc, stopTimeout); err != nil {
 		s.logger.Warn("matar serviço travado", "id", e.spec.ID, "err", err)
 	}
 	select {

@@ -13,8 +13,6 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"golang.org/x/sys/windows"
 )
 
 func newTestSupervisor(t *testing.T) *Supervisor {
@@ -58,17 +56,6 @@ func closedPort(t *testing.T) string {
 	addr := ln.Addr().String()
 	ln.Close()
 	return addr
-}
-
-func longRunningSpec(id string) Spec {
-	return Spec{
-		ID:    id,
-		Name:  id,
-		Group: "teste",
-		Exe:   "cmd.exe",
-		Args:  []string{"/c", "ping -n 30 127.0.0.1 >nul"},
-		Probe: AliveProbe{Grace: 300 * time.Millisecond},
-	}
 }
 
 func TestSupervisor_StartFicaReadyEStopMataOProcesso(t *testing.T) {
@@ -129,12 +116,12 @@ func TestSupervisor_StopConcorrenteParaUmaVezSo(t *testing.T) {
 	// Registrado depois do Close de newTestSupervisor, roda antes dele: um
 	// teste que falhe com o primeiro Stop preso não trava o Close.
 	t.Cleanup(liberar)
-	stopProcessFn = func(cmd *exec.Cmd, job windows.Handle, timeout time.Duration) error {
+	stopProcessFn = func(cmd *exec.Cmd, proc procHandle, timeout time.Duration) error {
 		if calls.Add(1) == 1 {
 			close(entered)
 			<-release
 		}
-		return orig(cmd, job, timeout)
+		return orig(cmd, proc, timeout)
 	}
 
 	first := make(chan error, 1)
@@ -357,12 +344,7 @@ func TestSupervisor_ReplaceMantemAOrdemDoStopAll(t *testing.T) {
 
 func TestSupervisor_SaidaComErroSemRestartVaiParaFailed(t *testing.T) {
 	sup := newTestSupervisor(t)
-	spec := Spec{
-		ID:    "falho",
-		Exe:   "cmd.exe",
-		Args:  []string{"/c", "exit 1"},
-		Probe: AliveProbe{Grace: 2 * time.Second}, // nunca chega a passar
-	}
+	spec := failingSpec("falho")
 	if err := sup.Add(spec); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -382,17 +364,12 @@ func TestSupervisor_SaidaComErroSemRestartVaiParaFailed(t *testing.T) {
 
 func TestSupervisor_RestartEsgotaAsTentativasEFalha(t *testing.T) {
 	sup := newTestSupervisor(t)
-	spec := Spec{
-		ID:    "falho",
-		Exe:   "cmd.exe",
-		Args:  []string{"/c", "exit 1"},
-		Probe: AliveProbe{Grace: 2 * time.Second},
-		Restart: RestartPolicy{
-			Enabled:    true,
-			MaxRetries: 2,
-			BaseDelay:  50 * time.Millisecond,
-			MaxDelay:   200 * time.Millisecond,
-		},
+	spec := failingSpec("falho")
+	spec.Restart = RestartPolicy{
+		Enabled:    true,
+		MaxRetries: 2,
+		BaseDelay:  50 * time.Millisecond,
+		MaxDelay:   200 * time.Millisecond,
 	}
 	if err := sup.Add(spec); err != nil {
 		t.Fatalf("Add: %v", err)
@@ -510,12 +487,7 @@ func TestSupervisor_CloseParaTudoEEhIdempotente(t *testing.T) {
 
 func TestSupervisor_LogsCapturaSaidaDoProcesso(t *testing.T) {
 	sup := newTestSupervisor(t)
-	spec := Spec{
-		ID:    "eco",
-		Exe:   "cmd.exe",
-		Args:  []string{"/c", "echo hyphp-linha"},
-		Probe: AliveProbe{Grace: 2 * time.Second},
-	}
+	spec := echoSpec("eco", "hyphp-linha")
 	if err := sup.Add(spec); err != nil {
 		t.Fatalf("Add: %v", err)
 	}
