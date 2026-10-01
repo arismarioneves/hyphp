@@ -42,4 +42,3 @@ export type Progress = {
 }
 
 export type RuntimeKind = 'php' | 'apache' | 'nginx' | 'mysql' | 'mariadb' | 'mailpit' | 'mkcert' | 'phpmyadmin'
-export type WebServerName = 'apache' | 'nginx'

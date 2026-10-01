@@ -65,12 +65,26 @@ export function RemoveWildcardDNS(): $CancellablePromise<void> {
 }
 
 /**
- * Set aplica os campos editáveis. SchemaVersion e PortAlloc pertencem ao Stack
- * e são ignorados. Mudança de WebServer é delegada a SwitchWebServer depois de
- * gravar o resto (para a troca já usar as portas/pool novos).
+ * Set aplica os campos da tela Configurações. SchemaVersion e PortAlloc
+ * pertencem ao Stack e são ignorados. Roots (ProjectsService) e
+ * PHPExtensions (RuntimesService) também ficam de fora: são editados em
+ * outras telas, e a cópia que a UI manda pode ser anterior à mudança —
+ * gravá-la a desfaria (uma pasta recém-adicionada sumia ao recolher a
+ * sidebar). DefaultPHP fica: a tela tem o seletor "Versão padrão", e o
+ * rascunho dela recebe o valor novo quando o Runtimes ou a CLI o trocam
+ * (settings:changed). Mudança de WebServer é delegada a SwitchWebServer
+ * depois de gravar o resto (para a troca já usar as portas/pool novos).
  */
 export function Set($in: state$0.State): $CancellablePromise<void> {
     return $Call.ByID(992415247, $in);
+}
+
+/**
+ * SetSidebarCollapsed grava só o estado da sidebar. O toggle não pode passar
+ * por Set: a cópia da UI levaria junto campos que outros serviços mudaram.
+ */
+export function SetSidebarCollapsed(collapsed: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3555457034, collapsed);
 }
 
 /**

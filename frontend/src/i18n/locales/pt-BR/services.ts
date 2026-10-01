@@ -1,6 +1,10 @@
 export const services = {
   groupDb: 'BANCO DE DADOS',
   groupProc: 'PROCESSOS DE PROJETO',
+  groupWeb: 'WEB SERVER',
+  groupMail: 'MAIL',
+  uptime: 'Tempo ativo',
+  restarts: 'Reinícios',
   noServicesTitle: 'Nenhum serviço',
   noServicesDesc: 'Instale um web server e PHP em Runtimes e adicione um projeto.',
   openRuntimes: 'Abrir Runtimes',

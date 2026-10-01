@@ -28,6 +28,7 @@ import { useRuntimes } from '../lib/useRuntimes'
 import { useServices } from '../lib/useServices'
 import { useSettings } from '../lib/useSettings'
 import { useT } from '../i18n'
+import { errorText } from '../lib/errors'
 
 /** Valor sentinela do Select: não é uma versão, leva para a tela Runtimes. */
 const DOWNLOAD_OPTION = '__download__'
@@ -36,6 +37,7 @@ const SEPARATOR_OPTION = '__separator__'
 
 export function Projects({ onNavigate }: ScreenProps) {
   const t = useT('projects')
+  const tc = useT('common')
   const { projects, loading } = useProjects()
   const { services } = useServices()
   const { installed } = useRuntimes()
@@ -71,7 +73,7 @@ export function Projects({ onNavigate }: ScreenProps) {
     try {
       await fn()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }
@@ -264,7 +266,9 @@ export function Projects({ onNavigate }: ScreenProps) {
             <SectionLabel>{t('network')}</SectionLabel>
             <div className="mt-3 flex items-center justify-between text-sm">
               <div className="flex flex-col">
-                <span className="text-fg">Wildcard DNS (*.{selected.domain})</span>
+                <span className="text-fg">
+                  {t('wildcardLabel')} (*.{selected.domain})
+                </span>
                 <span className="text-xs text-fg-muted">
                   {t('wildcardDesc')}
                 </span>
@@ -272,7 +276,7 @@ export function Projects({ onNavigate }: ScreenProps) {
               <Toggle
                 checked={Boolean(selected.wildcard)}
                 disabled={busy}
-                label="Wildcard DNS"
+                label={t('wildcardLabel')}
                 onChange={(on) => void call(() => ProjectsService.SetWildcard(selected.id, on))}
               />
             </div>
@@ -290,7 +294,7 @@ export function Projects({ onNavigate }: ScreenProps) {
                       <StatusDot state={s.state as ServiceState} />
                       <span className="font-mono text-sm text-fg">{s.id.slice(`proc:${selected.id}:`.length)}</span>
                       <span className="text-xs text-fg-faint">
-                        {s.state}
+                        {tc(`state_${s.state as ServiceState}`)}
                         {s.pid ? ` · PID ${s.pid}` : ''}
                         {s.restarts ? t('restarts', { count: s.restarts }) : ''}
                       </span>
@@ -302,7 +306,7 @@ export function Projects({ onNavigate }: ScreenProps) {
                         onClick={() => setOpenLog(openLog === s.id ? null : s.id)}
                         className="ml-auto"
                       >
-                        log
+                        {t('log')}
                       </Button>
                     </div>
                     {s.lastError && <div className="selectable text-xs text-err">{s.lastError}</div>}

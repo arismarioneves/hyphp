@@ -46,11 +46,11 @@ export interface Credentials {
 
     /**
      * Engine é o motor no ar ("mysql" ou "mariadb", vazio sem banco) e
-     * Client o comando de linha do cliente dele, para o comando de conexão
-     * que a tela mostra.
+     * Command a linha para abrir o cliente dele num terminal, com o caminho
+     * completo (mysqlcli.Client.Command); vazio sem banco instalado.
      */
     "engine": string;
-    "client": string;
+    "command": string;
 }
 
 /**

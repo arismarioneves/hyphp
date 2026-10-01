@@ -27,25 +27,25 @@ export function PhpIniPanel({ major }: { major: string }) {
   const [newName, setNewName] = useState('')
   const [newValue, setNewValue] = useState('')
 
-  const load = useCallback(async () => {
-    const list = await RuntimesService.IniSettings(major)
-    setRows(list ?? [])
-  }, [major])
+  // `isCurrent` deixa o efeito descartar a resposta que chega depois de fechar
+  // o painel/desmontar o card; quem chama de dentro de `write` já está montado.
+  const load = useCallback(
+    async (isCurrent: () => boolean = () => true) => {
+      const list = await RuntimesService.IniSettings(major)
+      if (isCurrent()) setRows(list ?? [])
+    },
+    [major],
+  )
 
   useEffect(() => {
-    // a resposta pode chegar depois de fechar o painel/desmontar o card.
     let cancelled = false
-    RuntimesService.IniSettings(major)
-      .then((list) => {
-        if (!cancelled) setRows(list ?? [])
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) setError(errorText(e))
-      })
+    load(() => !cancelled).catch((e: unknown) => {
+      if (!cancelled) setError(errorText(e))
+    })
     return () => {
       cancelled = true
     }
-  }, [major])
+  }, [load])
 
   // write grava pelo serviço, relê a lista e descarta o rascunho da diretiva
   // gravada; em erro o rascunho fica no input para o usuário corrigir.

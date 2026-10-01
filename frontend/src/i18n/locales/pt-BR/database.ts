@@ -25,4 +25,5 @@ export const database = {
   dropConfirm: 'Excluir {name}?',
   drop: 'Excluir',
   dropAria: 'Excluir {name}',
+  databasesTitle: 'Databases',
 }

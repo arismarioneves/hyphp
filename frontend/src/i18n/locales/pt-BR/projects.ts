@@ -23,4 +23,6 @@ export const projects = {
   processes: 'PROCESSOS',
   noProcesses: 'Nenhum processo declarado em `processes:` no hyphp.yaml.',
   restarts: ' · {count} restarts',
+  log: 'log',
+  wildcardLabel: 'DNS curinga',
 }

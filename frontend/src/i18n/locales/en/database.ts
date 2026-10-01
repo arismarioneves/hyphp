@@ -27,4 +27,5 @@ export const database: typeof base = {
   dropConfirm: 'Drop {name}?',
   drop: 'Drop',
   dropAria: 'Drop {name}',
+  databasesTitle: 'Databases',
 }

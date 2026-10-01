@@ -2,8 +2,8 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { ArrowSquareOut, FolderPlus, Trash } from '@phosphor-icons/react'
 import { AppService, ProjectsService, SettingsService } from '../../bindings/hyphp/services'
 // O enum gerado `state.WebServerName` é nominal: o literal 'apache' não é
-// atribuível a `State.webServer`, e a união de `lib/types` só serve para leitura.
-// Para comparar e gravar o web server, usa-se o enum do binding.
+// atribuível a `State.webServer`. Para comparar e gravar o web server, usa-se
+// o enum do binding.
 import { WebServerName } from '../../bindings/hyphp/internal/state/models'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
@@ -20,6 +20,7 @@ import { useSettings } from '../lib/useSettings'
 import { useUpdate } from '../lib/useUpdate'
 import { useWarnings } from '../lib/useWarnings'
 import { errorText } from '../lib/errors'
+import { mergeDraft } from '../lib/draft'
 import { LANGS, useLang, useT } from '../i18n'
 import type { UpdateStatus } from '../lib/types'
 import { newestVersions } from '../lib/versions'
@@ -264,14 +265,17 @@ export function Settings({ onNavigate }: ScreenProps) {
   const [pathBusy, setPathBusy] = useState(false)
   const [pathMsg, setPathMsg] = useState('')
   const [pathError, setPathError] = useState<string | null>(null)
+  const [aboutError, setAboutError] = useState<string | null>(null)
 
-  // O backend reemite o state inteiro (settings:changed) a cada Reconcile e a
-  // cada troca de web server; quando isso acontece o rascunho volta a espelhar
-  // o que está gravado. Ajuste na própria renderização (padrão do React para
-  // estado derivado) em vez de um efeito, que custaria um frame de skeleton.
+  // settings:changed chega com o state inteiro a cada gravação do backend
+  // (troca de web server/banco, recolher a sidebar, comandos da CLI). Só os
+  // campos que o usuário editou ficam no rascunho; o resto acompanha o state
+  // novo, senão uma edição em curso sumiria sem salvar. Ajuste na própria
+  // renderização (padrão do React para estado derivado) em vez de um efeito,
+  // que custaria um frame de skeleton.
   if (settings !== synced) {
     setSynced(settings)
-    setDraft(settings)
+    setDraft(draft && synced && settings ? mergeDraft(draft, synced, settings) : settings)
   }
 
   useEffect(() => {
@@ -585,7 +589,10 @@ export function Settings({ onNavigate }: ScreenProps) {
           {siteURL ? (
             <button
               type="button"
-              onClick={() => void AppService.OpenExternal(siteURL)}
+              onClick={() => {
+                setAboutError(null)
+                void AppService.OpenExternal(siteURL).catch((e: unknown) => setAboutError(errorText(e)))
+              }}
               className="inline-flex items-center gap-1 font-mono text-sm text-accent-fg hover:underline focus-visible:outline-2 focus-visible:outline-accent"
             >
               {siteURL.replace(/^https:\/\//, '').replace(/\/$/, '')}
@@ -594,6 +601,7 @@ export function Settings({ onNavigate }: ScreenProps) {
           ) : (
             <span className="font-mono text-sm text-fg">—</span>
           )}
+          {aboutError && <span className="selectable text-xs text-err">{aboutError}</span>}
         </Row>
         <Row label={t('runtimeRoot')}>
           <span className="selectable font-mono text-sm text-fg">{runtimeRoot || '—'}</span>

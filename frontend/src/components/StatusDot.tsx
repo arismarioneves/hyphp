@@ -1,3 +1,5 @@
+import { useT } from '../i18n';
+
 /** Espelho de supervisor.State (Go). */
 export type ServiceState = 'stopped' | 'starting' | 'ready' | 'degraded' | 'stopping' | 'failed';
 
@@ -13,11 +15,16 @@ const COLORS: Record<ServiceState, string> = {
 };
 
 export function StatusDot({ state, pulse, className = '' }: StatusDotProps) {
+  const t = useT('common');
   const animate = pulse ?? (state === 'starting' || state === 'stopping');
+  const label = t(`state_${state}`);
+  // Sem `role`, leitores de tela ignoram o aria-label de um <span>; em várias
+  // listas o ponto é o único indicador do estado.
   return (
     <span
-      aria-label={state}
-      title={state}
+      role="img"
+      aria-label={label}
+      title={label}
       className={`inline-block h-2 w-2 shrink-0 rounded-full ${COLORS[state]} ${animate ? 'animate-pulse' : ''} ${className}`}
     />
   );

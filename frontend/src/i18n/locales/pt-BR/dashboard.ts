@@ -21,4 +21,5 @@ export const dashboard = {
   fixInstallCompatiblePhp: 'Instalar PHP compatível',
   fixReviewProject: 'Revisar projeto',
   fixInstallDb: 'Instalar banco',
+  workers: '{ready}/{total} processos',
 }
