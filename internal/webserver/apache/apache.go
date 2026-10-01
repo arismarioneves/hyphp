@@ -12,13 +12,13 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"syscall"
 	"text/template"
 
 	hrender "hyphp/internal/render"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
+	"hyphp/internal/sysproc"
 	"hyphp/internal/webserver"
 )
 
@@ -127,7 +127,7 @@ func (s server) Validate(etcDir string) error {
 	exe, args, dir := s.command(etcDir, true)
 	cmd := exec.Command(exe, args...)
 	cmd.Dir = dir
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	out, err := cmd.CombinedOutput()
 	text := strings.TrimSpace(string(out))
 	if !strings.Contains(text, "Syntax OK") {

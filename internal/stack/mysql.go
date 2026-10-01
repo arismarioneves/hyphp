@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"hyphp/internal/i18n"
@@ -18,6 +17,7 @@ import (
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
+	"hyphp/internal/sysproc"
 )
 
 const (
@@ -182,7 +182,7 @@ func InitDBData(ctx context.Context, inst runtime.Installed, port int, etcDir, v
 	exe, args := how.cmd(inst, etcDir, data)
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Dir = inst.Dir
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	out, runErr := cmd.CombinedOutput()
 
 	logPath := filepath.Join(logDir, how.log)

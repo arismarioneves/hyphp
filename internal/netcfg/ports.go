@@ -10,9 +10,10 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 
 	"golang.org/x/sys/windows"
+
+	"hyphp/internal/sysproc"
 )
 
 // maxPort é a última porta TCP válida.
@@ -186,7 +187,7 @@ func WhoHolds(port int) (pid int, exe string, err error) {
 // listeningPorts executa `netstat.exe -ano` e devolve porta → PID de todo listener TCP (v4 e v6).
 func listeningPorts() (map[int]int, error) {
 	cmd := exec.Command("netstat.exe", "-ano")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("netstat: %w", err)
