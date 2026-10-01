@@ -150,8 +150,10 @@ func TestRenderEhRelocavel(t *testing.T) {
 	}
 }
 
+// O etcDir chega com o separador do SO (FromSlash: o "C:\..." de sempre no
+// Windows) e o -p sai com "/" nos dois.
 func TestCommandEValidateUsamPrefixo(t *testing.T) {
-	exe, args, dir := New(testInstalled()).Command(`C:\hyphp\etc\nginx.next`)
+	exe, args, dir := New(testInstalled()).Command(filepath.FromSlash("C:/hyphp/etc/nginx.next"))
 	if exe != testNginxDir+"/nginx.exe" {
 		t.Fatalf("exe = %q", exe)
 	}

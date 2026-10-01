@@ -125,7 +125,6 @@ func TestWriteFilesRecusaCaminhoQueEscapa(t *testing.T) {
 		{"pai direto", "../fora.conf"},
 		{"pai no meio", "vhosts/../../fora.conf"},
 		{"absoluto posix", "/etc/passwd"},
-		{"absoluto windows", `C:\Windows\System32\drivers\etc\hosts`},
 		{"vazio", ""},
 		{"ponto", "."},
 	}

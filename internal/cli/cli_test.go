@@ -20,7 +20,15 @@ func testAddr(t *testing.T) string {
 	if runtime.GOOS == "windows" {
 		return fmt.Sprintf(`\\.\pipe\hyphp-teste-%d-%d`, os.Getpid(), time.Now().UnixNano())
 	}
-	return fmt.Sprintf("%s/hyphp-teste-%d.sock", t.TempDir(), time.Now().UnixNano())
+	// Fora do t.TempDir: no macOS ele fica sob /var/folders/.../T/<nome do
+	// teste>, e o caminho do socket passaria dos 104 bytes do sun_path (o
+	// bind falha com "invalid argument").
+	dir, err := os.MkdirTemp("/tmp", "hyphp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	return dir + "/s.sock"
 }
 
 func serveTest(t *testing.T, h http.Handler) string {

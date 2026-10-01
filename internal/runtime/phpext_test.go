@@ -8,22 +8,24 @@ import (
 	"testing"
 )
 
+// Os módulos têm o nome de ExtFile (php_<n>.dll no Windows, <n>.so no macOS);
+// libssh2.dll e readme.txt não são módulo em nenhum dos dois.
 func TestListExtensions(t *testing.T) {
 	dir := t.TempDir()
 	ext := filepath.Join(dir, "ext")
-	for _, f := range []string{"php_curl.dll", "php_pdo_mysql.dll", "php_zip.dll", "libssh2.dll", "readme.txt"} {
+	for _, f := range []string{ExtFile("curl"), ExtFile("pdo_mysql"), ExtFile("zip"), "libssh2.dll", "readme.txt"} {
 		mustWrite(t, filepath.Join(ext, f), "")
 	}
-	mustMkdir(t, filepath.Join(ext, "php_subdir.dll")) // diretório com nome de dll: ignorado
+	mustMkdir(t, filepath.Join(ext, ExtFile("subdir"))) // diretório com nome de módulo: ignorado
 
 	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir}, []string{"pdo_mysql", "inexistente"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	want := []Extension{
-		{Name: "curl", File: "php_curl.dll", Enabled: false},
-		{Name: "pdo_mysql", File: "php_pdo_mysql.dll", Enabled: true},
-		{Name: "zip", File: "php_zip.dll", Enabled: false},
+		{Name: "curl", File: ExtFile("curl"), Enabled: false},
+		{Name: "pdo_mysql", File: ExtFile("pdo_mysql"), Enabled: true},
+		{Name: "zip", File: ExtFile("zip"), Enabled: false},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ListExtensions =\n%+v\nwant\n%+v", got, want)

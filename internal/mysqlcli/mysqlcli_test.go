@@ -1,11 +1,13 @@
 package mysqlcli
 
 import (
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 
 	"hyphp/internal/runtime"
+	"hyphp/internal/sysproc"
 )
 
 func TestValidateName(t *testing.T) {
@@ -80,21 +82,28 @@ func TestParseDatabasesVazio(t *testing.T) {
 // pode ser de outra instalação), cliente do mesmo motor e aspas quando o
 // caminho tem espaço (perfil "C:\Users\João Silva"), e cada valor separado
 // da opção, porque o PowerShell parte `-h127.0.0.1` no primeiro ponto.
+//
+// Pastas e nome do cliente saem de filepath e sysproc.ExeName, os mesmos do
+// código: no Windows o esperado é o caminho com "\" e o mysql.exe, no macOS
+// o mesmo caminho com "/" e o binário sem sufixo.
 func TestCommand(t *testing.T) {
+	cliente := func(dir, nome string) string {
+		return filepath.Join(filepath.FromSlash(dir), "bin", sysproc.ExeName(nome))
+	}
 	casos := []struct {
 		nome string
 		inst runtime.Installed
 		pass string
 		want string
 	}{
-		{"mysql", runtime.Installed{Kind: runtime.MySQL, Dir: `C:\HyPHP\bin\mysql\mysql-8.4.11-winx64`}, "",
-			`C:\HyPHP\bin\mysql\mysql-8.4.11-winx64\bin\mysql.exe -u root -h 127.0.0.1 -P 3306`},
-		{"mariadb usa o mariadb.exe", runtime.Installed{Kind: runtime.MariaDB, Dir: `C:\HyPHP\bin\mariadb\mariadb-11.4.13-winx64`}, "",
-			`C:\HyPHP\bin\mariadb\mariadb-11.4.13-winx64\bin\mariadb.exe -u root -h 127.0.0.1 -P 3306`},
-		{"caminho com espaço vai entre aspas", runtime.Installed{Kind: runtime.MySQL, Dir: `C:\Users\João Silva\AppData\Local\HyPHP\bin\mysql\m`}, "",
-			`"C:\Users\João Silva\AppData\Local\HyPHP\bin\mysql\m\bin\mysql.exe" -u root -h 127.0.0.1 -P 3306`},
-		{"senha", runtime.Installed{Kind: runtime.MySQL, Dir: `C:\m`}, "s3cr3t",
-			`C:\m\bin\mysql.exe -u root -ps3cr3t -h 127.0.0.1 -P 3306`},
+		{"mysql", runtime.Installed{Kind: runtime.MySQL, Dir: filepath.FromSlash("C:/HyPHP/bin/mysql/mysql-8.4.11-winx64")}, "",
+			cliente("C:/HyPHP/bin/mysql/mysql-8.4.11-winx64", "mysql") + " -u root -h 127.0.0.1 -P 3306"},
+		{"mariadb usa o mariadb.exe", runtime.Installed{Kind: runtime.MariaDB, Dir: filepath.FromSlash("C:/HyPHP/bin/mariadb/mariadb-11.4.13-winx64")}, "",
+			cliente("C:/HyPHP/bin/mariadb/mariadb-11.4.13-winx64", "mariadb") + " -u root -h 127.0.0.1 -P 3306"},
+		{"caminho com espaço vai entre aspas", runtime.Installed{Kind: runtime.MySQL, Dir: filepath.FromSlash("C:/Users/João Silva/AppData/Local/HyPHP/bin/mysql/m")}, "",
+			`"` + cliente("C:/Users/João Silva/AppData/Local/HyPHP/bin/mysql/m", "mysql") + `" -u root -h 127.0.0.1 -P 3306`},
+		{"senha", runtime.Installed{Kind: runtime.MySQL, Dir: filepath.FromSlash("C:/m")}, "s3cr3t",
+			cliente("C:/m", "mysql") + " -u root -ps3cr3t -h 127.0.0.1 -P 3306"},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {

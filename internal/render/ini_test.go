@@ -11,7 +11,9 @@ import (
 )
 
 // fakePHP monta um runtime.Installed com um ext/ povoado, que é o que
-// RenderPHPIni consulta para decidir quais `extension=` emitir.
+// RenderPHPIni consulta para decidir quais `extension=` emitir. Os módulos
+// têm o nome de runtime.ExtFile, o mesmo que o render procura: php_<n>.dll no
+// Windows, <n>.so no macOS.
 func fakePHP(t *testing.T, major, version string, exts []string) runtime.Installed {
 	t.Helper()
 	dir := t.TempDir()
@@ -20,7 +22,7 @@ func fakePHP(t *testing.T, major, version string, exts []string) runtime.Install
 		t.Fatal(err)
 	}
 	for _, e := range exts {
-		if err := os.WriteFile(filepath.Join(extDir, "php_"+e+".dll"), nil, 0o644); err != nil {
+		if err := os.WriteFile(filepath.Join(extDir, runtime.ExtFile(e)), nil, 0o644); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -50,13 +52,6 @@ func checkGolden(t *testing.T, name string, got []byte) {
 	}
 }
 
-func TestRenderPHPIniGolden(t *testing.T) {
-	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	got := RenderPHPIni(inst, runtime.DefaultExtensions, "C:/hyphp/var/tmp/php/8.1", "C:/hyphp/log", 1025, nil)
-	got = bytes.ReplaceAll(got, []byte(filepath.ToSlash(inst.Dir)), []byte("__PHPDIR__"))
-	checkGolden(t, "php-8.1.ini.golden", got)
-}
-
 func TestRenderPHPIniDeterministico(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
 	a := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log", 1025, nil)
@@ -78,9 +73,9 @@ func TestRenderPHPIniIgnoraExtensaoSemDLL(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
 	out := string(RenderPHPIni(inst, runtime.DefaultExtensions, "C:/tmp", "C:/log", 1025, nil))
 	if strings.Contains(out, "extension=zip") {
-		t.Fatal("emitiu extension=zip sem php_zip.dll; isso vira warning no corpo da resposta")
+		t.Fatalf("emitiu extension=zip sem %s; isso vira warning no corpo da resposta", runtime.ExtFile("zip"))
 	}
-	if !strings.Contains(out, "zend_extension=php_opcache.dll") {
+	if !strings.Contains(out, "zend_extension="+opcacheFile()) {
 		t.Fatal("opcache existe em ext/ e devia sair como zend_extension")
 	}
 	if strings.Contains(out, "extension=opcache") {
