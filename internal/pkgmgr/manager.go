@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"hyphp/internal/runtime"
+	"hyphp/internal/sysproc"
 )
 
 // Fases de Progress.Phase. A UI trata cada uma como união literal
@@ -118,7 +119,7 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 func (m *Manager) place(pkg Package, tmp string) (string, error) {
 	parent := filepath.Join(m.binDir, string(pkg.Kind))
 	if strings.HasSuffix(strings.ToLower(pkg.URL), ".exe") {
-		if err := copyFile(tmp, filepath.Join(parent, string(pkg.Kind)+".exe")); err != nil {
+		if err := copyFile(tmp, filepath.Join(parent, sysproc.ExeName(string(pkg.Kind)))); err != nil {
 			return "", err
 		}
 		return parent, nil

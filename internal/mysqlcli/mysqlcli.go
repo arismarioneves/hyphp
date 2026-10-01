@@ -77,11 +77,11 @@ func New(inst runtime.Installed, port int) Client {
 // serve: o do MariaDB não traz o caching_sha2_password que o root do MySQL
 // 8.4 usa.
 func ClientExe(inst runtime.Installed) string {
-	exe := "mysql.exe"
+	exe := "mysql"
 	if inst.Kind == runtime.MariaDB {
-		exe = "mariadb.exe"
+		exe = "mariadb"
 	}
-	return filepath.Join(inst.Dir, "bin", exe)
+	return filepath.Join(inst.Dir, "bin", sysproc.ExeName(exe))
 }
 
 // Command é a linha para abrir o cliente num terminal, com o caminho

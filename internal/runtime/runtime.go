@@ -45,21 +45,10 @@ type Installed struct {
 // detectTimeout limita cada execução de binário durante a detecção.
 const detectTimeout = 5 * time.Second
 
-// mainFile é o arquivo que prova que uma pasta contém o Kind, relativo à pasta
-// do runtime: o executável principal para os runtimes e, no phpMyAdmin, o
-// index.php — ele não tem binário, é código PHP servido pelo web server. O
-// MariaDB é reconhecido pelo mariadbd.exe, e não pelo mysqld.exe que o zip dele
-// também traz: uma pasta de MySQL não pode passar por MariaDB.
-var mainFile = map[Kind]string{
-	PHP:        "php.exe",
-	Apache:     filepath.Join("bin", "httpd.exe"),
-	Nginx:      "nginx.exe",
-	MySQL:      filepath.Join("bin", "mysqld.exe"),
-	MariaDB:    filepath.Join("bin", "mariadbd.exe"),
-	Mailpit:    "mailpit.exe",
-	Mkcert:     "mkcert.exe",
-	PhpMyAdmin: "index.php",
-}
+// ExtFile é o nome do arquivo da extensão name na pasta ext/ do PHP (regra por
+// SO em names_*.go). Exportado para o render escrever o php.ini com a mesma
+// regra que a detecção usa.
+func ExtFile(name string) string { return extFile(name) }
 
 // versioned marca os Kinds com uma subpasta por versão (bin/<kind>/<pasta>/).
 // Mailpit e mkcert ficam direto em bin/<kind>/.

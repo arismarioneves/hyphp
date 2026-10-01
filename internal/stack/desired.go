@@ -388,9 +388,9 @@ func resolveProcExe(tokens []string, inst runtime.Installed, pathEnv string) (st
 // lookPathIn é substituída nos testes por uma resolução determinística.
 var lookPathIn = defaultLookPathIn
 
-// defaultLookPathIn procura file nos diretórios de pathEnv, aplicando as
-// extensões de PATHEXT quando file não tem extensão. Um caminho com separador
-// é usado como veio, só confirmando que existe.
+// defaultLookPathIn procura file nos diretórios de pathEnv; os candidatos de
+// cada diretório vêm de pathCandidates (PATHEXT no Windows). Um caminho com
+// separador é usado como veio, só confirmando que existe.
 func defaultLookPathIn(pathEnv, file string) (string, error) {
 	if strings.ContainsAny(file, `\/`) {
 		if isExecFile(file) {
@@ -398,24 +398,11 @@ func defaultLookPathIn(pathEnv, file string) (string, error) {
 		}
 		return "", fmt.Errorf("stack: %s não existe", file)
 	}
-	exts := []string{""}
-	if filepath.Ext(file) == "" {
-		// PATHEXT vem em maiúsculas (".COM;.EXE;.BAT"). O sistema de arquivos do
-		// Windows é case-insensitive, mas o caminho vai para o Spec, aparece na
-		// UI e entra na comparação do Reconcile: minúsculas mantêm o valor
-		// estável e legível.
-		for _, e := range strings.Split(pathExt(), ";") {
-			if e = strings.ToLower(strings.TrimSpace(e)); e != "" {
-				exts = append(exts, e)
-			}
-		}
-	}
 	for _, dir := range filepath.SplitList(pathEnv) {
 		if dir == "" {
 			continue
 		}
-		for _, ext := range exts {
-			cand := filepath.Join(dir, file+ext)
+		for _, cand := range pathCandidates(dir, file) {
 			if isExecFile(cand) {
 				return cand, nil
 			}
@@ -436,18 +423,6 @@ func findInPath(pathEnv, file string) (string, error) {
 		}
 	}
 	return "", fmt.Errorf("stack: %s não encontrado no PATH", file)
-}
-
-func pathExt() string {
-	if v := os.Getenv("PATHEXT"); v != "" {
-		return v
-	}
-	return ".COM;.EXE;.BAT;.CMD"
-}
-
-func isExecFile(p string) bool {
-	fi, err := os.Stat(p)
-	return err == nil && !fi.IsDir()
 }
 
 // splitCommand separa a linha de comando de `processes` em tokens.
