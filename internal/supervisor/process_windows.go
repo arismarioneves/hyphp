@@ -1,7 +1,6 @@
 package supervisor
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -11,6 +10,25 @@ import (
 
 	"golang.org/x/sys/windows"
 )
+
+// procHandle no Windows guarda o Job Object do serviço: é ele que alcança a
+// árvore inteira, inclusive os netos que o processo principal criar.
+type procHandle struct{ job windows.Handle }
+
+// attachSelf põe o próprio hyphp.exe num job kill-on-close: se o app morrer
+// de qualquer jeito, o kernel mata os serviços junto.
+func attachSelf() (procHandle, error) {
+	job, err := AttachSelfToKillOnCloseJob()
+	return procHandle{job: job}, err
+}
+
+// closeProcessHandle fecha o job do serviço; KILL_ON_JOB_CLOSE mata o que
+// sobrar da árvore.
+func closeProcessHandle(h procHandle) {
+	if h.job != 0 {
+		_ = windows.CloseHandle(h.job)
+	}
+}
 
 // startProcess cria o Job Object do serviço, inicia o processo com a janela
 // oculta e o associa ao job. Devolve o cmd (cujo Wait é do chamador) e o
@@ -25,10 +43,10 @@ import (
 // um Stop disparado nesses microssegundos ainda encontra o processo, e um
 // crash do hyphp.exe nesse instante é coberto pelo job global. Zero órfãos
 // continua garantido pelo kernel.
-func startProcess(spec Spec, out io.Writer) (*exec.Cmd, windows.Handle, error) {
+func startProcess(spec Spec, out io.Writer) (*exec.Cmd, procHandle, error) {
 	job, err := newKillOnCloseJob()
 	if err != nil {
-		return nil, 0, fmt.Errorf("job de %s: %w", spec.ID, err)
+		return nil, procHandle{}, fmt.Errorf("job de %s: %w", spec.ID, err)
 	}
 	cmd := exec.Command(spec.Exe, spec.Args...)
 	cmd.Dir = spec.Dir
@@ -45,15 +63,15 @@ func startProcess(spec Spec, out io.Writer) (*exec.Cmd, windows.Handle, error) {
 	}
 	if err := cmd.Start(); err != nil {
 		windows.CloseHandle(job)
-		return nil, 0, fmt.Errorf("iniciar %s: %w", spec.Exe, err)
+		return nil, procHandle{}, fmt.Errorf("iniciar %s: %w", spec.Exe, err)
 	}
 	if err := assignPID(job, cmd.Process.Pid); err != nil {
 		_ = cmd.Process.Kill()
 		_ = cmd.Wait()
 		windows.CloseHandle(job)
-		return nil, 0, fmt.Errorf("associar %s ao job: %w", spec.ID, err)
+		return nil, procHandle{}, fmt.Errorf("associar %s ao job: %w", spec.ID, err)
 	}
-	return cmd, job, nil
+	return cmd, procHandle{job: job}, nil
 }
 
 // stopProcess mata a árvore inteira do serviço e espera o processo principal
@@ -68,7 +86,7 @@ func startProcess(spec Spec, out io.Writer) (*exec.Cmd, windows.Handle, error) {
 // pipes terminam, o que depende de todo descendente ter fechado sua ponta —
 // garantido aqui porque TerminateJobObject mata a árvore, mas não é algo de
 // que o Stop precise depender.
-func stopProcess(cmd *exec.Cmd, job windows.Handle, timeout time.Duration) error {
+func stopProcess(cmd *exec.Cmd, proc procHandle, timeout time.Duration) error {
 	if timeout <= 0 {
 		timeout = stopTimeout
 	}
@@ -80,8 +98,8 @@ func stopProcess(cmd *exec.Cmd, job windows.Handle, timeout time.Duration) error
 			defer windows.CloseHandle(h)
 		}
 	}
-	if job != 0 {
-		if err := windows.TerminateJobObject(job, 1); err != nil {
+	if proc.job != 0 {
+		if err := windows.TerminateJobObject(proc.job, 1); err != nil {
 			return fmt.Errorf("TerminateJobObject: %w", err)
 		}
 	}
@@ -96,16 +114,4 @@ func stopProcess(cmd *exec.Cmd, job windows.Handle, timeout time.Duration) error
 		return fmt.Errorf("processo %d não encerrou em %s", cmd.Process.Pid, timeout)
 	}
 	return nil
-}
-
-// exitReason traduz o erro de cmd.Wait() na causa que vai para Status.LastError.
-func exitReason(waitErr error) error {
-	if waitErr == nil {
-		return errors.New("processo encerrou com código 0")
-	}
-	var ee *exec.ExitError
-	if errors.As(waitErr, &ee) {
-		return fmt.Errorf("processo encerrou com código %d", ee.ExitCode())
-	}
-	return fmt.Errorf("espera do processo: %w", waitErr)
 }
