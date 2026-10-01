@@ -1,0 +1,71 @@
+# Checagens do HyPHP. Só roda em push na main (depois do merge feito pelo dono)
+# e por disparo manual. Sem pull_request/pull_request_target: PR de terceiros
+# não executa nada. Sem segredos e sem artefatos: este workflow não gera build
+# de distribuição (isso é o workflow manual de release, na M3).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PKGS: . ./cmd/... ./services/... ./internal/...
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # npm run build já roda tsc; o vitest roda só aqui porque o frontend não muda por SO.
+      - name: frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          npx vitest run
+      - run: go build $PKGS
+      - run: go vet $PKGS
+      - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 $PKGS
+      - run: go test -count=1 ./cmd/... ./services/... ./internal/...
+
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      # O main precisa do cgo do Wails (Cocoa/WebKit): só compila num Mac.
+      - run: go build $PKGS
+      - run: go vet $PKGS
+      - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 $PKGS
+      - run: go test -count=1 ./cmd/... ./services/... ./internal/...
