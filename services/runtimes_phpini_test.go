@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"path/filepath"
 	"testing"
 
 	"hyphp/internal/runtime"
@@ -13,10 +12,11 @@ import (
 // php.exe trocadas por um mapa: knows é o que o "PHP" conhece e o builtin dele.
 func iniService(t *testing.T, knows map[string]string) (*RuntimesService, *int) {
 	t.Helper()
+	st := &state.State{}
 	r := NewRuntimesService(RuntimesDeps{
-		BinDir:    t.TempDir(),
-		State:     &state.State{},
-		StatePath: filepath.Join(t.TempDir(), "state.json"),
+		BinDir:      t.TempDir(),
+		UpdateState: func(fn func(*state.State)) error { fn(st); return nil },
+		State:       func() state.State { return *st },
 	})
 	r.installed = []runtime.Installed{{Kind: runtime.PHP, Version: "8.3.10", Major: "8.3", Dir: t.TempDir()}}
 	r.scanned = true
@@ -68,8 +68,8 @@ func TestSetIniSettingRecusa(t *testing.T) {
 			if *probes != 0 {
 				t.Error("perguntou ao PHP algo que devia recusar antes")
 			}
-			if len(r.d.State.PHPIni) != 0 {
-				t.Errorf("state mudou: %v", r.d.State.PHPIni)
+			if len(r.d.State().PHPIni) != 0 {
+				t.Errorf("state mudou: %v", r.d.State().PHPIni)
 			}
 		})
 	}
@@ -81,8 +81,8 @@ func TestSetIniSettingRecusa(t *testing.T) {
 	if err := r.SetIniSetting("7.4", "max_input_vars", "5000"); err == nil {
 		t.Fatal("aceitou série não instalada")
 	}
-	if len(r.d.State.PHPIni) != 0 {
-		t.Errorf("state mudou: %v", r.d.State.PHPIni)
+	if len(r.d.State().PHPIni) != 0 {
+		t.Errorf("state mudou: %v", r.d.State().PHPIni)
 	}
 }
 
@@ -101,10 +101,7 @@ func TestIniSettingsDefinirERestaurar(t *testing.T) {
 	if reconciles != 3 {
 		t.Errorf("reconciles = %d, quero 3", reconciles)
 	}
-	saved, err := state.Load(r.d.StatePath)
-	if err != nil {
-		t.Fatal(err)
-	}
+	saved := r.d.State()
 	if saved.PHPIni["8.3"]["max_input_vars"] != "5000" {
 		t.Errorf("state.json = %v", saved.PHPIni)
 	}
@@ -139,8 +136,8 @@ func TestIniSettingsDefinirERestaurar(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, ok := r.d.State.PHPIni["8.3"]; ok {
-		t.Errorf("série vazia ficou no state: %v", r.d.State.PHPIni)
+	if _, ok := r.d.State().PHPIni["8.3"]; ok {
+		t.Errorf("série vazia ficou no state: %v", r.d.State().PHPIni)
 	}
 	list, _ = r.IniSettings("8.3")
 	for _, s := range list {

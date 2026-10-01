@@ -104,8 +104,10 @@ func (c *CLIService) ServiceStartup(ctx context.Context, _ application.ServiceOp
 		c.setListen(addr, false, err)
 		return nil
 	}
-	c.serve(l)
+	// Ouvindo antes do Serve: se ele falhar logo, a goroutine grava a falha
+	// por último em vez de ser sobrescrita por este true.
 	c.setListen(addr, true, nil)
+	c.serve(l, addr)
 	c.d.Logger.Info("cli: ouvindo", "addr", addr)
 	return nil
 }
@@ -121,7 +123,7 @@ func (c *CLIService) ServiceShutdown() error {
 	return srv.Close()
 }
 
-func (c *CLIService) serve(l net.Listener) {
+func (c *CLIService) serve(l net.Listener, addr string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+cli.CallPath+"{cmd}", c.handleCall)
 	mux.HandleFunc("POST "+cli.LogsPath, c.handleLogs)
@@ -132,7 +134,7 @@ func (c *CLIService) serve(l net.Listener) {
 	go func() {
 		if err := srv.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			c.d.Logger.Warn("cli: servidor parou", "err", err)
-			c.setListen(c.addr, false, err)
+			c.setListen(addr, false, err)
 		}
 	}()
 }

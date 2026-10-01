@@ -133,6 +133,7 @@ var messagesPT = map[string]string{
 	"err.cli.missing":        "%s precisa de: %s",
 	"err.cli.unknownService": "o serviço %q não existe; veja `hyphp services`",
 	"err.cli.exeMissing":     "a CLI não está nesta instalação (%s não existe)",
+	"err.cli.noWindow":       "a janela do HyPHP não está disponível",
 
 	// CLI: texto do próprio hyphp.exe da CLI.
 	"cli.err.flagValue":      "%s precisa de um número maior que zero",
@@ -142,6 +143,7 @@ var messagesPT = map[string]string{
 	"cli.err.unknownCommand": "comando desconhecido: %s",
 	"cli.err.appNotRunning":  "o HyPHP não está aberto. Abra o app (ou rode `hyphp app`) e tente de novo.",
 	"cli.version":            "CLI %s · app %s",
+	"cli.versionOnly":        "CLI %s",
 	"cli.app.shown":          "Janela do HyPHP em primeiro plano.",
 	"cli.app.startFailed":    "não deu para abrir %s: %v",
 	"cli.app.started":        "HyPHP aberto.",

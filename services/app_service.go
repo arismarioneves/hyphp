@@ -27,10 +27,9 @@ import (
 
 // AppDeps são as dependências injetadas por main.go.
 type AppDeps struct {
-	Quit      func()       // marca "saindo" e chama app.Quit()
-	State     *state.State // estado carregado em main.go (Editor, Terminal)
-	StatePath string
-	Logger    *slog.Logger
+	Quit   func()             // marca "saindo" e chama app.Quit()
+	State  func() state.State // cópia sob o lock do Stack (Editor, Terminal)
+	Logger *slog.Logger
 	// DefaultPHP resolve a série padrão pela mesma regra do Stack
 	// (state.DefaultPHP, vazio = maior instalada); ligado em main.go.
 	DefaultPHP func() (runtime.Installed, bool)
@@ -105,11 +104,26 @@ func (a *AppService) OpenInEditor(path string) error {
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("app: caminho inexistente: %w", err)
 	}
-	if editor := a.d.State.Editor; editor != "" {
+	if editor := a.d.State().Editor; editor != "" {
 		return a.logged("abrir no editor", path, startHidden(editor, path))
 	}
-	// `code` é code.cmd no PATH; passa pelo cmd.exe para resolver o .cmd.
-	return a.logged("abrir no editor", path, startHidden("cmd.exe", "/c", "code", path))
+	// `code` é code.cmd no PATH; passa pelo cmd.exe para resolver o .cmd. A
+	// linha é montada à mão porque o os/exec só põe aspas quando há espaço, e
+	// o cmd interpretaria `&`, `^` ou `(` de um caminho como sintaxe.
+	cmd := exec.Command("cmd.exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow, CmdLine: editorCmdLine(path)}
+	return a.logged("abrir no editor", path, start(cmd))
+}
+
+// editorCmdLine monta a linha do cmd.exe que abre path no VS Code. Entre
+// aspas o cmd trata `&`, `^`, `(` e `)` como texto; aspas não existem em
+// caminho do Windows. A única barra que precisa dobrar é a final (`C:\`):
+// quem lê os argumentos do code.cmd tomaria `\"` por aspas escapadas.
+func editorCmdLine(path string) string {
+	if strings.HasSuffix(path, `\`) {
+		path += `\`
+	}
+	return `cmd.exe /c code "` + path + `"`
 }
 
 // isWindowsTerminal responde se o executável é o Windows Terminal, que precisa
@@ -125,7 +139,7 @@ func (a *AppService) OpenTerminal(path string) error {
 	if err := mustDir(path); err != nil {
 		return err
 	}
-	if term := a.d.State.Terminal; term != "" {
+	if term := a.d.State().Terminal; term != "" {
 		if isWindowsTerminal(term) {
 			return a.logged("abrir terminal", path, start(exec.Command(term, "-d", path)))
 		}

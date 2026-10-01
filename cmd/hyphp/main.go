@@ -243,6 +243,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return done(stdout, stderr, o, client, err)
 	}
 
+	if local == "version" {
+		return runVersion(ctx, client, stdout, stderr, o, c)
+	}
+
 	if err := client.Call(ctx, c.cmd, c.args, c.out); err != nil {
 		return done(stdout, stderr, o, client, err)
 	}
@@ -251,12 +255,33 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		writeJSON(stdout, c.out)
 		return exitOK
 	}
-	if local == "version" {
-		st := c.out.(*cli.Status)
-		fmt.Fprintln(stdout, i18n.T("cli.version", version.Current, st.Version))
-		return exitOK
-	}
 	printResult(stdout, c.cmd, c.out)
+	return exitOK
+}
+
+// runVersion imprime a versão da CLI, que está no próprio binário, e a do app
+// quando ele responde. Com o app fechado só a parte do app some: scripts que
+// conferem a versão instalada não podem depender do app aberto.
+func runVersion(ctx context.Context, client *cli.Client, stdout, stderr io.Writer, o opts, c call) int {
+	out := struct {
+		CLI string `json:"cli"`
+		App string `json:"app"`
+	}{CLI: version.Current}
+	switch err := client.Call(ctx, c.cmd, c.args, c.out); {
+	case err == nil:
+		adoptLang(client)
+		out.App = c.out.(*cli.Status).Version
+	case !errors.Is(err, cli.ErrAppNotRunning):
+		return done(stdout, stderr, o, client, err)
+	}
+	switch {
+	case o.json:
+		writeJSON(stdout, out)
+	case out.App == "":
+		fmt.Fprintln(stdout, i18n.T("cli.versionOnly", out.CLI))
+	default:
+		fmt.Fprintln(stdout, i18n.T("cli.version", out.CLI, out.App))
+	}
 	return exitOK
 }
 

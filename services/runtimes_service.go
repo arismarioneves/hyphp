@@ -29,16 +29,20 @@ import (
 const binWatchDebounce = time.Second
 
 type RuntimesDeps struct {
-	App       *application.App // diálogo nativo de pasta; nil em smoke/testes
-	BinDir    string
-	TmpDir    string
-	Manager   *pkgmgr.Manager
-	Catalog   pkgmgr.Catalog
-	State     *state.State
-	StatePath string
-	Logger    *slog.Logger
-	Emit      func(name string, data any)    // app.Event.Emit; nil em smoke/testes
-	OnChange  func(list []runtime.Installed) // opcional; chamado fora do lock após cada mudança
+	App     *application.App // diálogo nativo de pasta; nil em smoke/testes
+	BinDir  string
+	TmpDir  string
+	Manager *pkgmgr.Manager
+	Catalog pkgmgr.Catalog
+	// UpdateState aplica a mutação sob o lock do Stack e persiste; State
+	// devolve uma cópia. O state é compartilhado com o Reconcile, que o
+	// serializa em outra goroutine: mexer nos mapas sem o lock derruba o
+	// processo (concurrent map read and map write).
+	UpdateState func(func(*state.State)) error
+	State       func() state.State
+	Logger      *slog.Logger
+	Emit        func(name string, data any)    // app.Event.Emit; nil em smoke/testes
+	OnChange    func(list []runtime.Installed) // opcional; chamado fora do lock após cada mudança
 	// StopUsing para os serviços que rodam de dir (stack.StopUsingDir). Nil
 	// em smoke/testes sem stack.
 	StopUsing func(dir string) error
@@ -347,11 +351,10 @@ func (r *RuntimesService) SetDefaultPHP(major string) error {
 	if _, ok := runtime.PHPByMajor(r.Installed(), major); !ok {
 		return i18n.Errorf("err.runtimes.phpMissing", major)
 	}
-	r.d.State.DefaultPHP = major
-	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
+	if err := r.d.UpdateState(func(st *state.State) { st.DefaultPHP = major }); err != nil {
 		return i18n.Errorf("err.runtimes.saveState", err)
 	}
-	r.emit("settings:changed", *r.d.State)
+	r.emit("settings:changed", r.d.State())
 	r.notify(r.Installed())
 	return nil
 }
@@ -388,21 +391,22 @@ func (r *RuntimesService) SetExtension(major, name string, on bool) error {
 	case !on && idx >= 0:
 		cur = slices.Delete(cur, idx, idx+1)
 	}
-	if r.d.State.PHPExtensions == nil {
-		r.d.State.PHPExtensions = map[string][]string{}
-	}
-	r.d.State.PHPExtensions[major] = cur
-	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
+	if err := r.d.UpdateState(func(st *state.State) {
+		if st.PHPExtensions == nil {
+			st.PHPExtensions = map[string][]string{}
+		}
+		st.PHPExtensions[major] = cur
+	}); err != nil {
 		return i18n.Errorf("err.runtimes.saveState", err)
 	}
-	r.emit("settings:changed", *r.d.State)
+	r.emit("settings:changed", r.d.State())
 	r.notify(r.Installed())
 	return nil
 }
 
 // enabledExtensions devolve a lista do state para a série, ou os defaults.
 func (r *RuntimesService) enabledExtensions(major string) []string {
-	if list, ok := r.d.State.PHPExtensions[major]; ok {
+	if list, ok := r.d.State().PHPExtensions[major]; ok {
 		return list
 	}
 	return runtime.DefaultExtensions
@@ -437,7 +441,7 @@ func (r *RuntimesService) IniSettings(major string) ([]IniSetting, error) {
 	if !ok {
 		return nil, i18n.Errorf("err.runtimes.phpMissing", major)
 	}
-	user := r.d.State.PHPIni[major]
+	user := r.d.State().PHPIni[major]
 	names := slices.Clone(curatedIni)
 	var extras []string
 	for name := range user {
@@ -507,36 +511,38 @@ func (r *RuntimesService) SetIniSetting(major, name, value string) error {
 		return i18n.Errorf("err.runtimes.iniUnknown", major, name)
 	}
 
-	if r.d.State.PHPIni == nil {
-		r.d.State.PHPIni = map[string]map[string]string{}
-	}
-	if r.d.State.PHPIni[major] == nil {
-		r.d.State.PHPIni[major] = map[string]string{}
-	}
-	r.d.State.PHPIni[major][name] = value
-	return r.saveIni()
+	return r.saveIni(func(st *state.State) {
+		if st.PHPIni == nil {
+			st.PHPIni = map[string]map[string]string{}
+		}
+		if st.PHPIni[major] == nil {
+			st.PHPIni[major] = map[string]string{}
+		}
+		st.PHPIni[major][name] = value
+	})
 }
 
 // ResetIniSetting apaga a escolha do usuário; a diretiva volta ao padrão do
 // HyPHP ou do PHP. Sem diretivas, a série sai do mapa para o state.json não
 // acumular objetos vazios.
 func (r *RuntimesService) ResetIniSetting(major, name string) error {
-	if _, ok := r.d.State.PHPIni[major][name]; !ok {
+	if _, ok := r.d.State().PHPIni[major][name]; !ok {
 		return nil
 	}
-	delete(r.d.State.PHPIni[major], name)
-	if len(r.d.State.PHPIni[major]) == 0 {
-		delete(r.d.State.PHPIni, major)
-	}
-	return r.saveIni()
+	return r.saveIni(func(st *state.State) {
+		delete(st.PHPIni[major], name)
+		if len(st.PHPIni[major]) == 0 {
+			delete(st.PHPIni, major)
+		}
+	})
 }
 
-// saveIni persiste state.PHPIni e dispara o Reconcile, como SetExtension.
-func (r *RuntimesService) saveIni() error {
-	if err := state.Save(r.d.StatePath, *r.d.State); err != nil {
+// saveIni aplica fn em state.PHPIni e dispara o Reconcile, como SetExtension.
+func (r *RuntimesService) saveIni(fn func(*state.State)) error {
+	if err := r.d.UpdateState(fn); err != nil {
 		return i18n.Errorf("err.runtimes.saveState", err)
 	}
-	r.emit("settings:changed", *r.d.State)
+	r.emit("settings:changed", r.d.State())
 	r.notify(r.Installed())
 	return nil
 }

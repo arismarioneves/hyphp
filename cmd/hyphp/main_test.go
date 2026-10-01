@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"hyphp/internal/cli"
+	"hyphp/internal/version"
 )
 
 func parseLine(t *testing.T, args ...string) (call, string, error) {
@@ -92,6 +93,23 @@ func TestAppFechadoSai3(t *testing.T) {
 		Code  int    `json:"code"`
 	}
 	if err := json.Unmarshal(out.Bytes(), &body); err != nil || body.Code != exitNoApp || body.Error == "" {
+		t.Errorf("saída = %q (%v)", out.String(), err)
+	}
+}
+
+// A versão da CLI está no binário: com o app fechado `version` sai 0 e só
+// deixa a parte do app vazia.
+func TestVersionComAppFechado(t *testing.T) {
+	t.Setenv(cli.EnvPipe, fmt.Sprintf(`\\.\pipe\hyphp-teste-versao-%d-%d`, os.Getpid(), time.Now().UnixNano()))
+	var out, errOut bytes.Buffer
+	if code := run(context.Background(), []string{"version", "--json"}, &out, &errOut); code != exitOK {
+		t.Fatalf("código = %d, want %d (%s)", code, exitOK, out.String())
+	}
+	var body struct {
+		CLI string `json:"cli"`
+		App string `json:"app"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &body); err != nil || body.CLI != version.Current || body.App != "" {
 		t.Errorf("saída = %q (%v)", out.String(), err)
 	}
 }
