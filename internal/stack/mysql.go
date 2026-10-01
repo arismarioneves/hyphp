@@ -102,7 +102,7 @@ var dbInits = map[runtime.Kind]dbInit{
 		system: "mysql.ibd",
 		// Lê o mesmo --defaults-file do start normal: o datadir sai do my.ini.
 		cmd: func(inst runtime.Installed, etcDir, _ string) (string, []string) {
-			return filepath.Join(inst.Dir, "bin", "mysqld.exe"),
+			return filepath.Join(inst.Dir, "bin", sysproc.ExeName("mysqld")),
 				[]string{"--defaults-file=" + MyIniPath(etcDir), "--initialize-insecure", "--console"}
 		},
 		log: "mysql-init.log",
@@ -113,7 +113,7 @@ var dbInits = map[runtime.Kind]dbInit{
 		// --initialize-insecure do MySQL. Ele grava um my.ini próprio dentro
 		// do datadir, que fica sem uso: o servidor sobe com --defaults-file.
 		cmd: func(inst runtime.Installed, _, data string) (string, []string) {
-			return filepath.Join(inst.Dir, "bin", "mariadb-install-db.exe"), []string{"--datadir=" + data}
+			return filepath.Join(inst.Dir, "bin", sysproc.ExeName("mariadb-install-db")), []string{"--datadir=" + data}
 		},
 		log: "mariadb-init.log",
 	},

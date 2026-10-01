@@ -23,6 +23,7 @@ import (
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
+	"hyphp/internal/sysproc"
 	"hyphp/internal/update"
 	"hyphp/internal/version"
 	"hyphp/internal/webserver"
@@ -347,7 +348,7 @@ func main() {
 		},
 		Emit:   emit,
 		Logger: logger,
-		Exe:    filepath.Join(filepath.Dir(exe), "cli", "hyphp.exe"),
+		Exe:    filepath.Join(filepath.Dir(exe), "cli", sysproc.ExeName("hyphp")),
 	})))
 	services.RegisterLogStreams(app, sup)
 	stopFwd = services.ForwardServiceEvents(app, sup)
@@ -518,7 +519,7 @@ func webServers(rts []runtime.Installed) map[state.WebServerName]webserver.WebSe
 // newMkcert resolve o mkcert em bin/. Ausente não é erro: os sites ficam só em
 // HTTP e o Reconcile emite tls-unavailable.
 func newMkcert(logger *slog.Logger) netcfg.Mkcert {
-	mk, err := netcfg.NewMkcert(filepath.Join(paths.Bin(), "mkcert", "mkcert.exe"), filepath.Join(paths.Var(), "certs"))
+	mk, err := netcfg.NewMkcert(filepath.Join(paths.Bin(), "mkcert", sysproc.ExeName("mkcert")), filepath.Join(paths.Var(), "certs"))
 	if err != nil {
 		logger.Warn("mkcert indisponível; sites sem TLS", "err", err)
 		return netcfg.Mkcert{}

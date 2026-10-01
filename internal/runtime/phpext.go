@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // DefaultExtensions é a lista habilitada quando state.PHPExtensions não tem entrada
@@ -21,7 +20,7 @@ type Extension struct {
 	Enabled bool   `json:"enabled"`
 }
 
-// ListExtensions lê inst.Dir/ext/php_*.dll (ordem alfabética de os.ReadDir) e marca
+// ListExtensions lê os módulos de inst.Dir/ext/ (regra de extName; ordem alfabética de os.ReadDir) e marca
 // Enabled para os nomes presentes em enabled.
 func ListExtensions(inst Installed, enabled []string) ([]Extension, error) {
 	extDir := filepath.Join(inst.Dir, "ext")
@@ -36,11 +35,10 @@ func ListExtensions(inst Installed, enabled []string) ([]Extension, error) {
 	var out []Extension
 	for _, e := range entries {
 		name := e.Name()
-		lower := strings.ToLower(name)
-		if e.IsDir() || !strings.HasPrefix(lower, "php_") || !strings.HasSuffix(lower, ".dll") {
+		ext, ok := extName(name)
+		if e.IsDir() || !ok {
 			continue
 		}
-		ext := name[len("php_") : len(name)-len(".dll")]
 		out = append(out, Extension{Name: ext, File: name, Enabled: on[ext]})
 	}
 	return out, nil

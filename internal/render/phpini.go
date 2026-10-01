@@ -114,7 +114,7 @@ func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir st
 		}
 	}
 	if hasExtensionDLL(extDir, "opcache") {
-		fmt.Fprintf(&b, "zend_extension=php_opcache.dll\n")
+		fmt.Fprintf(&b, "zend_extension=%s\n", opcacheFile())
 	}
 
 	fmt.Fprintf(&b, "\n")
@@ -131,7 +131,9 @@ func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir st
 	fmt.Fprintf(&b, "\n[CGI]\n")
 	fmt.Fprintf(&b, "cgi.force_redirect = 0\n")
 	fmt.Fprintf(&b, "cgi.fix_pathinfo = 1\n")
-	fmt.Fprintf(&b, "fastcgi.impersonate = 0\n")
+	if cgiImpersonate {
+		fmt.Fprintf(&b, "fastcgi.impersonate = 0\n")
+	}
 
 	// Redireciona mail() para o Mailpit. É o ponto central da Fase 8: em
 	// desenvolvimento nenhum e-mail pode sair para o mundo — um teste de
@@ -182,11 +184,15 @@ func writeUserIni(b *bytes.Buffer, userIni map[string]string) {
 	}
 }
 
-// hasExtensionDLL responde se <extDir>/php_<name>.dll existe.
+// hasExtensionDLL responde se o módulo de name (runtime.ExtFile) existe em extDir.
 func hasExtensionDLL(extDir, name string) bool {
-	st, err := os.Stat(filepath.Join(filepath.FromSlash(extDir), "php_"+name+".dll"))
+	st, err := os.Stat(filepath.Join(filepath.FromSlash(extDir), runtime.ExtFile(name)))
 	return err == nil && !st.IsDir()
 }
+
+// opcacheFile é o arquivo do opcache, carregado como zend_extension pelo nome
+// do arquivo e não pelo nome da extensão.
+func opcacheFile() string { return runtime.ExtFile("opcache") }
 
 // SlashDir normaliza um diretório para "/" sem barra final. Apache e nginx
 // aceitam "/" no Windows e a barra final duplicaria separadores nos Include.

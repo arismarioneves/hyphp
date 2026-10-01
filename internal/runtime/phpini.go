@@ -99,13 +99,13 @@ func extensionArgs(inst Installed, ext []string) []string {
 	extDir := filepath.Join(inst.Dir, "ext")
 	args := []string{"-n", "-d", "extension_dir=" + filepath.ToSlash(extDir)}
 	for _, name := range ext {
-		if name == "opcache" || !isFile(filepath.Join(extDir, "php_"+name+".dll")) {
+		if name == "opcache" || !isFile(filepath.Join(extDir, extFile(name))) {
 			continue
 		}
 		args = append(args, "-d", "extension="+name)
 	}
-	if isFile(filepath.Join(extDir, "php_opcache.dll")) {
-		args = append(args, "-d", "zend_extension=php_opcache.dll")
+	if opcache := extFile("opcache"); isFile(filepath.Join(extDir, opcache)) {
+		args = append(args, "-d", "zend_extension="+opcache)
 	}
 	return args
 }
