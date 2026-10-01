@@ -104,7 +104,7 @@ func (a *AppService) OpenInEditor(path string) error {
 	if _, err := os.Stat(path); err != nil {
 		return fmt.Errorf("app: caminho inexistente: %w", err)
 	}
-	if editor := a.d.State().Editor; editor != "" {
+	if editor := expandEnv(a.d.State().Editor); editor != "" {
 		return a.logged("abrir no editor", path, startHidden(editor, path))
 	}
 	// `code` é code.cmd no PATH; passa pelo cmd.exe para resolver o .cmd. A
@@ -126,6 +126,21 @@ func editorCmdLine(path string) string {
 	return `cmd.exe /c code "` + path + `"`
 }
 
+// expandEnv expande %VAR% do caminho do editor/terminal: é assim que o
+// Windows mostra o destino dos atalhos (%LOCALAPPDATA%\Programs\...), e o
+// os/exec não expande nada. Variável inexistente fica como está (regra do
+// Windows); se a expansão falhar, o valor original segue e o erro do start
+// mostra o que foi tentado.
+func expandEnv(s string) string {
+	if !strings.Contains(s, "%") {
+		return s
+	}
+	if x, err := registry.ExpandString(s); err == nil {
+		return x
+	}
+	return s
+}
+
 // isWindowsTerminal responde se o executável é o Windows Terminal, que precisa
 // de tratamento próprio: ele ignora o diretório de trabalho herdado e abre o
 // perfil na pasta configurada nele, então sem "-d" o terminal abre no lugar
@@ -139,7 +154,7 @@ func (a *AppService) OpenTerminal(path string) error {
 	if err := mustDir(path); err != nil {
 		return err
 	}
-	if term := a.d.State().Terminal; term != "" {
+	if term := expandEnv(a.d.State().Terminal); term != "" {
 		if isWindowsTerminal(term) {
 			return a.logged("abrir terminal", path, start(exec.Command(term, "-d", path)))
 		}

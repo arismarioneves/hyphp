@@ -71,6 +71,16 @@ type CLIActivity struct {
 // cliActivityMax é quanto da atividade fica guardado (em memória).
 const cliActivityMax = 100
 
+// cliReadTimeout limita a leitura de cada requisição (cabeçalhos e corpo):
+// sem ele, um cliente que manda os cabeçalhos e para no corpo prende o
+// handler no Decode para sempre. Não derruba `logs -f` nem chamadas longas:
+// lido o corpo, o net/http zera o prazo da conexão ao iniciar a leitura de
+// fundo que vigia a desconexão, e é essa leitura que cancelaria o contexto
+// se o prazo continuasse armado. Por isso não se usa SetReadDeadline por
+// requisição no handler: armado depois dessa leitura já ter começado (corpo
+// vazio), ele a faria estourar e cancelar o contexto (golang/go#70834).
+const cliReadTimeout = 10 * time.Second
+
 // CLIService escuta a CLI no pipe do usuário e serve a aba CLI.
 type CLIService struct {
 	d        CLIDeps
@@ -80,10 +90,12 @@ type CLIService struct {
 	listenOK bool
 	listenEr string
 	activity []CLIActivity // mais antiga primeiro
+	// readTimeout é cliReadTimeout; o teste encurta.
+	readTimeout time.Duration
 }
 
 func NewCLIService(d CLIDeps) *CLIService {
-	return &CLIService{d: d}
+	return &CLIService{d: d, readTimeout: cliReadTimeout}
 }
 
 // ServiceStartup abre o pipe quando o app sobe. Falhar aqui não derruba o
@@ -127,7 +139,7 @@ func (c *CLIService) serve(l net.Listener, addr string) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST "+cli.CallPath+"{cmd}", c.handleCall)
 	mux.HandleFunc("POST "+cli.LogsPath, c.handleLogs)
-	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second}
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: c.readTimeout}
 	c.mu.Lock()
 	c.srv = srv
 	c.mu.Unlock()

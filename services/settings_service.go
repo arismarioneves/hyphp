@@ -105,14 +105,15 @@ func (s *SettingsService) RemoveWildcardDNS() error {
 }
 
 // Set aplica os campos da tela Configurações. SchemaVersion e PortAlloc
-// pertencem ao Stack e são ignorados. Roots (ProjectsService) e
-// PHPExtensions (RuntimesService) também ficam de fora: são editados em
-// outras telas, e a cópia que a UI manda pode ser anterior à mudança —
-// gravá-la a desfaria (uma pasta recém-adicionada sumia ao recolher a
-// sidebar). DefaultPHP fica: a tela tem o seletor "Versão padrão", e o
-// rascunho dela recebe o valor novo quando o Runtimes ou a CLI o trocam
-// (settings:changed). Mudança de WebServer é delegada a SwitchWebServer
-// depois de gravar o resto (para a troca já usar as portas/pool novos).
+// pertencem ao Stack e são ignorados. Roots (ProjectsService),
+// PHPExtensions (RuntimesService), WebServer (SwitchWebServer, chamado
+// pelos cards da tela e por `hyphp web`) e DBEngine (SwitchDatabase) também
+// ficam de fora: são mudados por outros caminhos, e a cópia que a UI manda
+// pode ser anterior à mudança — gravá-la a desfaria (uma pasta recém-adicionada
+// sumia ao recolher a sidebar; um salvar qualquer trocava o web server de
+// volta). DefaultPHP fica: a tela tem o seletor "Versão padrão", e o rascunho
+// dela recebe o valor novo quando o Runtimes ou a CLI o trocam
+// (settings:changed).
 func (s *SettingsService) Set(in state.State) error {
 	if err := validateSettings(in); err != nil {
 		return err
@@ -163,16 +164,9 @@ func (s *SettingsService) Set(in state.State) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
-	defer cancel()
-
-	switch {
-	case in.WebServer != cur.WebServer:
-		if err := s.stk.SwitchWebServer(ctx, in.WebServer); err != nil {
-			s.emit("settings:changed", s.stk.State())
-			return err
-		}
-	case relevant:
+	if relevant {
+		ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+		defer cancel()
 		if _, err := s.stk.Reconcile(ctx); err != nil {
 			s.emit("settings:changed", s.stk.State())
 			return i18n.Errorf("err.reconcile", err)
@@ -228,9 +222,6 @@ func (s *SettingsService) SwitchDatabase(engine string) error {
 }
 
 func validateSettings(st state.State) error {
-	if st.WebServer != state.Apache && st.WebServer != state.Nginx {
-		return i18n.Errorf("err.settings.webServerField", st.WebServer)
-	}
 	switch st.Theme {
 	case "", state.ThemeDark, state.ThemeLight, state.ThemeSystem:
 	default:
@@ -238,11 +229,6 @@ func validateSettings(st state.State) error {
 	}
 	if !i18n.Valid(st.Language) {
 		return i18n.Errorf("err.settings.language", st.Language)
-	}
-	switch st.DBEngine {
-	case "", state.DBMySQL, state.DBMariaDB:
-	default:
-		return i18n.Errorf("err.settings.dbEngine", st.DBEngine)
 	}
 	if st.PoolSize < 1 || st.PoolSize > 16 {
 		return i18n.Errorf("err.settings.poolSize", st.PoolSize)

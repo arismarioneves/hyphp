@@ -152,3 +152,20 @@ func TestEditorCmdLineProtegeCaminhoDoCmd(t *testing.T) {
 		}
 	}
 }
+
+// Editor/terminal copiados de um atalho vêm com %VAR%; sem expandir, o start
+// procura um arquivo chamado literalmente "%LOCALAPPDATA%\...". Variável
+// inexistente fica intacta, como no Windows.
+func TestExpandEnvNoCaminhoDoEditor(t *testing.T) {
+	t.Setenv("HYPHP_TESTE_APPS", `C:\Users\fulano\AppData\Local`)
+	cases := map[string]string{
+		`%HYPHP_TESTE_APPS%\Programs\Microsoft VS Code\Code.exe`: `C:\Users\fulano\AppData\Local\Programs\Microsoft VS Code\Code.exe`,
+		`%HYPHP_TESTE_NADA%\x.exe`:                               `%HYPHP_TESTE_NADA%\x.exe`,
+		`wt.exe`:                                                 `wt.exe`,
+	}
+	for in, want := range cases {
+		if got := expandEnv(in); got != want {
+			t.Errorf("expandEnv(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
