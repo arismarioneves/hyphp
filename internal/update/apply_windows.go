@@ -39,6 +39,8 @@ const (
 type ApplyRequest struct {
 	PID       int    // processo do app que vai sair
 	Installer string // instalador já verificado
+	SHA256    string // hash esperado do instalador, reconferido antes do UAC
+	Size      int64  // tamanho esperado do instalador
 	Dir       string // diretório da instalação atual
 	Exe       string // nome do executável em Dir, relançado no fim
 	Result    string // onde gravar o Result
@@ -83,6 +85,8 @@ func (r ApplyRequest) args() []string {
 	return []string{
 		"--pid", strconv.Itoa(r.PID),
 		"--instalador", r.Installer,
+		"--sha256", r.SHA256,
+		"--tamanho", strconv.FormatInt(r.Size, 10),
 		"--dir", r.Dir,
 		"--exe", r.Exe,
 		"--resultado", r.Result,
@@ -91,26 +95,40 @@ func (r ApplyRequest) args() []string {
 	}
 }
 
-// RunApply é o modo ApplyFlag: espera o app sair, roda o instalador e relança
-// o app. Devolve o exit code do processo.
-func RunApply(args []string) int {
+func parseApplyArgs(args []string) (ApplyRequest, error) {
 	var req ApplyRequest
 	fs := flag.NewFlagSet(ApplyFlag, flag.ContinueOnError)
 	fs.IntVar(&req.PID, "pid", 0, "")
 	fs.StringVar(&req.Installer, "instalador", "", "")
+	fs.StringVar(&req.SHA256, "sha256", "", "")
+	fs.Int64Var(&req.Size, "tamanho", 0, "")
 	fs.StringVar(&req.Dir, "dir", "", "")
 	fs.StringVar(&req.Exe, "exe", "", "")
 	fs.StringVar(&req.Result, "resultado", "", "")
 	fs.StringVar(&req.From, "de", "", "")
 	fs.StringVar(&req.To, "para", "", "")
 	fs.SetOutput(io.Discard)
-	if err := fs.Parse(args); err != nil || req.Result == "" || req.Dir == "" || req.Exe == "" || req.Installer == "" {
+	if err := fs.Parse(args); err != nil {
+		return ApplyRequest{}, err
+	}
+	// Sem hash e tamanho não há como reconferir o instalador antes do UAC.
+	if req.Result == "" || req.Dir == "" || req.Exe == "" || req.Installer == "" || req.SHA256 == "" || req.Size <= 0 {
+		return ApplyRequest{}, errors.New("argumentos do atualizador incompletos")
+	}
+	return req, nil
+}
+
+// RunApply é o modo ApplyFlag: espera o app sair, roda o instalador e relança
+// o app. Devolve o exit code do processo.
+func RunApply(args []string) int {
+	req, err := parseApplyArgs(args)
+	if err != nil {
 		return 2
 	}
 	logf := openApplyLog(filepath.Join(filepath.Dir(req.Result), "aplicar.log"))
 
 	res := Result{From: req.From, To: req.To}
-	err := apply(req, logf)
+	err = apply(req, logf)
 	if err != nil {
 		res.Error = err.Error()
 	} else {
@@ -143,6 +161,11 @@ func RunApply(args []string) int {
 func apply(req ApplyRequest, logf func(string, ...any)) error {
 	logf("aguardando o app (pid %d) sair", req.PID)
 	if err := waitExit(req.PID, appExitTimeout); err != nil {
+		return err
+	}
+	// var/update é gravável pelo usuário e a espera acima dura até 60 s: o
+	// arquivo é reconferido logo antes de ser executado como administrador.
+	if err := verifyFile(req.Installer, &Artifact{Size: req.Size, SHA256: req.SHA256}); err != nil {
 		return err
 	}
 	// /D= precisa ser o último argumento e ir sem aspas, mesmo com espaços:

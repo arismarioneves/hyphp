@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 	"unsafe"
 )
 
@@ -83,7 +84,7 @@ func TestShellExecuteWaitExitCode(t *testing.T) {
 		comspec = `C:\Windows\System32\cmd.exe`
 	}
 	// Verbo "open": mesma mecânica de RunElevated (ShellExecuteEx → espera → exit code), sem UAC.
-	code, err := shellExecuteWait("open", comspec, quoteArgs([]string{"/c", "exit 7"}), helperTimeoutMS)
+	code, err := shellExecuteWait("open", comspec, quoteArgs([]string{"/c", "exit 7"}), helperTimeoutMS, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,12 +94,31 @@ func TestShellExecuteWaitExitCode(t *testing.T) {
 }
 
 func TestShellExecuteWaitArquivoInexistente(t *testing.T) {
-	_, err := shellExecuteWait("open", filepath.Join(t.TempDir(), "nao-existe.exe"), "", helperTimeoutMS)
+	_, err := shellExecuteWait("open", filepath.Join(t.TempDir(), "nao-existe.exe"), "", helperTimeoutMS, true)
 	if err == nil {
 		t.Fatal("esperava erro para executável inexistente")
 	}
 	if errors.Is(err, ErrElevationDenied) {
 		t.Fatalf("arquivo ausente não é elevação negada: %v", err)
+	}
+}
+
+// Helper vivo depois do timeout recriaria o arquivo de resultado que ninguém
+// mais lê; o processo tem de morrer antes do erro voltar.
+func TestShellExecuteWaitTimeoutEncerraProcesso(t *testing.T) {
+	comspec := os.Getenv("ComSpec")
+	if comspec == "" {
+		comspec = `C:\Windows\System32\cmd.exe`
+	}
+	marca := filepath.Join(t.TempDir(), "marca.txt")
+	params := `/c ping -n 3 127.0.0.1 >nul & echo x> "` + marca + `"`
+	_, err := shellExecuteWait("open", comspec, params, 300, true)
+	if !errors.Is(err, ErrHelperTimeout) {
+		t.Fatalf("esperava ErrHelperTimeout, veio %v", err)
+	}
+	time.Sleep(4 * time.Second)
+	if _, statErr := os.Stat(marca); statErr == nil {
+		t.Fatal("o processo sobreviveu ao timeout e terminou o trabalho")
 	}
 }
 

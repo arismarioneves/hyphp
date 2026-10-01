@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"hyphp/internal/netcfg"
+	"hyphp/internal/paths"
 )
 
 // Exit codes do contrato C10.
@@ -53,10 +54,27 @@ func main() {
 	resultPath := ""
 	if len(args) >= 2 && args[0] == "--result" {
 		resultPath, args = args[1], args[2:]
+		// Elevado, gravar em qualquer caminho pedido seria uma escrita arbitrária
+		// como administrador; o hyphp.exe sempre usa var/run da mesma raiz.
+		if !under(resultPath, paths.Run()) {
+			report("", exitUsage, fmt.Errorf("--result fora de %s: %q", paths.Run(), resultPath))
+			os.Exit(exitUsage)
+		}
 	}
 	code, err := run(args)
 	report(resultPath, code, err)
 	os.Exit(code)
+}
+
+// under responde se p está dentro de dir (comparação sem distinguir maiúsculas
+// no Windows, por filepath.Rel). O próprio dir não conta.
+func under(p, dir string) bool {
+	abs, err := filepath.Abs(p)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(dir, abs)
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel)
 }
 
 // report emite o JSON em stdout e, se pedido, no arquivo de resultado.
@@ -215,6 +233,12 @@ func mkcertInstall(argv []string) (int, error) {
 	}
 	if *exe == "" {
 		return exitUsage, errors.New("mkcert-install: --exe é obrigatório")
+	}
+	// O helper roda como administrador: sem esta trava ele executaria qualquer
+	// binário indicado. Só o mkcert instalado pelo app, na raiz do helper, passa.
+	mkcertDir := filepath.Join(paths.Bin(), "mkcert")
+	if !strings.EqualFold(filepath.Base(*exe), "mkcert.exe") || !under(*exe, mkcertDir) {
+		return exitUsage, fmt.Errorf("mkcert-install: --exe precisa ser mkcert.exe sob %s: %q", mkcertDir, *exe)
 	}
 	if _, err := os.Stat(*exe); err != nil {
 		return exitUsage, fmt.Errorf("mkcert-install: %s não encontrado: %w", *exe, err)

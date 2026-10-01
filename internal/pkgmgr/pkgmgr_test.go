@@ -198,6 +198,39 @@ func TestInstallSHAMismatchApagaTmp(t *testing.T) {
 	}
 }
 
+// Uma pasta extraída que Detect não reconhece fica invisível para Scan e para o
+// Remover da UI e faz o próximo Instalar falhar com "já existe".
+func TestInstallDetectFalhoRemovePastaExtraida(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	f, err := w.Create("nginx-9.9.9/nginx.exe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write([]byte("não é executável")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(buf.Bytes())
+	}))
+	defer srv.Close()
+	bin, tmp := t.TempDir(), t.TempDir()
+	m := NewManager(bin, tmp, srv.Client())
+	pkg := Package{ID: "nginx-9.9.9", Kind: runtime.Nginx, Version: "9.9.9", URL: srv.URL + "/nginx.zip"}
+
+	_, err = m.Install(context.Background(), pkg, nil)
+	if err == nil || !strings.Contains(err.Error(), "não detectado") {
+		t.Fatalf("esperava erro de detecção, veio %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(bin, "nginx", "nginx-9.9.9")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("pasta extraída deveria ter sido removida: %v", statErr)
+	}
+}
+
 // Cancelar no meio do download (runtimes de centenas de MB) tem de parar a
 // transferência, avisar a UI com a fase própria — não "erro" — e não deixar o
 // .part nem nada em bin/.

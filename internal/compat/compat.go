@@ -14,8 +14,8 @@ package compat
 
 import (
 	"fmt"
-	"strconv"
-	"strings"
+
+	"hyphp/internal/runtime"
 )
 
 // Faixa é um intervalo de versões [Min, Max). Max vazio significa "sem teto".
@@ -41,7 +41,7 @@ var phpParaPhpMyAdmin = map[string]Faixa{
 // phpMyAdmin. Versão desconhecida devolve ok=false: é melhor não afirmar nada
 // do que chutar uma faixa e bloquear uma combinação que funciona.
 func PHPParaPhpMyAdmin(versao string) (Faixa, bool) {
-	f, ok := phpParaPhpMyAdmin[serie(versao)]
+	f, ok := phpParaPhpMyAdmin[runtime.MajorOf(versao)]
 	return f, ok
 }
 
@@ -53,7 +53,7 @@ func MelhorPHP(majors []string, f Faixa) string {
 		if !f.Contem(m) {
 			continue
 		}
-		if melhor == "" || compara(m, melhor) > 0 {
+		if melhor == "" || runtime.CompareVersions(m, melhor) > 0 {
 			melhor = m
 		}
 	}
@@ -63,10 +63,10 @@ func MelhorPHP(majors []string, f Faixa) string {
 // Contem responde se a versão cai na faixa. A comparação é numérica por
 // componente: "8.10" é maior que "8.9", o que a ordem lexicográfica erra.
 func (f Faixa) Contem(v string) bool {
-	if f.Min != "" && compara(v, f.Min) < 0 {
+	if f.Min != "" && runtime.CompareVersions(v, f.Min) < 0 {
 		return false
 	}
-	if f.Max != "" && compara(v, f.Max) >= 0 {
+	if f.Max != "" && runtime.CompareVersions(v, f.Max) >= 0 {
 		return false
 	}
 	return true
@@ -83,40 +83,4 @@ func (f Faixa) String() string {
 		return fmt.Sprintf("PHP menor que %s", f.Max)
 	}
 	return "qualquer versão do PHP"
-}
-
-// serie reduz "5.2.3" a "5.2". As restrições valem por branch, não por patch.
-func serie(v string) string {
-	p := strings.SplitN(v, ".", 3)
-	if len(p) < 2 {
-		return v
-	}
-	return p[0] + "." + p[1]
-}
-
-// compara devolve -1, 0 ou 1 comparando componente a componente. Componente
-// ausente conta como zero, para "8.1" e "8.1.0" serem equivalentes.
-func compara(a, b string) int {
-	pa, pb := strings.Split(a, "."), strings.Split(b, ".")
-	for i := 0; i < len(pa) || i < len(pb); i++ {
-		na, nb := componente(pa, i), componente(pb, i)
-		if na != nb {
-			if na < nb {
-				return -1
-			}
-			return 1
-		}
-	}
-	return 0
-}
-
-func componente(p []string, i int) int {
-	if i >= len(p) {
-		return 0
-	}
-	n, err := strconv.Atoi(p[i])
-	if err != nil {
-		return 0
-	}
-	return n
 }

@@ -196,14 +196,16 @@ func PHPByMajor(list []Installed, major string) (Installed, bool) {
 }
 
 // run executa exe com args em dir, sem janela de console, e devolve stdout+stderr
-// combinados (nginx -v escreve em stderr). ctx limita a duração.
+// combinados (nginx -v escreve em stderr). ctx limita a duração. A saída volta
+// também no caminho de erro: o mailpit imprime a versão e sai com status 1, e
+// detectMailpit depende dela; os demais detectores checam err antes de usar out.
 func run(ctx context.Context, dir, exe string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Dir = dir
 	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("runtime: %s %s: %w: %s", filepath.Base(exe), strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+		return string(out), fmt.Errorf("runtime: %s %s: %w: %s", filepath.Base(exe), strings.Join(args, " "), err, strings.TrimSpace(string(out)))
 	}
 	return string(out), nil
 }
@@ -244,8 +246,8 @@ func parseFirstVersion(out, tool string) (string, error) {
 	return v, nil
 }
 
-// majorOf devolve a série "major.minor" ("8.1.10" → "8.1").
-func majorOf(version string) string {
+// MajorOf devolve a série "major.minor" ("8.1.10" → "8.1").
+func MajorOf(version string) string {
 	parts := strings.SplitN(version, ".", 3)
 	if len(parts) < 2 {
 		return version
