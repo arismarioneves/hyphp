@@ -33,14 +33,16 @@ export function OpenFolder(path: string): $CancellablePromise<void> {
 }
 
 /**
- * OpenInEditor abre o caminho no editor configurado (state.Editor) ou no VS Code (`code`).
+ * OpenInEditor abre o caminho no editor configurado (state.Editor) ou no
+ * editor padrão do SO; a forma de abrir fica em openInEditor, por SO.
  */
 export function OpenInEditor(path: string): $CancellablePromise<void> {
     return $Call.ByID(1066118839, path);
 }
 
 /**
- * OpenTerminal abre um terminal no diretório: state.Terminal, senão Windows Terminal, senão cmd.exe.
+ * OpenTerminal abre um terminal no diretório: state.Terminal, senão o
+ * terminal padrão do SO (openTerminal, por SO).
  */
 export function OpenTerminal(path: string): $CancellablePromise<void> {
     return $Call.ByID(2005338537, path);
