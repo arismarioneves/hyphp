@@ -639,3 +639,30 @@ func TestDefaultLookPathIn(t *testing.T) {
 		t.Fatalf("caminho absoluto = %q, %v", got, err)
 	}
 }
+
+// O retrato de State() vai para o Reconcile, que itera os mapas sem lock.
+// Qualquer mapa compartilhado com o state vivo vira escrita concorrente
+// quando o usuário edita uma diretiva no meio do Reconcile — e isso derruba o
+// processo, não só a goroutine.
+func TestCloneStateNaoCompartilhaMapas(t *testing.T) {
+	orig := state.Default()
+	orig.PortAlloc["php:8.3"] = []int{9000}
+	orig.PHPExtensions = map[string][]string{"8.3": {"curl"}}
+	orig.PHPIni = map[string]map[string]string{"8.3": {"memory_limit": "256M"}}
+
+	c := cloneState(orig)
+	c.PortAlloc["php:8.3"][0] = 1
+	c.PHPExtensions["8.3"][0] = "x"
+	c.PHPIni["8.3"]["memory_limit"] = "1G"
+	c.PHPIni["8.3"]["max_input_vars"] = "5000"
+
+	if orig.PortAlloc["php:8.3"][0] != 9000 {
+		t.Error("PortAlloc compartilhado com a cópia")
+	}
+	if orig.PHPExtensions["8.3"][0] != "curl" {
+		t.Error("PHPExtensions compartilhado com a cópia")
+	}
+	if got := orig.PHPIni["8.3"]; len(got) != 1 || got["memory_limit"] != "256M" {
+		t.Errorf("PHPIni compartilhado com a cópia: %v", got)
+	}
+}

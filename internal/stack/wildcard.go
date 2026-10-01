@@ -73,7 +73,7 @@ func (s *Stack) syncWildcard(projs []project.Project) []Warning {
 		s.d.Logger.Info("stack: resolvedor DNS no ar", "addr", dnsAddr, "suffix", dnsSuffix)
 	}
 
-	if s.nrptDone {
+	if s.nrptDone || nrptRuleExists(dnsSuffix) {
 		return nil
 	}
 	return []Warning{{

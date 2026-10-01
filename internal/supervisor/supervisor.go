@@ -36,6 +36,9 @@ type entry struct {
 	restarts int
 	logFile  *os.File
 	done     chan struct{} // fechado quando o laço run() termina
+	// stopping existe enquanto um Stop está em curso e é fechado quando ele
+	// termina. Quem o cria é o único dono da parada: um segundo Stop só espera.
+	stopping chan struct{}
 }
 
 // Supervisor mantém a máquina de estados de todos os serviços.
@@ -200,24 +203,36 @@ func (s *Supervisor) Stop(id string) error {
 		s.mu.Unlock()
 		return fmt.Errorf("serviço desconhecido: %s", id)
 	}
+	if e.stopping != nil {
+		// Outro Stop já está parando. Repetir o stopProcess usaria o job que o
+		// dono fecha em releaseProcess, e no Windows o valor de um handle
+		// fechado é reciclado: o TerminateJobObject podia matar outro serviço.
+		stopping := e.stopping
+		s.mu.Unlock()
+		<-stopping
+		return nil
+	}
 	switch e.status.State {
 	case Stopped, Failed:
 		s.mu.Unlock()
 		return nil
 	}
+	stopping := make(chan struct{})
+	e.stopping = stopping
 	e.status.State = Stopping
 	cmd, job, cancel, done := e.cmd, e.job, e.cancel, e.done
 	ev := Event{Status: e.status}
 	chans := s.subscribersLocked()
 	s.mu.Unlock()
 	s.broadcast(chans, ev)
+	defer close(stopping)
 
 	if cancel != nil {
 		cancel()
 	}
 	var errs []error
 	if cmd != nil {
-		if err := stopProcess(cmd, job, stopTimeout); err != nil {
+		if err := stopProcessFn(cmd, job, stopTimeout); err != nil {
 			errs = append(errs, fmt.Errorf("parar %s: %w", id, err))
 		}
 	}
@@ -229,6 +244,11 @@ func (s *Supervisor) Stop(id string) error {
 		}
 	}
 	s.releaseProcess(e)
+	// Liberado antes do Stopped: um Stop que chegue a partir daqui já não
+	// acha cmd nem job e só confirma a parada.
+	s.mu.Lock()
+	e.stopping = nil
+	s.mu.Unlock()
 	// C18.3: mesmo com erro o estado vira Stopped — o job foi fechado, então
 	// o que sobrou da árvore já morreu.
 	s.setState(e, Stopped, nil)
@@ -427,14 +447,29 @@ func (s *Supervisor) launch(e *entry) error {
 	return nil
 }
 
+// stopProcessFn é variável para o teste contar e segurar as paradas.
+var stopProcessFn = stopProcess
+
 // releaseProcess fecha o job do serviço (matando o que sobrou da árvore), o
 // arquivo de log e a última linha parcial do ring.
 func (s *Supervisor) releaseProcess(e *entry) {
 	s.mu.Lock()
+	job, f := s.takeProcessLocked(e)
+	s.mu.Unlock()
+	closeProcess(e, job, f)
+}
+
+// takeProcessLocked tira cmd, job e log da entry. Separado de closeProcess
+// para o laço de restart poder tirá-los na mesma seção crítica em que confere
+// que nenhum Stop está em curso.
+func (s *Supervisor) takeProcessLocked(e *entry) (windows.Handle, *os.File) {
 	job, f := e.job, e.logFile
 	e.cmd, e.job, e.logFile = nil, 0, nil
 	e.status.PID = 0
-	s.mu.Unlock()
+	return job, f
+}
+
+func closeProcess(e *entry, job windows.Handle, f *os.File) {
 	if job != 0 {
 		windows.CloseHandle(job)
 	}
@@ -475,9 +510,12 @@ func (s *Supervisor) run(e *entry, ctx context.Context) {
 			e.restarts = attempt
 			e.status.Restarts = attempt
 		}
+		// Tirados sob o mesmo lock da checagem de Stopping: soltar o lock antes
+		// deixava um Stop capturar o job que este laço fecharia em seguida.
+		job, f := s.takeProcessLocked(e)
 		s.mu.Unlock()
 
-		s.releaseProcess(e)
+		closeProcess(e, job, f)
 		if !allowed {
 			s.setState(e, Failed, reason)
 			return
@@ -564,7 +602,7 @@ func (s *Supervisor) killAndDrain(e *entry, exited <-chan error) {
 	if cmd == nil {
 		return
 	}
-	if err := stopProcess(cmd, job, stopTimeout); err != nil {
+	if err := stopProcessFn(cmd, job, stopTimeout); err != nil {
 		s.logger.Warn("matar serviço travado", "id", e.spec.ID, "err", err)
 	}
 	select {

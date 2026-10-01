@@ -24,6 +24,9 @@ const (
 	// initMarker fica dentro do datadir e só é criado depois de o
 	// --initialize-insecure terminar com sucesso.
 	initMarker = ".hyphp-initialized"
+	// initPending é o sufixo do arquivo, ao lado do datadir (os inicializadores
+	// recusam datadir não vazio), que existe enquanto a inicialização roda.
+	initPending = ".hyphp-initializing"
 	// initTimeout cobre o --initialize-insecure: medido em 25s num SSD com o
 	// MySQL 8.0.30; num HDD passa de um minuto.
 	initTimeout = 180 * time.Second
@@ -127,6 +130,13 @@ var dbInits = map[runtime.Kind]dbInit{
 //     apaga e inicializa. Os dois motores recusam datadir não vazio, então a
 //     limpeza é obrigatória para poder repetir.
 //
+// "Interrompida" é reconhecida pelo <datadir>.hyphp-initializing, gravado
+// antes de rodar o inicializador e apagado só no sucesso. Sem ele a
+// adoção valia também para restos: o mysql.ibd nasce no começo do
+// --initialize, e um init morto no meio (app fechado, queda de energia)
+// virava um datadir "adotado" que o mysqld não consegue abrir, num ciclo de
+// reinícios sem aviso.
+//
 // A saída vai para <logDir>/mysql-init.log ou mariadb-init.log: sem ela, a
 // causa de uma falha (porta, permissão, ACL do diretório) fica invisível.
 //
@@ -142,10 +152,13 @@ func InitDBData(ctx context.Context, inst runtime.Installed, port int, etcDir, v
 		return fmt.Errorf("stack: %s não é servidor de banco", inst.Kind)
 	}
 	data := DataDir(varDir, inst.Kind)
+	pending := data + initPending
 	if _, err := os.Stat(filepath.Join(data, initMarker)); err == nil {
 		return nil
 	}
-	if _, err := os.Stat(filepath.Join(data, how.system)); err == nil {
+	_, perr := os.Stat(pending)
+	interrupted := perr == nil
+	if _, err := os.Stat(filepath.Join(data, how.system)); err == nil && !interrupted {
 		return writeMarker(data)
 	}
 	if err := os.RemoveAll(data); err != nil {
@@ -157,8 +170,14 @@ func InitDBData(ctx context.Context, inst runtime.Installed, port int, etcDir, v
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return fmt.Errorf("stack: criar %s: %w", logDir, err)
 	}
+	if err := os.WriteFile(pending, []byte("hyphp\n"), 0o644); err != nil {
+		return fmt.Errorf("stack: gravar %s: %w", pending, err)
+	}
 
-	ctx, cancel := context.WithTimeout(ctx, initTimeout)
+	// O prazo é só o initTimeout: o ctx de quem chama é o do Reconcile (60s),
+	// e WithTimeout nunca estende o prazo do pai — num HDD o init era morto
+	// antes de terminar.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), initTimeout)
 	defer cancel()
 	exe, args := how.cmd(inst, etcDir, data)
 	cmd := exec.CommandContext(ctx, exe, args...)
@@ -172,6 +191,12 @@ func InitDBData(ctx context.Context, inst runtime.Installed, port int, etcDir, v
 	}
 	if runErr != nil {
 		return fmt.Errorf("stack: %s falhou (veja %s): %w", filepath.Base(exe), logPath, runErr)
+	}
+	// Nesta ordem: uma queda entre as duas linhas deixa o datadir completo sem
+	// nenhum marcador, e a próxima chamada o adota — o certo, porque o init
+	// terminou.
+	if err := os.Remove(pending); err != nil {
+		return fmt.Errorf("stack: apagar %s: %w", pending, err)
 	}
 	return writeMarker(data)
 }

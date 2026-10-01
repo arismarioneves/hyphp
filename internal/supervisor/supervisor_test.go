@@ -4,10 +4,15 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os/exec"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 func newTestSupervisor(t *testing.T) *Supervisor {
@@ -90,6 +95,79 @@ func TestSupervisor_StartFicaReadyEStopMataOProcesso(t *testing.T) {
 	st, _ := sup.Status("web")
 	if st.State != Stopped {
 		t.Fatalf("estado após Stop = %q, want %q", st.State, Stopped)
+	}
+	if processAlive(ready.PID) {
+		t.Fatalf("processo %d continua vivo após Stop", ready.PID)
+	}
+}
+
+// Dois Stops ao mesmo tempo (o watcher removendo o spec enquanto o usuário
+// clica Parar): só o primeiro mata a árvore. O segundo repetia o
+// TerminateJobObject com o job que o primeiro fecha, e no Windows o valor de
+// um handle fechado é reciclado. O segundo também só pode voltar com o
+// serviço já parado.
+func TestSupervisor_StopConcorrenteParaUmaVezSo(t *testing.T) {
+	sup := newTestSupervisor(t)
+	if err := sup.Add(longRunningSpec("web")); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	sub, cancel := sup.Subscribe()
+	defer cancel()
+	if err := sup.Start("web"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	ready := waitState(t, sub, "web", Ready, 10*time.Second)
+
+	var calls atomic.Int32
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	liberar := sync.OnceFunc(func() { close(release) })
+	orig := stopProcessFn
+	t.Cleanup(func() { stopProcessFn = orig })
+	// Registrado depois do Close de newTestSupervisor, roda antes dele: um
+	// teste que falhe com o primeiro Stop preso não trava o Close.
+	t.Cleanup(liberar)
+	stopProcessFn = func(cmd *exec.Cmd, job windows.Handle, timeout time.Duration) error {
+		if calls.Add(1) == 1 {
+			close(entered)
+			<-release
+		}
+		return orig(cmd, job, timeout)
+	}
+
+	first := make(chan error, 1)
+	go func() { first <- sup.Stop("web") }()
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("primeiro Stop não chegou a parar o processo")
+	}
+	second := make(chan error, 1)
+	go func() { second <- sup.Stop("web") }()
+
+	// O segundo Stop não tem como avisar que chegou à espera; meio segundo
+	// sobra para ele, sem a correção, alcançar o stopProcess e voltar.
+	select {
+	case err := <-second:
+		t.Fatalf("segundo Stop voltou (%v) com o primeiro ainda parando", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	liberar()
+	for i, ch := range []chan error{first, second} {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("Stop %d: %v", i+1, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("Stop %d não voltou", i+1)
+		}
+	}
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("stopProcess chamado %d vezes, quero 1", n)
+	}
+	if st, _ := sup.Status("web"); st.State != Stopped {
+		t.Fatalf("estado após os dois Stops = %q, want %q", st.State, Stopped)
 	}
 	if processAlive(ready.PID) {
 		t.Fatalf("processo %d continua vivo após Stop", ready.PID)

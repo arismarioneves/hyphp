@@ -123,6 +123,24 @@ func TestRootEnvVenceTudo(t *testing.T) {
 	}
 }
 
+// Depois de Freeze, uma falha passageira da sonda de escrita não pode mudar a
+// raiz no meio da sessão.
+func TestFreezeFixaARaiz(t *testing.T) {
+	orig := writable
+	t.Cleanup(func() { writable = orig; frozen = "" })
+	writable = func(string) bool { return true }
+	t.Setenv(EnvRoot, "")
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+
+	Freeze()
+	want := mustExeDir(t)
+	writable = func(string) bool { return false }
+	t.Setenv(EnvRoot, t.TempDir())
+	if got := Root(); got != want {
+		t.Errorf("Root() depois de Freeze = %q, quero %q", got, want)
+	}
+}
+
 func TestSubdirsDerivamDeRoot(t *testing.T) {
 	root := t.TempDir()
 	t.Setenv(EnvRoot, root)
