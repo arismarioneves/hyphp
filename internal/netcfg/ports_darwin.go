@@ -15,13 +15,16 @@ import (
 func listeningPorts() (map[int]int, error) {
 	out, err := exec.Command("lsof", "-nP", "-iTCP", "-sTCP:LISTEN", "-F", "pcn").Output()
 	if err != nil {
-		// Sem nenhum socket que case com o filtro o lsof sai com código 1 e stdout vazio:
-		// é "nenhum listener", não falha.
+		// O lsof sai com código 1 em dois casos que não são falha: nenhum socket casou
+		// com o filtro (stdout vazio, "nenhum listener") e algum descritor que ele não
+		// conseguiu inspecionar — processo de outro usuário, comum sem root — enquanto
+		// os registros que conseguiu ler saem completos no stdout. Descartá-los deixaria
+		// o alocador sem enxergar portas ocupadas. Outro código (ou morte por sinal) é
+		// falha de verdade e a saída parcial não é confiável.
 		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) && exitErr.ExitCode() == 1 && len(out) == 0 {
-			return map[int]int{}, nil
+		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 1 {
+			return nil, fmt.Errorf("lsof: %w", err)
 		}
-		return nil, fmt.Errorf("lsof: %w", err)
 	}
 	return parseLsofListening(string(out)), nil
 }
