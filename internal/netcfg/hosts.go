@@ -10,7 +10,6 @@ import (
 	"unicode/utf8"
 )
 
-const HostsPath = `C:\Windows\System32\drivers\etc\hosts`
 const blockStart = "# hyphp:start"
 const blockEnd = "# hyphp:end"
 
@@ -34,7 +33,7 @@ func validHostsLine(line string) bool {
 }
 
 // detectEOL devolve o terminador de linha do arquivo: o primeiro encontrado.
-// Sem nenhum terminador (arquivo vazio ou de uma linha) assume CRLF, o padrão do Windows.
+// Sem nenhum terminador (arquivo vazio ou de uma linha) usa defaultEOL, o padrão do SO.
 func detectEOL(s string) string {
 	i := strings.IndexByte(s, '\n')
 	if i > 0 && s[i-1] == '\r' {
@@ -43,7 +42,7 @@ func detectEOL(s string) string {
 	if i >= 0 {
 		return "\n"
 	}
-	return "\r\n"
+	return defaultEOL
 }
 
 // normalizeDomains devolve os domínios em minúsculas, sem vazios, sem duplicatas, ordenados.

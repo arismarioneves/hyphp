@@ -36,7 +36,7 @@ func TestRenderHostsBlock(t *testing.T) {
 			name:     "arquivo vazio: só o bloco",
 			existing: "",
 			domains:  []string{"a.test"},
-			want:     "# hyphp:start\r\n127.0.0.1 a.test\r\n# hyphp:end\r\n",
+			want:     "# hyphp:start" + defaultEOL + "127.0.0.1 a.test" + defaultEOL + "# hyphp:end" + defaultEOL,
 		},
 		{
 			name:     "bloco no meio: substitui e preserva antes/depois byte a byte",
@@ -72,7 +72,7 @@ func TestRenderHostsBlock(t *testing.T) {
 			name:     "dedup, trim, minúsculas, ordenação",
 			existing: "",
 			domains:  []string{" B.test ", "a.test", "b.TEST", ""},
-			want:     "# hyphp:start\r\n127.0.0.1 a.test\r\n127.0.0.1 b.test\r\n# hyphp:end\r\n",
+			want:     "# hyphp:start" + defaultEOL + "127.0.0.1 a.test" + defaultEOL + "127.0.0.1 b.test" + defaultEOL + "# hyphp:end" + defaultEOL,
 		},
 		{
 			name:     "marcador no meio de uma linha não conta como bloco",
