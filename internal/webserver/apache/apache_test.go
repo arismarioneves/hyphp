@@ -165,8 +165,10 @@ func TestRenderEhRelocavel(t *testing.T) {
 	}
 }
 
+// O etcDir chega com o separador do SO (FromSlash: o "C:\..." de sempre no
+// Windows) e os argumentos saem com "/" nos dois.
 func TestCommandDefineEtc(t *testing.T) {
-	exe, args, dir := New(testInstalled()).Command(`C:\hyphp\etc\apache.next`)
+	exe, args, dir := New(testInstalled()).Command(filepath.FromSlash("C:/hyphp/etc/apache.next"))
 	if exe != testApacheDir+"/bin/httpd.exe" {
 		t.Fatalf("exe = %q", exe)
 	}
@@ -189,7 +191,7 @@ func TestCommandDefineEtc(t *testing.T) {
 // O Apache tokeniza o -C como uma linha de config: sem aspas, um perfil com
 // espaço daria três argumentos ao Define e o httpd -t recusaria tudo.
 func TestCommandDefineEtcComEspaco(t *testing.T) {
-	_, args, _ := New(testInstalled()).Command(`C:\Users\João Silva\HyPHP\etc\apache`)
+	_, args, _ := New(testInstalled()).Command(filepath.FromSlash("C:/Users/João Silva/HyPHP/etc/apache"))
 	want := `Define HYPHP_ETC "C:/Users/João Silva/HyPHP/etc/apache"`
 	if args[len(args)-1] != want {
 		t.Fatalf("-C = %q, quero %q", args[len(args)-1], want)

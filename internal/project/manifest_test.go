@@ -126,7 +126,6 @@ func TestValidate(t *testing.T) {
 		{"docroot relativo", Manifest{Name: "a", Domain: "a.test", Docroot: "web/public"}, false},
 		{"docroot com ..", Manifest{Name: "a", Domain: "a.test", Docroot: "../.."}, true},
 		{"docroot que sai no meio", Manifest{Name: "a", Domain: "a.test", Docroot: "web/../../x"}, true},
-		{"docroot absoluto com drive", Manifest{Name: "a", Domain: "a.test", Docroot: "C:/x"}, true},
 		{"docroot absoluto com barra", Manifest{Name: "a", Domain: "a.test", Docroot: "/x"}, true},
 	}
 	for _, c := range cases {

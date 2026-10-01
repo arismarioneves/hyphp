@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"hyphp/internal/runtime"
+	"hyphp/internal/sysproc"
 )
 
 // mysqlEm devolve um MySQL "instalado" em dir e as pastas etc/var/log de um
@@ -18,7 +19,7 @@ func mysqlEm(t *testing.T, dir string) (inst runtime.Installed, etcDir, varDir, 
 	root := t.TempDir()
 	inst = runtime.Installed{
 		Kind: runtime.MySQL, Version: "8.4.11", Major: "8.4.11", Dir: dir,
-		Exe: filepath.Join(dir, "bin", "mysqld.exe"),
+		Exe: filepath.Join(dir, "bin", sysproc.ExeName("mysqld")),
 	}
 	return inst, filepath.Join(root, "etc"), filepath.Join(root, "var"), filepath.Join(root, "log")
 }
@@ -27,7 +28,7 @@ func mysqlEm(t *testing.T, dir string) (inst runtime.Installed, etcDir, varDir, 
 // gravava o marcador sobre restos e o mysqld entrava num ciclo de reinícios;
 // com o marcador de init em andamento ele é apagado e inicializado de novo.
 func TestInitDBDataNaoAdotaInitInterrompido(t *testing.T) {
-	// Sem mysqld.exe: a nova inicialização falha, o que basta para ver que o
+	// Sem o mysqld: a nova inicialização falha, o que basta para ver que o
 	// datadir não foi adotado.
 	inst, etcDir, varDir, logDir := mysqlEm(t, t.TempDir())
 	data := DataDir(varDir, runtime.MySQL)
@@ -92,7 +93,13 @@ func TestInitDBDataNaoHerdaPrazoDoChamador(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(dir, "bin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	copyFile(t, self, filepath.Join(dir, "bin", "mysqld.exe"))
+	// Nome e bit de execução como o InitDBData procura: mysqld.exe no Windows,
+	// mysqld executável no macOS (sem o bit o exec falharia antes de rodar).
+	mysqld := filepath.Join(dir, "bin", sysproc.ExeName("mysqld"))
+	copyFile(t, self, mysqld)
+	if err := os.Chmod(mysqld, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	inst, etcDir, varDir, logDir := mysqlEm(t, dir)
 
 	ctx, cancel := context.WithCancel(t.Context())

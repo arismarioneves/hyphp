@@ -1,6 +1,7 @@
 package render
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -27,9 +28,10 @@ func TestBlowfishSecretTem32Bytes(t *testing.T) {
 
 // A config precisa apontar para a porta configurada e aceitar root sem senha,
 // que é como o HyPHP inicializa o MySQL. TempDir gravável evita o aviso
-// permanente de cache de templates que o phpMyAdmin exibe sem ele.
+// permanente de cache de templates que o phpMyAdmin exibe sem ele. A pasta
+// chega com o separador do SO (FromSlash: "\" no Windows) e sai com "/".
 func TestPhpMyAdminConfig(t *testing.T) {
-	got := string(PhpMyAdminConfig(3307, "12345678901234567890123456789012", `C:\hyphp\var\tmp\phpmyadmin`))
+	got := string(PhpMyAdminConfig(3307, "12345678901234567890123456789012", filepath.FromSlash("C:/hyphp/var/tmp/phpmyadmin")))
 	for _, want := range []string{
 		`$cfg['Servers'][$i]['host'] = '127.0.0.1';`,
 		`$cfg['Servers'][$i]['port'] = '3307';`,
@@ -62,7 +64,7 @@ func TestPhpMyAdminConfigEntraSemLogin(t *testing.T) {
 // contrabarra crua fecharia a string e o config.inc.php viraria um parse error
 // que derruba a ferramenta inteira.
 func TestPhpMyAdminConfigEscapaAspas(t *testing.T) {
-	got := string(PhpMyAdminConfig(3306, `a'b\c`, `C:\pasta'do usuário`))
+	got := string(PhpMyAdminConfig(3306, `a'b\c`, filepath.FromSlash("C:/pasta'do usuário")))
 	if !strings.Contains(got, `$cfg['blowfish_secret'] = 'a\'b\\c';`) {
 		t.Errorf("segredo não escapado:\n%s", got)
 	}

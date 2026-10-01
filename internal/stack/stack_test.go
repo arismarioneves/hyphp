@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -17,6 +18,11 @@ import (
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
 )
+
+// osPath escreve os caminhos das fixtures com "/" e os converte para o
+// separador do SO: no Windows sai exatamente o C:\... de antes; no macOS o
+// filepath.Join do código emenda com "/" e o esperado tem de usar o mesmo.
+func osPath(p string) string { return filepath.FromSlash(p) }
 
 func php(version, major, dir string) runtime.Installed {
 	return runtime.Installed{
@@ -37,7 +43,7 @@ func proj(id, root, phpMajor string) project.Project {
 func alwaysFree(int) bool { return true }
 
 func fakeTLS(domains []string) (string, string, error) {
-	return `C:\certs\` + domains[0] + ".pem", `C:\certs\` + domains[0] + "-key.pem", nil
+	return osPath("C:/certs/" + domains[0] + ".pem"), osPath("C:/certs/" + domains[0] + "-key.pem"), nil
 }
 
 func baseInput(projs ...project.Project) desiredInput {
@@ -46,15 +52,15 @@ func baseInput(projs ...project.Project) desiredInput {
 			WebServer: state.Apache, DefaultPHP: "8.1", PoolSize: 4, HTTPPort: 80, HTTPSPort: 443,
 		},
 		Runtimes: []runtime.Installed{
-			php("8.1.10", "8.1", `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64`),
-			php("7.2.34", "7.2", `C:\rt\bin\php\php-7.2.34-Win32-VC15-x64`),
+			php("8.1.10", "8.1", osPath("C:/rt/bin/php/php-8.1.10-Win32-vs16-x64")),
+			php("7.2.34", "7.2", osPath("C:/rt/bin/php/php-7.2.34-Win32-VC15-x64")),
 		},
 		Projects: projs,
 		Alloc:    netcfg.NewAllocatorWithProbe(9000, nil, alwaysFree),
 		TLS:      fakeTLS,
-		EtcDir:   `C:\rt\etc`,
-		VarDir:   `C:\rt\var`,
-		LogDir:   `C:\rt\log`,
+		EtcDir:   osPath("C:/rt/etc"),
+		VarDir:   osPath("C:/rt/var"),
+		LogDir:   osPath("C:/rt/log"),
 	}
 }
 
@@ -70,7 +76,7 @@ func specIDs(specs []supervisor.Spec, prefix string) []string {
 }
 
 func TestDesiredTwoMajors(t *testing.T) {
-	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"), proj("app72", `C:\DEV\app72`, "7.2"))
+	in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"), proj("app72", osPath("C:/DEV/app72"), "7.2"))
 	out, err := desired(in)
 	if err != nil {
 		t.Fatal(err)
@@ -105,10 +111,10 @@ func TestDesiredTwoMajors(t *testing.T) {
 		if s.Group != "php" || s.Port != 9005 {
 			t.Fatalf("spec %+v", s)
 		}
-		if s.Exe != `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64\php-cgi.exe` {
+		if s.Exe != osPath("C:/rt/bin/php/php-8.1.10-Win32-vs16-x64/php-cgi.exe") {
 			t.Fatalf("Exe = %q", s.Exe)
 		}
-		wantArgs := []string{"-b", "127.0.0.1:9005", "-c", filepath.Join(`C:\rt\etc`, "php", "8.1", "php.ini"), "-d", "cgi.force_redirect=0", "-d", "cgi.fix_pathinfo=1"}
+		wantArgs := []string{"-b", "127.0.0.1:9005", "-c", osPath("C:/rt/etc/php/8.1/php.ini"), "-d", "cgi.force_redirect=0", "-d", "cgi.fix_pathinfo=1"}
 		if !reflect.DeepEqual(s.Args, wantArgs) {
 			t.Fatalf("Args = %q, want %q", s.Args, wantArgs)
 		}
@@ -155,7 +161,7 @@ func TestDesiredTwoMajors(t *testing.T) {
 }
 
 func TestDesiredMissingPHP(t *testing.T) {
-	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"), proj("novo", `C:\DEV\novo`, "8.3"))
+	in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"), proj("novo", osPath("C:/DEV/novo"), "8.3"))
 	out, err := desired(in)
 	if err != nil {
 		t.Fatal(err)
@@ -176,7 +182,7 @@ func TestDesiredMissingPHP(t *testing.T) {
 
 func TestDesiredDefaultAndHighestPHP(t *testing.T) {
 	t.Run("usa DefaultPHP", func(t *testing.T) {
-		in := baseInput(proj("x", `C:\DEV\x`, ""))
+		in := baseInput(proj("x", osPath("C:/DEV/x"), ""))
 		in.State.DefaultPHP = "7.2"
 		out, err := desired(in)
 		if err != nil {
@@ -187,7 +193,7 @@ func TestDesiredDefaultAndHighestPHP(t *testing.T) {
 		}
 	})
 	t.Run("sem DefaultPHP usa a maior instalada", func(t *testing.T) {
-		in := baseInput(proj("x", `C:\DEV\x`, ""))
+		in := baseInput(proj("x", osPath("C:/DEV/x"), ""))
 		in.State.DefaultPHP = ""
 		out, err := desired(in)
 		if err != nil {
@@ -200,7 +206,7 @@ func TestDesiredDefaultAndHighestPHP(t *testing.T) {
 }
 
 func TestDesiredReleasesUnusedMajor(t *testing.T) {
-	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"))
 	in.Alloc = netcfg.NewAllocatorWithProbe(9000, map[string][]int{"php:7.2": {9000, 9001, 9002, 9003}, "php:8.1": {9004, 9005, 9006, 9007}}, alwaysFree)
 	if _, err := desired(in); err != nil {
 		t.Fatal(err)
@@ -215,7 +221,7 @@ func TestDesiredReleasesUnusedMajor(t *testing.T) {
 }
 
 func TestDesiredHtaccessUnderNginx(t *testing.T) {
-	p := proj("legacy", `C:\DEV\legacy`, "8.1")
+	p := proj("legacy", osPath("C:/DEV/legacy"), "8.1")
 	p.HasHtaccess = true
 	in := baseInput(p)
 	in.State.WebServer = state.Nginx
@@ -241,7 +247,7 @@ func TestDesiredHtaccessUnderNginx(t *testing.T) {
 // O nginx interpola $nome até dentro de aspas: um projeto em "C:\www\$cliente"
 // fazia o nginx -t falhar e o Reconcile cair para todos os projetos.
 func TestDesiredDocrootComDolarSobNginx(t *testing.T) {
-	in := baseInput(proj("cliente", `C:\www\$cliente`, "8.1"), proj("app81", `C:\DEV\app81`, "8.1"))
+	in := baseInput(proj("cliente", osPath("C:/www/$cliente"), "8.1"), proj("app81", osPath("C:/DEV/app81"), "8.1"))
 	in.State.WebServer = state.Nginx
 	out, err := desired(in)
 	if err != nil {
@@ -292,7 +298,7 @@ func TestOperacoesDesistemQuandoOCtxVenceEsperandoOLock(t *testing.T) {
 }
 
 func TestDesiredWildcardAndTLSFailure(t *testing.T) {
-	p := proj("multi", `C:\DEV\multi`, "8.1")
+	p := proj("multi", osPath("C:/DEV/multi"), "8.1")
 	p.Wildcard = true
 	in := baseInput(p)
 	var gotDomains []string
@@ -317,9 +323,9 @@ func TestDesiredWildcardAndTLSFailure(t *testing.T) {
 }
 
 func TestDesiredExtensionsUnion(t *testing.T) {
-	a := proj("a", `C:\DEV\a`, "8.1")
+	a := proj("a", osPath("C:/DEV/a"), "8.1")
 	a.Extensions = []string{"intl", "pdo_mysql"}
-	b := proj("b", `C:\DEV\b`, "8.1")
+	b := proj("b", osPath("C:/DEV/b"), "8.1")
 	b.Extensions = []string{"gd", "intl"}
 	in := baseInput(a, b)
 	in.State.PHPExtensions = map[string][]string{"8.1": {"mbstring", "gd"}}
@@ -333,7 +339,7 @@ func TestDesiredExtensionsUnion(t *testing.T) {
 }
 
 func mysqlInstalled() runtime.Installed {
-	dir := `C:\rt\bin\mysql\mysql-8.0.30-winx64`
+	dir := osPath("C:/rt/bin/mysql/mysql-8.0.30-winx64")
 	return runtime.Installed{
 		Kind: runtime.MySQL, Version: "8.0.30", Major: "8.0.30", Dir: dir,
 		Exe: filepath.Join(dir, "bin", "mysqld.exe"), Arch: "x64",
@@ -350,7 +356,7 @@ func specByID(specs []supervisor.Spec, id string) (supervisor.Spec, bool) {
 }
 
 func TestDesiredMySQLSpec(t *testing.T) {
-	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"))
 	in.Runtimes = append(in.Runtimes, mysqlInstalled())
 	in.State.MySQLPort = 3307 // a porta vem do state, nunca é constante
 
@@ -365,10 +371,10 @@ func TestDesiredMySQLSpec(t *testing.T) {
 	if sp.Group != "db" || sp.Port != 3307 {
 		t.Fatalf("spec = %+v", sp)
 	}
-	if sp.Exe != `C:\rt\bin\mysql\mysql-8.0.30-winx64\bin\mysqld.exe` {
+	if sp.Exe != osPath("C:/rt/bin/mysql/mysql-8.0.30-winx64/bin/mysqld.exe") {
 		t.Fatalf("Exe = %q", sp.Exe)
 	}
-	wantArgs := []string{`--defaults-file=C:\rt\etc\mysql\my.ini`, "--console"}
+	wantArgs := []string{"--defaults-file=" + osPath("C:/rt/etc/mysql/my.ini"), "--console"}
 	if !reflect.DeepEqual(sp.Args, wantArgs) {
 		t.Fatalf("Args = %q, want %q", sp.Args, wantArgs)
 	}
@@ -382,7 +388,7 @@ func TestDesiredMySQLSpec(t *testing.T) {
 	if !sp.Restart.Enabled {
 		t.Fatal("Restart deve estar ligado")
 	}
-	if sp.LogPath != `C:\rt\log\mysql.log` {
+	if sp.LogPath != osPath("C:/rt/log/mysql.log") {
 		t.Fatalf("LogPath = %q", sp.LogPath)
 	}
 }
@@ -392,9 +398,9 @@ func TestDesiredMySQLSpec(t *testing.T) {
 // subia: o 8.0 recusa o datadir do 8.4 ("downgrade is only permitted between
 // patch releases") e o serviço entra em loop de restart.
 func TestDesiredMySQLUsaAVersaoMaisNova(t *testing.T) {
-	antigo := `C:\rt\bin\mysql\mysql-8.0.46-winx64`
-	novo := `C:\rt\bin\mysql\mysql-8.4.11-winx64`
-	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	antigo := osPath("C:/rt/bin/mysql/mysql-8.0.46-winx64")
+	novo := osPath("C:/rt/bin/mysql/mysql-8.4.11-winx64")
+	in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"))
 	in.Runtimes = append(in.Runtimes,
 		runtime.Installed{Kind: runtime.MySQL, Version: "8.0.46", Major: "8.0.46", Dir: antigo, Exe: filepath.Join(antigo, "bin", "mysqld.exe")},
 		runtime.Installed{Kind: runtime.MySQL, Version: "8.4.11", Major: "8.4.11", Dir: novo, Exe: filepath.Join(novo, "bin", "mysqld.exe")},
@@ -409,7 +415,7 @@ func TestDesiredMySQLUsaAVersaoMaisNova(t *testing.T) {
 	}
 }
 func mariadbInstalled(version string) runtime.Installed {
-	dir := `C:\rt\bin\mariadb\mariadb-` + version + `-winx64`
+	dir := osPath("C:/rt/bin/mariadb/mariadb-" + version + "-winx64")
 	return runtime.Installed{Kind: runtime.MariaDB, Version: version, Major: version, Dir: dir, Exe: filepath.Join(dir, "bin", "mariadbd.exe")}
 }
 
@@ -424,15 +430,15 @@ func TestDesiredMotorDeBanco(t *testing.T) {
 		wantNom string
 	}{
 		{"mariadb escolhido", state.DBMariaDB, []runtime.Installed{mysqlInstalled(), mariadbInstalled("10.11.19"), mariadbInstalled("11.4.13")},
-			`C:\rt\bin\mariadb\mariadb-11.4.13-winx64\bin\mariadbd.exe`, "MariaDB 11.4.13"},
+			osPath("C:/rt/bin/mariadb/mariadb-11.4.13-winx64/bin/mariadbd.exe"), "MariaDB 11.4.13"},
 		{"sem escolha, os dois instalados", "", []runtime.Installed{mariadbInstalled("11.4.13"), mysqlInstalled()},
-			`C:\rt\bin\mysql\mysql-8.0.30-winx64\bin\mysqld.exe`, "MySQL 8.0.30"},
+			osPath("C:/rt/bin/mysql/mysql-8.0.30-winx64/bin/mysqld.exe"), "MySQL 8.0.30"},
 		{"sem escolha, só o MariaDB", "", []runtime.Installed{mariadbInstalled("11.4.13")},
-			`C:\rt\bin\mariadb\mariadb-11.4.13-winx64\bin\mariadbd.exe`, "MariaDB 11.4.13"},
+			osPath("C:/rt/bin/mariadb/mariadb-11.4.13-winx64/bin/mariadbd.exe"), "MariaDB 11.4.13"},
 	}
 	for _, c := range casos {
 		t.Run(c.nome, func(t *testing.T) {
-			in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+			in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"))
 			in.Runtimes = append(in.Runtimes, c.rts...)
 			in.State.DBEngine = c.engine
 			out, err := desired(in)
@@ -450,7 +456,7 @@ func TestDesiredMotorDeBanco(t *testing.T) {
 // MariaDB escolhido e não instalado: nenhum banco sobe. Cair no MySQL
 // mostraria os databases de outro servidor sem o usuário ter pedido.
 func TestDesiredMotorEscolhidoAusente(t *testing.T) {
-	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"))
 	in.Runtimes = append(in.Runtimes, mysqlInstalled())
 	in.State.DBEngine = state.DBMariaDB
 	out, err := desired(in)
@@ -463,7 +469,7 @@ func TestDesiredMotorEscolhidoAusente(t *testing.T) {
 }
 
 func TestDesiredSemMySQL(t *testing.T) {
-	out, err := desired(baseInput(proj("app81", `C:\DEV\app81`, "8.1")))
+	out, err := desired(baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,7 +482,7 @@ func TestDesiredSemMySQL(t *testing.T) {
 }
 
 func mailpitInstalled() runtime.Installed {
-	dir := `C:\rt\bin\mailpit`
+	dir := osPath("C:/rt/bin/mailpit")
 	return runtime.Installed{
 		Kind: runtime.Mailpit, Version: "1.31.1", Major: "1.31.1", Dir: dir,
 		Exe: filepath.Join(dir, "mailpit.exe"),
@@ -484,7 +490,7 @@ func mailpitInstalled() runtime.Installed {
 }
 
 func TestDesiredMailpitSpec(t *testing.T) {
-	in := baseInput(proj("app81", `C:\DEV\app81`, "8.1"))
+	in := baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1"))
 	in.Runtimes = append(in.Runtimes, mailpitInstalled())
 	in.State.MailpitSMTPPort = 1026
 	in.State.MailpitHTTPPort = 8026
@@ -500,13 +506,13 @@ func TestDesiredMailpitSpec(t *testing.T) {
 	if sp.Group != "mail" || sp.Port != 8026 {
 		t.Fatalf("spec = %+v", sp)
 	}
-	if sp.Exe != `C:\rt\bin\mailpit\mailpit.exe` {
+	if sp.Exe != osPath("C:/rt/bin/mailpit/mailpit.exe") {
 		t.Fatalf("Exe = %q", sp.Exe)
 	}
 	wantArgs := []string{
 		"--smtp", "127.0.0.1:1026",
 		"--listen", "127.0.0.1:8026",
-		"--database", `C:\rt\var\mailpit.db`,
+		"--database", osPath("C:/rt/var/mailpit.db"),
 	}
 	if !reflect.DeepEqual(sp.Args, wantArgs) {
 		t.Fatalf("Args = %q, want %q", sp.Args, wantArgs)
@@ -515,13 +521,13 @@ func TestDesiredMailpitSpec(t *testing.T) {
 	if !ok || p.Addr != "127.0.0.1:8026" {
 		t.Fatalf("Probe = %#v", sp.Probe)
 	}
-	if !sp.Restart.Enabled || sp.LogPath != `C:\rt\log\mailpit.log` {
+	if !sp.Restart.Enabled || sp.LogPath != osPath("C:/rt/log/mailpit.log") {
 		t.Fatalf("spec = %+v", sp)
 	}
 }
 
 func TestDesiredSemMailpit(t *testing.T) {
-	out, err := desired(baseInput(proj("app81", `C:\DEV\app81`, "8.1")))
+	out, err := desired(baseInput(proj("app81", osPath("C:/DEV/app81"), "8.1")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -550,7 +556,7 @@ func TestDesiredProcesses(t *testing.T) {
 	})
 	defer restore()
 
-	p := proj("app81", `C:\DEV\app81`, "8.1")
+	p := proj("app81", osPath("C:/DEV/app81"), "8.1")
 	p.Processes = map[string]string{
 		"queue":     "php artisan queue:work --tries=3",
 		"scheduler": "php artisan schedule:work",
@@ -570,16 +576,18 @@ func TestDesiredProcesses(t *testing.T) {
 		t.Fatalf("procs = %v", procs)
 	}
 	q := procs["proc:app81:queue"]
-	if q.Group != "proc" || q.Dir != `C:\DEV\app81` {
+	if q.Group != "proc" || q.Dir != osPath("C:/DEV/app81") {
 		t.Fatalf("queue = %+v", q)
 	}
-	if q.Exe != `C:\rt\bin\php\php-8.1.10-Win32-vs16-x64\php.exe` {
+	if q.Exe != osPath("C:/rt/bin/php/php-8.1.10-Win32-vs16-x64/php.exe") {
 		t.Fatalf("php deve resolver para o php.exe do major: %q", q.Exe)
 	}
 	if !reflect.DeepEqual(q.Args, []string{"artisan", "queue:work", "--tries=3"}) {
 		t.Fatalf("Args = %q", q.Args)
 	}
-	if len(q.Env) != 1 || !strings.HasPrefix(q.Env[0], `PATH=C:\rt\bin\php\php-8.1.10-Win32-vs16-x64;`) {
+	// A pasta do PHP vai na frente, com o separador de PATH do SO (";" no
+	// Windows, ":" no macOS).
+	if len(q.Env) != 1 || !strings.HasPrefix(q.Env[0], "PATH="+osPath("C:/rt/bin/php/php-8.1.10-Win32-vs16-x64")+string(os.PathListSeparator)) {
 		t.Fatalf("Env = %q", q.Env)
 	}
 	if ap, ok := q.Probe.(*supervisor.AliveProbe); !ok || ap.Grace != 2*time.Second {
@@ -588,7 +596,7 @@ func TestDesiredProcesses(t *testing.T) {
 	if !q.Restart.Enabled || q.Restart.MaxRetries != 0 || q.Restart.BaseDelay != time.Second || q.Restart.MaxDelay != 30*time.Second {
 		t.Fatalf("Restart = %+v", q.Restart)
 	}
-	if q.LogPath != `C:\rt\log\proc-app81-queue.log` {
+	if q.LogPath != osPath("C:/rt/log/proc-app81-queue.log") {
 		t.Fatalf("LogPath = %q", q.LogPath)
 	}
 	v := procs["proc:app81:vite"]
@@ -607,7 +615,7 @@ func TestDesiredProcExeMissing(t *testing.T) {
 	restore := stubLookPath(t, nil)
 	defer restore()
 
-	p := proj("app81", `C:\DEV\app81`, "8.1")
+	p := proj("app81", osPath("C:/DEV/app81"), "8.1")
 	p.Processes = map[string]string{"vite": "npm run dev"}
 	out, err := desired(baseInput(p))
 	if err != nil {
