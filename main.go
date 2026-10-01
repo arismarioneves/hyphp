@@ -154,14 +154,18 @@ func main() {
 			if stk != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 				defer cancel()
+				// StopAll e Close desistem quando o ctx vence esperando um
+				// Reconcile longo (InitDBData, httpd -t, mkcert): o app fecha
+				// mesmo assim, porque o sup.Close abaixo para os serviços e o
+				// Job Object global (kill-on-close) mata o que sobrar — inclusive
+				// um mysqld --initialize, cujo datadir pela metade o marcador
+				// <datadir>.hyphp-initializing faz refazer na próxima execução.
 				if err := stk.StopAll(ctx); err != nil {
 					logger.Warn("parar stack no shutdown", "err", err)
 				}
-			}
-			if stk != nil {
 				// O resolvedor DNS precisa soltar a porta 53; se ficasse preso,
 				// a próxima execução falharia no bind.
-				if err := stk.Close(); err != nil {
+				if err := stk.Close(ctx); err != nil {
 					logger.Warn("fechar stack", "err", err)
 				}
 			}

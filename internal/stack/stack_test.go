@@ -1,6 +1,8 @@
 package stack
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -235,6 +237,59 @@ func TestDesiredHtaccessUnderNginx(t *testing.T) {
 	out, _ = desired(in)
 	if len(out.Warnings) != 0 {
 		t.Fatalf("apache não deveria avisar: %+v", out.Warnings)
+	}
+}
+
+// O nginx interpola $nome até dentro de aspas: um projeto em "C:\www\$cliente"
+// fazia o nginx -t falhar e o Reconcile cair para todos os projetos.
+func TestDesiredDocrootComDolarSobNginx(t *testing.T) {
+	in := baseInput(proj("cliente", `C:\www\$cliente`, "8.1"), proj("app81", `C:\DEV\app81`, "8.1"))
+	in.State.WebServer = state.Nginx
+	out, err := desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Warnings) != 1 || out.Warnings[0].Code != "docroot-unsupported" || out.Warnings[0].ProjectID != "cliente" {
+		t.Fatalf("warnings = %+v", out.Warnings)
+	}
+	if len(out.Sites) != 1 || out.Sites[0].ID != "app81" {
+		t.Fatalf("sites = %+v, quero só app81", out.Sites)
+	}
+
+	// o Apache não interpola: serve normalmente
+	in.State.WebServer = state.Apache
+	out, err = desired(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Warnings) != 0 || len(out.Sites) != 2 {
+		t.Fatalf("apache: warnings = %+v, sites = %+v", out.Warnings, out.Sites)
+	}
+}
+
+// No encerramento o StopAll esperava sem prazo um Reconcile longo (InitDBData
+// até 180 s) e o app não fechava; Close (porta 53) tinha o mesmo problema.
+func TestOperacoesDesistemQuandoOCtxVenceEsperandoOLock(t *testing.T) {
+	s := New(Deps{})
+	s.lock() // outra operação em curso
+	defer s.unlock()
+	ops := []struct {
+		nome string
+		fn   func(context.Context) error
+	}{{"StopAll", s.StopAll}, {"StartAll", s.StartAll}, {"Close", s.Close}}
+	for _, op := range ops {
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+		done := make(chan error, 1)
+		go func() { done <- op.fn(ctx) }()
+		select {
+		case err := <-done:
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("%s = %v, quero context.DeadlineExceeded", op.nome, err)
+			}
+		case <-time.After(5 * time.Second):
+			t.Errorf("%s ficou preso esperando o lock", op.nome)
+		}
+		cancel()
 	}
 }
 

@@ -46,11 +46,15 @@ type Deps struct {
 
 // Stack aplica o estado desejado ao supervisor.
 //
-// Locks: mu serializa Reconcile/StartAll/StopAll/SwitchWebServer (operações
+// Locks: op serializa Reconcile/StartAll/StopAll/SwitchWebServer (operações
 // longas, com I/O e UAC); stateMu protege *d.State para leituras rápidas dos
-// services enquanto mu está preso. Nunca segurar stateMu ao chamar o supervisor.
+// services enquanto op está preso. Nunca segurar stateMu ao chamar o supervisor.
 type Stack struct {
-	mu      sync.Mutex
+	// op é um semáforo de uma vaga, e não sync.Mutex, para StartAll, StopAll
+	// e Close poderem desistir quando o ctx vence: no encerramento o StopAll
+	// ficava preso atrás de um Reconcile longo (InitDBData chega a 180 s) e o
+	// app não fechava. As demais operações esperam como antes.
+	op      chan struct{}
 	stateMu sync.RWMutex
 	d       Deps
 
@@ -74,7 +78,27 @@ type Stack struct {
 }
 
 func New(d Deps) *Stack {
-	return &Stack{d: d, applied: map[string]supervisor.Spec{}}
+	return &Stack{d: d, op: make(chan struct{}, 1), applied: map[string]supervisor.Spec{}}
+}
+
+// lock toma a vaga de op sem prazo.
+func (s *Stack) lock() { s.op <- struct{}{} }
+
+func (s *Stack) unlock() { <-s.op }
+
+// lockCtx toma a vaga de op ou desiste com ctx.Err() se o ctx vencer antes.
+// O ctx é conferido primeiro: com ele já vencido e op livre, o select
+// escolheria ao acaso entre os dois casos.
+func (s *Stack) lockCtx(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	select {
+	case s.op <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // ---- estado compartilhado -------------------------------------------------
@@ -185,7 +209,7 @@ func (s *Stack) snapshot() (state.State, []runtime.Installed, []project.Project)
 }
 
 // webServer e mkcert leem sob stateMu porque SetWebServers/SetMkcert são
-// chamados fora de s.mu, com um Reconcile possivelmente em andamento; o
+// chamados fora de op, com um Reconcile possivelmente em andamento; o
 // Mkcert, struct de vários campos, podia sair rasgado (Exe de uma instância,
 // CARoot de outra).
 func (s *Stack) webServer(name state.WebServerName) webserver.WebServer {
@@ -215,8 +239,8 @@ func (s *Stack) mkcert() netcfg.Mkcert {
 //     var/run e chama o helper elevado (UAC negado → warning, não erro)
 //  8. Emit("stack:warnings")
 func (s *Stack) Reconcile(ctx context.Context) ([]Warning, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.lock()
+	defer s.unlock()
 	return s.reconcileLocked(ctx)
 }
 
@@ -566,11 +590,11 @@ func (s *Stack) applySpecs(want []supervisor.Spec, webChanged bool, iniChanged m
 		case specChanged(old, sp):
 			wasRunning := s.isRunning(id) || s.stoppedByDir[id]
 			delete(s.stoppedByDir, id)
-			if err := s.d.Sup.Remove(id); err != nil {
+			// Replace, e não Remove+Add: o serviço trocado mantém a posição
+			// no supervisor, cujo StopAll (usado pelo Close no encerramento)
+			// segue essa ordem para parar dependentes antes das bases.
+			if err := s.d.Sup.Replace(sp); err != nil {
 				return fmt.Errorf("stack: substituir %s: %w", id, err)
-			}
-			if err := s.d.Sup.Add(sp); err != nil {
-				return fmt.Errorf("stack: readicionar %s: %w", id, err)
 			}
 			s.applied[id] = sp
 			if wasRunning {
@@ -719,9 +743,9 @@ func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
 // dispara UAC por causa de domínios, e só é chamada por ação explícita do
 // usuário (SettingsService.ApplyHosts → botão na UI).
 func (s *Stack) ApplyHosts(ctx context.Context) error {
-	s.mu.Lock()
+	s.lock()
 	sites := append([]webserver.Site(nil), s.lastSites...)
-	s.mu.Unlock()
+	s.unlock()
 
 	rendered, have, want, pending, err := s.pendingHosts(sites)
 	if err != nil {
@@ -759,9 +783,12 @@ func (s *Stack) ApplyHosts(ctx context.Context) error {
 
 // StartAll sobe tudo em groupOrder (php → web → db → mail → proc). Erros de um
 // spec não impedem os demais (spec §13); o primeiro erro é retornado ao final.
+// Desiste com ctx.Err() se o ctx vencer esperando outra operação terminar.
 func (s *Stack) StartAll(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if err := s.lockCtx(ctx); err != nil {
+		return err
+	}
+	defer s.unlock()
 	var first error
 	for _, id := range orderedIDs(s.appliedList()) {
 		if err := ctx.Err(); err != nil {
@@ -779,10 +806,14 @@ func (s *Stack) StartAll(ctx context.Context) error {
 	return first
 }
 
-// StopAll para tudo na ordem inversa (proc → mail → db → web → php).
+// StopAll para tudo na ordem inversa (proc → mail → db → web → php). Desiste
+// com ctx.Err() se o ctx vencer esperando outra operação terminar: no
+// encerramento quem garante a morte dos serviços é o Close do supervisor.
 func (s *Stack) StopAll(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	if err := s.lockCtx(ctx); err != nil {
+		return err
+	}
+	defer s.unlock()
 	ids := orderedIDs(s.appliedList())
 	var first error
 	for i := len(ids) - 1; i >= 0; i-- {
@@ -808,8 +839,8 @@ func (s *Stack) StopAll(ctx context.Context) error {
 // o Reconcile que troca de versão ou tira o serviço. Os que estavam no ar
 // ficam em stoppedByDir para a troca de versão subi-los de novo.
 func (s *Stack) StopUsingDir(dir string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.lock()
+	defer s.unlock()
 	var first error
 	for _, id := range specsUsingDir(s.appliedList(), dir) {
 		if s.isRunning(id) {
@@ -894,8 +925,8 @@ func (s *Stack) waitReady(ctx context.Context, id string, timeout time.Duration)
 //  5. não ficou Ready → remove o novo, readiciona e inicia o anterior, retorna
 //     erro. etc/<novo> fica gravado: o web server anterior não lê esse diretório.
 func (s *Stack) SwitchWebServer(ctx context.Context, name state.WebServerName) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.lock()
+	defer s.unlock()
 
 	st, rts, projs := s.snapshot()
 	if name == st.WebServer {
@@ -999,8 +1030,8 @@ const dbReadyTimeout = 60 * time.Second
 // Se o novo não ficar pronto, volta o state e reconcilia de novo: o banco
 // que estava no ar volta, como na troca de web server.
 func (s *Stack) SwitchDatabase(ctx context.Context, engine string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.lock()
+	defer s.unlock()
 	if engine != state.DBMySQL && engine != state.DBMariaDB {
 		return i18n.Errorf("err.settings.dbEngine", engine)
 	}

@@ -24,6 +24,12 @@ var ErrClosed = errors.New("supervisor fechado")
 // operação de convergência é sucesso) de uma falha real ao subir.
 var ErrNotStopped = errors.New("serviço não está parado")
 
+// ErrRemoving: Start foi pedido para um serviço que Remove ou Replace está
+// tirando do ar. Subir ali deixaria um processo vivo numa entry prestes a
+// sair do mapa — fora de List(), com Stop respondendo "desconhecido" — até o
+// app fechar. StartAll o trata como ErrNotStopped: o serviço está de saída.
+var ErrRemoving = errors.New("serviço sendo removido")
+
 // entry é o estado interno de um serviço. Tudo aqui é lido e escrito com
 // s.mu preso, exceto spec e ring, que são imutáveis depois de Add.
 type entry struct {
@@ -39,6 +45,10 @@ type entry struct {
 	// stopping existe enquanto um Stop está em curso e é fechado quando ele
 	// termina. Quem o cria é o único dono da parada: um segundo Stop só espera.
 	stopping chan struct{}
+	// removing existe enquanto um Remove ou Replace está em curso e é fechado
+	// quando a entry sai do mapa (ou é trocada). Start recusa a entry nesse
+	// meio-tempo; um segundo Remove/Replace espera e olha o mapa de novo.
+	removing chan struct{}
 }
 
 // Supervisor mantém a máquina de estados de todos os serviços.
@@ -70,10 +80,28 @@ func New(logger *slog.Logger) (*Supervisor, error) {
 	}, nil
 }
 
-// Add registra um serviço parado. Normaliza os defaults de probe aqui para o
-// laço run() não precisar decidir nada em tempo de execução — e porque
-// time.NewTicker(0) entra em pânico.
+// Add registra um serviço parado.
 func (s *Supervisor) Add(spec Spec) error {
+	if err := normalizeSpec(&spec); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return ErrClosed
+	}
+	if _, dup := s.entries[spec.ID]; dup {
+		return fmt.Errorf("spec %s: ID duplicado", spec.ID)
+	}
+	s.entries[spec.ID] = newEntry(spec)
+	s.order = append(s.order, spec.ID)
+	return nil
+}
+
+// normalizeSpec valida e aplica os defaults de probe aqui para o laço run()
+// não precisar decidir nada em tempo de execução — e porque
+// time.NewTicker(0) entra em pânico.
+func normalizeSpec(spec *Spec) error {
 	if spec.ID == "" {
 		return errors.New("spec sem ID")
 	}
@@ -92,15 +120,11 @@ func (s *Supervisor) Add(spec Spec) error {
 	if spec.Name == "" {
 		spec.Name = spec.ID
 	}
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrClosed
-	}
-	if _, dup := s.entries[spec.ID]; dup {
-		return fmt.Errorf("spec %s: ID duplicado", spec.ID)
-	}
-	s.entries[spec.ID] = &entry{
+	return nil
+}
+
+func newEntry(spec Spec) *entry {
+	return &entry{
 		spec: spec,
 		ring: NewLogRing(ringCapacity),
 		status: Status{
@@ -111,27 +135,21 @@ func (s *Supervisor) Add(spec Spec) error {
 			State: Stopped,
 		},
 	}
-	s.order = append(s.order, spec.ID)
-	return nil
 }
 
 // Remove para o serviço (se estiver rodando), o esquece e publica um Event
 // com Removed: quem acompanha a lista por eventos não tem outro jeito de saber
 // que o "stopped" final foi de uma remoção.
 func (s *Supervisor) Remove(id string) error {
-	s.mu.Lock()
-	_, ok := s.entries[id]
-	s.mu.Unlock()
-	if !ok {
+	e, waited := s.claim(id)
+	if e == nil {
+		if waited { // outro Remove chegou primeiro e já publicou
+			return nil
+		}
 		return fmt.Errorf("serviço desconhecido: %s", id)
 	}
 	stopErr := s.Stop(id)
 	s.mu.Lock()
-	e, ok := s.entries[id]
-	if !ok { // outro Remove chegou primeiro e já publicou
-		s.mu.Unlock()
-		return stopErr
-	}
 	last := e.status
 	delete(s.entries, id)
 	for i, cur := range s.order {
@@ -140,10 +158,69 @@ func (s *Supervisor) Remove(id string) error {
 			break
 		}
 	}
+	close(e.removing)
 	chans := s.subscribersLocked()
 	s.mu.Unlock()
 	s.broadcast(chans, Event{Status: last, Removed: true})
 	return stopErr
+}
+
+// Replace para o serviço e troca o spec dele, que fica parado, na MESMA
+// posição de s.order. Remove+Add o mandava para o fim, e StopAll (que o
+// Close usa no encerramento) passava a parar o PHP antes do web server e os
+// procs depois do banco. O ring de logs é mantido: quem acompanha os logs do
+// serviço continua lendo o mesmo. Publica o retrato novo (nome e porta podem
+// ter mudado) em vez de Removed, porque o serviço continua na lista.
+func (s *Supervisor) Replace(spec Spec) error {
+	if err := normalizeSpec(&spec); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	closed := s.closed
+	s.mu.Unlock()
+	if closed {
+		return ErrClosed
+	}
+	e, _ := s.claim(spec.ID)
+	if e == nil {
+		return fmt.Errorf("serviço desconhecido: %s", spec.ID)
+	}
+	stopErr := s.Stop(spec.ID)
+	s.mu.Lock()
+	ne := newEntry(spec)
+	ne.ring = e.ring
+	s.entries[spec.ID] = ne
+	close(e.removing)
+	ev := Event{Status: ne.status}
+	chans := s.subscribersLocked()
+	s.mu.Unlock()
+	s.broadcast(chans, ev)
+	return stopErr
+}
+
+// claim reserva a entry para Remove/Replace marcando removing sob o lock,
+// ANTES de parar: assim nenhum Start acha a entry Stopped entre a parada e a
+// saída do mapa. Se outra remoção já está em curso, espera ela terminar e
+// olha o mapa de novo; waited diz se houve essa espera.
+func (s *Supervisor) claim(id string) (*entry, bool) {
+	waited := false
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for {
+		e, ok := s.entries[id]
+		if !ok {
+			return nil, waited
+		}
+		if e.removing == nil {
+			e.removing = make(chan struct{})
+			return e, waited
+		}
+		ch := e.removing
+		s.mu.Unlock()
+		<-ch
+		s.mu.Lock()
+		waited = true
+	}
 }
 
 // Start inicia o serviço e devolve assim que o processo nasce: o estado já é
@@ -160,6 +237,10 @@ func (s *Supervisor) Start(id string) error {
 	if !ok {
 		s.mu.Unlock()
 		return fmt.Errorf("serviço desconhecido: %s", id)
+	}
+	if e.removing != nil {
+		s.mu.Unlock()
+		return fmt.Errorf("%w: %s", ErrRemoving, id)
 	}
 	switch e.status.State {
 	case Stopped, Failed:
@@ -266,17 +347,19 @@ func (s *Supervisor) Restart(id string) error {
 // StartAll sobe todos na ordem de Add. É convergência, não comando: serviço
 // que já está no ar não é erro — o botão "Iniciar tudo" clicado duas vezes,
 // ou com parte da stack no ar, deve terminar com tudo rodando e sem alarme.
+// Serviço sendo removido também não: ele está saindo do estado desejado.
 func (s *Supervisor) StartAll() error {
 	var errs []error
 	for _, id := range s.ids() {
-		if err := s.Start(id); err != nil && !errors.Is(err, ErrNotStopped) {
+		if err := s.Start(id); err != nil && !errors.Is(err, ErrNotStopped) && !errors.Is(err, ErrRemoving) {
 			errs = append(errs, err)
 		}
 	}
 	return errors.Join(errs...)
 }
 
-// StopAll para todos na ordem inversa de Add (dependentes antes das bases).
+// StopAll para todos na ordem inversa de Add (dependentes antes das bases);
+// Replace preserva a posição do serviço trocado.
 func (s *Supervisor) StopAll() error {
 	ids := s.ids()
 	var errs []error
