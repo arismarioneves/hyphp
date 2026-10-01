@@ -2,6 +2,7 @@ package netcfg
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -119,6 +120,18 @@ func TestRenderThenParseRoundTrip(t *testing.T) {
 	}
 }
 
+// Domínio com espaço, quebra de linha ou "#" viraria outra entrada no hosts
+// gravado pelo helper elevado.
+func TestRenderHostsBlockDescartaDominioInvalido(t *testing.T) {
+	out := RenderHostsBlock("", []string{"ok.test", "evil.test\n203.0.113.5 www.banco.com", "minha loja.test", "a#b.test"})
+	if got := ParseHostsBlock(out); !reflect.DeepEqual(got, []string{"ok.test"}) {
+		t.Fatalf("domínios no bloco = %v, quero só ok.test:\n%s", got, out)
+	}
+	if strings.Contains(out, "203.0.113.5") {
+		t.Fatalf("linha injetada no hosts:\n%s", out)
+	}
+}
+
 func TestValidateHostsContent(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -139,6 +152,9 @@ func TestValidateHostsContent(t *testing.T) {
 		{"comentário no fim da linha não invalida", "127.0.0.1 a.test # nota\r\n", false},
 		{"NUL", "127.0.0.1 a\x00b\r\n", true},
 		{"não UTF-8", "127.0.0.1 a\xff\r\n", true},
+		// "Configuração" em Windows-1252: ç = 0xE7, ã = 0xE3.
+		{"comentário em ANSI", "# Configura\xe7\xe3o da VPN\r\n127.0.0.1 localhost # m\xe1quina\r\n", false},
+		{"não UTF-8 antes do comentário", "127.0.0.1 a\xff # ok\r\n", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

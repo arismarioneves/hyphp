@@ -15,11 +15,19 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    location ~ \.php$ {
+    # O split + try_files recusa "/uploads/foto.jpg/x.php": com cgi.fix_pathinfo=1
+    # o php-cgi recuaria para foto.jpg e o executaria. A regex aceita "/x.php/rota"
+    # para manter PATH_INFO (slash arguments); o set guarda o valor porque o
+    # try_files zera $fastcgi_path_info.
+    location ~ [^/]\.php(/|$) {
+        fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+        try_files $fastcgi_script_name =404;
+        set $path_info $fastcgi_path_info;
         fastcgi_pass php81;
         fastcgi_index index.php;
         include "C:/hyphp/bin/nginx/nginx-1.22.0/conf/fastcgi_params";
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $path_info;
         fastcgi_read_timeout 300;
     }
 }
@@ -41,11 +49,19 @@ server {
         try_files $uri $uri/ /index.php?$query_string;
     }
 
-    location ~ \.php$ {
+    # O split + try_files recusa "/uploads/foto.jpg/x.php": com cgi.fix_pathinfo=1
+    # o php-cgi recuaria para foto.jpg e o executaria. A regex aceita "/x.php/rota"
+    # para manter PATH_INFO (slash arguments); o set guarda o valor porque o
+    # try_files zera $fastcgi_path_info.
+    location ~ [^/]\.php(/|$) {
+        fastcgi_split_path_info ^(.+?\.php)(/.*)$;
+        try_files $fastcgi_script_name =404;
+        set $path_info $fastcgi_path_info;
         fastcgi_pass php81;
         fastcgi_index index.php;
         include "C:/hyphp/bin/nginx/nginx-1.22.0/conf/fastcgi_params";
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $path_info;
         fastcgi_param HTTPS on;
         fastcgi_read_timeout 300;
     }

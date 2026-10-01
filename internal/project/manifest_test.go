@@ -118,6 +118,16 @@ func TestValidate(t *testing.T) {
 		{"php com patch", Manifest{Name: "a", Domain: "a.test", PHP: "8.1.10"}, true},
 		{"process com chave vazia", Manifest{Name: "a", Domain: "a.test", Processes: map[string]string{"": "php x"}}, true},
 		{"process com comando vazio", Manifest{Name: "a", Domain: "a.test", Processes: map[string]string{"queue": "   "}}, true},
+		{"domínio com subdomínio", Manifest{Name: "a", Domain: "api.loja.test"}, false},
+		{"domínio com espaço", Manifest{Name: "a", Domain: "minha loja.test"}, true},
+		{"domínio com quebra de linha", Manifest{Name: "a", Domain: "evil.test\n203.0.113.5 www.banco.com outro.test"}, true},
+		{"domínio com #", Manifest{Name: "a", Domain: "a#b.test"}, true},
+		{"domínio com rótulo vazio", Manifest{Name: "a", Domain: "a..test"}, true},
+		{"docroot relativo", Manifest{Name: "a", Domain: "a.test", Docroot: "web/public"}, false},
+		{"docroot com ..", Manifest{Name: "a", Domain: "a.test", Docroot: "../.."}, true},
+		{"docroot que sai no meio", Manifest{Name: "a", Domain: "a.test", Docroot: "web/../../x"}, true},
+		{"docroot absoluto com drive", Manifest{Name: "a", Domain: "a.test", Docroot: "C:/x"}, true},
+		{"docroot absoluto com barra", Manifest{Name: "a", Domain: "a.test", Docroot: "/x"}, true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

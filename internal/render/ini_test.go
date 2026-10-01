@@ -132,6 +132,22 @@ func TestRenderPHPIniIgnoraGerenciadasDoUsuario(t *testing.T) {
 	}
 }
 
+// Nome com "=" escapa de IsManagedIniDirective e o PHP leria
+// "extension_dir = C:/x" da linha gerada.
+func TestRenderPHPIniRecusaNomeInvalidoDoUsuario(t *testing.T) {
+	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
+	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, map[string]string{
+		"extension_dir = C:/x ;": "1",
+		"memory_limit":           "1G",
+	}))
+	if strings.Contains(got, "C:/x") {
+		t.Fatalf("nome inválido foi escrito:\n%s", got)
+	}
+	if !strings.Contains(got, "\nmemory_limit = 1G\n") {
+		t.Fatalf("nome válido devia continuar sendo escrito:\n%s", got)
+	}
+}
+
 func TestIsManagedIniDirective(t *testing.T) {
 	for _, n := range []string{"extension_dir", "extension", "zend_extension", "error_log", "sys_temp_dir", "upload_tmp_dir", "session.save_path", "SMTP", "smtp", "smtp_port", "sendmail_from", "mail.add_x_header", "cgi.fix_pathinfo", "cgi.force_redirect", "cgi.rfc2616_headers", "fastcgi.impersonate", "user_ini.filename"} {
 		if !IsManagedIniDirective(n) {

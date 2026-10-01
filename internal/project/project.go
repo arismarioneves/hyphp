@@ -72,19 +72,24 @@ func Load(root string) (Project, error) {
 // hyphp.yaml, public/index.php, index.php ou composer.json. Ignora nomes que
 // começam com "." e node_modules/vendor. Roots inexistentes são ignorados.
 // IDs duplicados: o primeiro (na ordem de roots) vence. Resultado ordenado por ID.
+//
+// Um projeto (ou root) que falha é pulado e os válidos são devolvidos mesmo
+// assim; o erro junta os ignorados. Abortar no primeiro hyphp.yaml ruim — que
+// viaja com repositórios clonados — sumia com todos os outros projetos.
 func Discover(roots []string) ([]Project, error) {
 	seen := map[string]bool{}
 	var out []Project
+	var errs []error
 	for _, root := range roots {
 		entries, err := os.ReadDir(root)
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				continue
+			if !errors.Is(err, os.ErrNotExist) {
+				errs = append(errs, fmt.Errorf("project: listar %s: %w", root, err))
 			}
-			return nil, fmt.Errorf("project: listar %s: %w", root, err)
+			continue
 		}
 		for _, e := range entries {
-			if !e.IsDir() || e.Name()[0] == '.' || skipDirs[e.Name()] {
+			if e.Name()[0] == '.' || skipDirs[e.Name()] || !isDirEntry(root, e) {
 				continue
 			}
 			dir := filepath.Join(root, e.Name())
@@ -93,7 +98,8 @@ func Discover(roots []string) ([]Project, error) {
 			}
 			p, err := Load(dir)
 			if err != nil {
-				return nil, err
+				errs = append(errs, err)
+				continue
 			}
 			if seen[p.ID] {
 				continue
@@ -103,7 +109,21 @@ func Discover(roots []string) ([]Project, error) {
 		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-	return out, nil
+	return out, errors.Join(errs...)
+}
+
+// isDirEntry diz se e é um diretório, seguindo symlink e junction: para esses
+// o DirEntry do Windows reporta ModeSymlink/ModeIrregular e IsDir() é false,
+// e um projeto linkado para dentro do root sumiria sem aviso.
+func isDirEntry(root string, e os.DirEntry) bool {
+	if e.IsDir() {
+		return true
+	}
+	if e.Type()&(os.ModeSymlink|os.ModeIrregular) == 0 {
+		return false
+	}
+	st, err := os.Stat(filepath.Join(root, e.Name()))
+	return err == nil && st.IsDir()
 }
 
 func isProjectDir(dir string) bool {

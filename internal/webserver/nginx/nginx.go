@@ -7,13 +7,13 @@ import (
 	"embed"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"syscall"
 	"text/template"
 
+	hrender "hyphp/internal/render"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
@@ -58,8 +58,8 @@ type siteData struct {
 }
 
 func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports webserver.Ports, logDir string, tool *webserver.Tool) (map[string][]byte, error) {
-	root := slashDir(s.inst.Dir)
-	log := slashDir(logDir)
+	root := hrender.SlashDir(s.inst.Dir)
+	log := hrender.SlashDir(logDir)
 
 	files := make(map[string][]byte, len(sites)+4)
 
@@ -106,10 +106,11 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 	// cria o diretório sem que render.WriteFiles passe a varrer o que o nginx
 	// escreve lá dentro.
 	// Mesmo motivo do apache: "include sites/*.conf" falha se o diretório não
-	// existir, e sem projeto nenhum ele não existiria.
-	files["sites/.keep"] = nil
-	files["logs/.keep"] = nil
-	files["temp/.keep"] = nil
+	// existir, e sem projeto nenhum ele não existiria. Aqui é ".dir": o
+	// conteúdo de sites/ é nosso e site de projeto removido tem de sumir.
+	files["sites/"+hrender.DirFile] = nil
+	files["logs/"+hrender.KeepFile] = nil
+	files["temp/"+hrender.KeepFile] = nil
 	return files, nil
 }
 
@@ -190,13 +191,5 @@ func render(name string, data any) ([]byte, error) {
 // prefix é o valor de -p: caminho com "/" e COM barra final, como na receita
 // do C16. O nginx concatena o prefixo com caminhos relativos.
 func prefix(etcDir string) string {
-	return slashDir(etcDir) + "/"
-}
-
-func slashDir(dir string) string {
-	s := filepath.ToSlash(dir)
-	if len(s) > 1 {
-		s = strings.TrimSuffix(s, "/")
-	}
-	return s
+	return hrender.SlashDir(etcDir) + "/"
 }

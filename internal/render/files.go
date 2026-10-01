@@ -17,6 +17,11 @@ import (
 // pertence ao HyPHP. Ver WriteFiles.
 const KeepFile = ".keep"
 
+// DirFile marca um diretório que precisa existir e cujo conteúdo continua
+// sendo do HyPHP (vhosts/, sites/): garante o diretório sem protegê-lo da
+// varredura, para que vhosts de projetos removidos sumam.
+const DirFile = ".dir"
+
 // tmpPrefix é o prefixo dos temporários de WriteFiles. Fica visível para o
 // varredor de obsoletos: um temporário órfão de uma execução interrompida é
 // lixo e deve sumir.
@@ -47,6 +52,7 @@ type entry struct {
 //     pela varredura: ".keep" declara existência, não posse. É assim que
 //     `logs/` e `temp/` do nginx sobrevivem com os arquivos que o próprio
 //     nginx cria lá dentro (logs/error.log, temp/client_body_temp/...).
+//     ".dir" só garante a existência: o resto do diretório é varrido.
 //   - Nenhuma escrita ou remoção sai de dir: chave absoluta, com volume ou com
 //     ".." é recusada antes de qualquer I/O.
 func WriteFiles(dir string, files map[string][]byte) (bool, error) {

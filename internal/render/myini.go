@@ -34,9 +34,9 @@ func RenderMyIni(port int, baseDir, dataDir, logDir string, ipv6Loopback, mariad
 
 	fmt.Fprintf(&b, "[mysqld]\n")
 	fmt.Fprintf(&b, "port = %d\n", port)
-	fmt.Fprintf(&b, "basedir = %q\n", slashDir(baseDir))
-	fmt.Fprintf(&b, "datadir = %q\n", slashDir(dataDir))
-	fmt.Fprintf(&b, "log-error = %q\n", slashDir(logDir)+"/"+logName)
+	fmt.Fprintf(&b, "basedir = %q\n", SlashDir(baseDir))
+	fmt.Fprintf(&b, "datadir = %q\n", SlashDir(dataDir))
+	fmt.Fprintf(&b, "log-error = %q\n", SlashDir(logDir)+"/"+logName)
 	fmt.Fprintf(&b, "character-set-server = utf8mb4\n")
 	fmt.Fprintf(&b, "collation-server = utf8mb4_unicode_ci\n")
 	fmt.Fprintf(&b, "max_connections = 100\n")

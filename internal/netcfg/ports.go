@@ -195,14 +195,20 @@ func listeningPorts() (map[int]int, error) {
 }
 
 // parseNetstatListening percorre a saída de `netstat -ano` e devolve porta local → PID das
-// linhas TCP em LISTENING. Aceita IPv4 ("0.0.0.0:80") e IPv6 ("[::]:80"); a primeira linha
+// linhas TCP em escuta. Aceita IPv4 ("0.0.0.0:80") e IPv6 ("[::]:80"); a primeira linha
 // de cada porta vence. Cabeçalhos (que variam por idioma) e linhas UDP/ESTABLISHED são ignorados.
+//
+// O listener é reconhecido pelo endereço remoto vazio, não pelo texto do estado: o netstat
+// traduz "LISTENING" (em alemão sai "ABHÖREN") e o mapa ficaria vazio nessas máquinas.
 func parseNetstatListening(out string) map[int]int {
 	res := make(map[int]int)
 	sc := bufio.NewScanner(strings.NewReader(out))
 	for sc.Scan() {
 		fields := strings.Fields(sc.Text())
-		if len(fields) < 5 || fields[0] != "TCP" || fields[3] != "LISTENING" {
+		if len(fields) < 5 || fields[0] != "TCP" {
+			continue
+		}
+		if remote := fields[2]; remote != "0.0.0.0:0" && remote != "[::]:0" && remote != "*:*" {
 			continue
 		}
 		local := fields[1]

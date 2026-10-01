@@ -90,14 +90,14 @@ func TestRenderGolden(t *testing.T) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	want := []string{"default/index.html", "httpd.conf", "pools.conf", "tools/.keep", "vhosts/.keep", "vhosts/app72.conf", "vhosts/app81.conf"}
+	want := []string{"default/index.html", "httpd.conf", "pools.conf", "tools/.dir", "vhosts/.dir", "vhosts/app72.conf", "vhosts/app81.conf"}
 	if strings.Join(keys, ",") != strings.Join(want, ",") {
 		t.Fatalf("chaves = %v, quero %v", keys, want)
 	}
 
 	for _, key := range keys {
-		// ".keep" existe só para o diretório existir; não tem conteúdo a comparar.
-		if strings.HasSuffix(key, "/.keep") {
+		// ".dir" existe só para o diretório existir; não tem conteúdo a comparar.
+		if strings.HasSuffix(key, "/.dir") {
 			continue
 		}
 		t.Run(key, func(t *testing.T) {
@@ -176,13 +176,23 @@ func TestCommandDefineEtc(t *testing.T) {
 	want := []string{
 		"-f", "C:/hyphp/etc/apache.next/httpd.conf",
 		"-d", testApacheDir,
-		"-C", "Define HYPHP_ETC C:/hyphp/etc/apache.next",
+		"-C", `Define HYPHP_ETC "C:/hyphp/etc/apache.next"`,
 	}
 	if strings.Join(args, "\x00") != strings.Join(want, "\x00") {
 		t.Fatalf("args = %q, quero %q", args, want)
 	}
 	if slicesContains(args, "-t") {
 		t.Fatal("Command não pode passar -t: -t só valida e sai")
+	}
+}
+
+// O Apache tokeniza o -C como uma linha de config: sem aspas, um perfil com
+// espaço daria três argumentos ao Define e o httpd -t recusaria tudo.
+func TestCommandDefineEtcComEspaco(t *testing.T) {
+	_, args, _ := New(testInstalled()).Command(`C:\Users\João Silva\HyPHP\etc\apache`)
+	want := `Define HYPHP_ETC "C:/Users/João Silva/HyPHP/etc/apache"`
+	if args[len(args)-1] != want {
+		t.Fatalf("-C = %q, quero %q", args[len(args)-1], want)
 	}
 }
 
@@ -215,7 +225,7 @@ func TestRenderSemProjetosMantemDiretoriosDeInclude(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, chave := range []string{"vhosts/.keep", "tools/.keep"} {
+	for _, chave := range []string{"vhosts/.dir", "tools/.dir"} {
 		if _, ok := files[chave]; !ok {
 			t.Errorf("falta %q; o Apache recusaria a config", chave)
 		}

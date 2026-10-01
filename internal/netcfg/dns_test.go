@@ -76,8 +76,10 @@ func TestResolverResponde(t *testing.T) {
 		{"A em maiúsculas", "HELLO.TEST", 1, 0, "127.0.0.1"},
 		{"A fora do sufixo", "google.com", 1, 3, ""},
 		{"A em nome que só parece o sufixo", "hellotest", 1, 3, ""},
-		{"AAAA no domínio", "hello.test", 28, 3, ""},
-		{"MX no domínio", "hello.test", 15, 3, ""},
+		// Nome existe, tipo não: NODATA (NOERROR, ANCOUNT=0), não NXDOMAIN.
+		{"AAAA no domínio", "hello.test", 28, 0, ""},
+		{"MX no domínio", "hello.test", 15, 0, ""},
+		{"AAAA fora do sufixo", "google.com", 28, 3, ""},
 	}
 	for i, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

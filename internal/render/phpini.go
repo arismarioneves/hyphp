@@ -91,8 +91,8 @@ func IsManagedIniDirective(name string) bool {
 // removê-los. O chamador já recusou as gerenciadas (IsManagedIniDirective).
 func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int, userIni map[string]string) []byte {
 	extDir := filepath.ToSlash(filepath.Join(inst.Dir, "ext"))
-	tmp := slashDir(tmpDir)
-	log := slashDir(logDir)
+	tmp := SlashDir(tmpDir)
+	log := SlashDir(logDir)
 
 	names := slices.Clone(enabledExt)
 	sort.Strings(names)
@@ -158,13 +158,14 @@ func writeDirectives(b *bytes.Buffer, list []IniDirective) {
 }
 
 // writeUserIni escreve o bloco do usuário ordenado por nome (determinismo).
-// Pula gerenciadas e quebras de linha mesmo já recusadas pelo serviço: o
-// state.json pode ter sido editado à mão, e uma linha a mais aqui viraria uma
-// diretiva que ninguém pediu.
+// Pula nomes fora de runtime.ValidIniName, gerenciadas e quebras de linha
+// mesmo já recusadas pelo serviço: o state.json pode ter sido editado à mão, e
+// um nome com "=" ou uma linha a mais aqui viraria uma diretiva que ninguém
+// pediu.
 func writeUserIni(b *bytes.Buffer, userIni map[string]string) {
 	names := make([]string, 0, len(userIni))
 	for name, value := range userIni {
-		if IsManagedIniDirective(name) || strings.ContainsAny(name+value, "\r\n") {
+		if !runtime.ValidIniName(name) || IsManagedIniDirective(name) || strings.ContainsAny(value, "\r\n") {
 			continue
 		}
 		names = append(names, name)
@@ -187,8 +188,9 @@ func hasExtensionDLL(extDir, name string) bool {
 	return err == nil && !st.IsDir()
 }
 
-// slashDir normaliza um diretório para "/" sem barra final.
-func slashDir(dir string) string {
+// SlashDir normaliza um diretório para "/" sem barra final. Apache e nginx
+// aceitam "/" no Windows e a barra final duplicaria separadores nos Include.
+func SlashDir(dir string) string {
 	s := filepath.ToSlash(dir)
 	if len(s) > 1 {
 		s = strings.TrimSuffix(s, "/")
