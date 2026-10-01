@@ -38,6 +38,8 @@ func novoFeed(t *testing.T, priv ed25519.PrivateKey, version string, installer [
 		Version: version, Date: "2026-09-26", Notes: []string{"novidade"},
 		WindowsAMD64: &Artifact{Path: version + "/setup.exe", Size: int64(len(installer)), SHA256: shaAnunciado},
 	}}
+	// Mesmo artefato nas duas plataformas: os testes valem no Windows e no Mac.
+	l.DarwinARM64 = l.WindowsAMD64
 	body, err := json.Marshal(l)
 	if err != nil {
 		t.Fatal(err)
@@ -90,6 +92,41 @@ func TestCheckBaixaVersaoNovaEFicaPronto(t *testing.T) {
 	got, err := os.ReadFile(filepath.Join(dir, "1.1.0", "setup.exe"))
 	if err != nil || string(got) != "instalador 1.1.0" {
 		t.Fatalf("instalador não ficou em Dir/<versão>/: %v", err)
+	}
+}
+
+// Manifesto só com instalador Windows (é o que o hyphp-release publica na M0):
+// no Mac não há o que baixar, então Check responde em dia em vez de falhar ou
+// oferecer uma versão que não instala; no Windows a versão nova é oferecida.
+func TestCheckSemArtefatoDaPlataformaNaoOfereceUpdate(t *testing.T) {
+	pub, priv := chaves(t)
+	installer := []byte("instalador 1.1.0")
+	f := novoFeed(t, priv, "1.1.0", installer, "")
+	sum := sha256.Sum256(installer)
+	l := Latest{Schema: 1, Release: Release{
+		Version: "1.1.0", Date: "2026-09-26", Notes: []string{"novidade"},
+		WindowsAMD64: &Artifact{Path: "1.1.0/setup.exe", Size: int64(len(installer)), SHA256: hex.EncodeToString(sum[:])},
+	}}
+	body, err := json.Marshal(l)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.latest = body
+	f.sig = []byte(base64.StdEncoding.EncodeToString(ed25519.Sign(priv, body)) + "\n")
+	u, _ := novoUpdater(t, f, pub, t.TempDir())
+
+	if err := u.Check(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	s := u.Status()
+	if platformArtifact(l) == nil {
+		if s.State != StateUpToDate || s.Available != "" || f.installGET.Load() != 0 {
+			t.Fatalf("sem artefato da plataforma, status %+v, downloads %d", s, f.installGET.Load())
+		}
+		return
+	}
+	if s.State != StateReady || s.Available != "1.1.0" {
+		t.Fatalf("status %+v", s)
 	}
 }
 
@@ -312,6 +349,7 @@ func TestCheckSegueRedirecionamentoDoGitHub(t *testing.T) {
 	body, err := json.Marshal(Latest{Schema: 1, Release: Release{
 		Version: "2.1.0", Date: "2026-10-01", Notes: []string{"novidade"},
 		WindowsAMD64: &Artifact{Path: name, Size: int64(len(installer)), SHA256: hex.EncodeToString(sum[:])},
+		DarwinARM64:  &Artifact{Path: name, Size: int64(len(installer)), SHA256: hex.EncodeToString(sum[:])},
 	}})
 	if err != nil {
 		t.Fatal(err)
