@@ -18,6 +18,9 @@ import { useLang, useT } from '../i18n'
 /** O Go guarda as últimas 100 chamadas; a tela mantém o mesmo teto ao vivo. */
 const ACTIVITY_MAX = 100
 
+/** Ler o PATH do registro e checar o executável custa microssegundos. */
+const INFO_REFRESH_MS = 2000
+
 export function Cli(_: ScreenProps) {
   const t = useT('cli')
   const { lang } = useLang()
@@ -30,6 +33,17 @@ export function Cli(_: ScreenProps) {
   useEffect(() => {
     void CLIService.Info().then(setInfo)
     void CLIService.Activity().then((a) => setActivity(a ?? []))
+  }, [])
+
+  // O PATH muda por fora do app (Variáveis de Ambiente do Windows, setx, um
+  // instalador), e nada avisa o app. Reconferir enquanto a aba está aberta é
+  // o que faz o botão voltar quando a entrada some; com a página marcada
+  // como oculta pelo WebView, a conferência espera.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!document.hidden) void CLIService.Info().then(setInfo)
+    }, INFO_REFRESH_MS)
+    return () => clearInterval(timer)
   }, [])
 
   // As descrições vêm do Go no idioma atual: trocar o idioma pede de novo.

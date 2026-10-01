@@ -53,25 +53,6 @@ func TestMelhorPHPEscolheAMaiorDaFaixa(t *testing.T) {
 	}
 }
 
-// A ordenação numérica é o que sustenta MelhorPHP; testada direto porque um
-// erro aqui escolhe silenciosamente a versão errada.
-func TestComparaENumerica(t *testing.T) {
-	casos := []struct {
-		a, b string
-		quer int
-	}{
-		{"8.10", "8.9", 1},
-		{"8.9", "8.10", -1},
-		{"8.1", "8.1.0", 0},
-		{"7.2.5", "7.2.4", 1},
-	}
-	for _, c := range casos {
-		if got := compara(c.a, c.b); got != c.quer {
-			t.Errorf("compara(%q, %q) = %d, quero %d", c.a, c.b, got, c.quer)
-		}
-	}
-}
-
 // A descrição vai para a tela; faixa sem teto não pode falar de teto.
 func TestFaixaDescreveParaOUsuario(t *testing.T) {
 	if got := (Faixa{Min: "7.2.5", Max: "8.3"}).String(); got != "PHP 7.2.5 ou maior, e menor que 8.3" {

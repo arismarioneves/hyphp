@@ -1,10 +1,10 @@
 {
 	"fixed": {
-		"file_version": "3.0.0"
+		"file_version": "3.0.1"
 	},
 	"info": {
 		"0000": {
-			"ProductVersion": "3.0.0",
+			"ProductVersion": "3.0.1",
 			"CompanyName": "HyPHP",
 			"FileDescription": "Ambiente de desenvolvimento PHP",
 			"LegalCopyright": "(c) 2026 Arismário Neves",

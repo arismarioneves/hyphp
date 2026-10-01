@@ -25,4 +25,6 @@ export const projects: typeof base = {
   processes: 'PROCESSES',
   noProcesses: 'No processes declared under `processes:` in hyphp.yaml.',
   restarts: ' · {count} restarts',
+  log: 'log',
+  wildcardLabel: 'Wildcard DNS',
 }

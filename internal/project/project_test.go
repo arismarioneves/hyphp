@@ -147,6 +147,59 @@ func TestDiscoverDuplicateID(t *testing.T) {
 	}
 }
 
+// Um hyphp.yaml inválido não pode sumir com os outros projetos.
+func TestDiscoverPulaInvalidoEDevolveValidos(t *testing.T) {
+	base := t.TempDir()
+	writeFile(t, filepath.Join(base, "bom", "index.php"), "")
+	writeFile(t, filepath.Join(base, "ruim", ManifestFile), "domain: loja.local\n")
+	projs, err := Discover([]string{base})
+	if err == nil || !strings.Contains(err.Error(), "ruim") {
+		t.Fatalf("esperava erro citando o projeto ignorado; err = %v", err)
+	}
+	if len(projs) != 1 || projs[0].ID != "bom" {
+		t.Fatalf("esperava só o projeto válido; got %+v", projs)
+	}
+}
+
+// Projeto linkado para dentro do root: o DirEntry não diz IsDir().
+func TestDiscoverSegueSymlinkDeDiretorio(t *testing.T) {
+	base, fora := t.TempDir(), t.TempDir()
+	alvo := filepath.Join(fora, "real")
+	writeFile(t, filepath.Join(alvo, "index.php"), "")
+	if err := os.Symlink(alvo, filepath.Join(base, "linkado")); err != nil {
+		t.Skipf("sem permissão para criar symlink: %v", err)
+	}
+	projs, err := Discover([]string{base})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(projs) != 1 || projs[0].ID != "linkado" {
+		t.Fatalf("esperava o projeto linkado; got %+v", projs)
+	}
+}
+
+// Valores com ":" e "#" soltos no YAML mudariam de sentido no Load.
+func TestRenderIdaEVoltaComCaracteresEspeciais(t *testing.T) {
+	root := mkdirs(t, t.TempDir(), "app")
+	m := Manifest{
+		Name:       "loja: v2",
+		Domain:     "loja.test",
+		PHP:        "8.1",
+		Docroot:    "web #public",
+		Database:   "db: x",
+		Extensions: []string{"a: b", "#c"},
+	}
+	writeFile(t, filepath.Join(root, ManifestFile), string(Render(m)))
+	mkdirs(t, root, "web #public")
+	p, err := Load(root)
+	if err != nil {
+		t.Fatalf("Load do arquivo gerado: %v\n%s", err, Render(m))
+	}
+	if p.Name != m.Name || p.Docroot != m.Docroot || p.Database != m.Database || strings.Join(p.Extensions, "|") != "a: b|#c" {
+		t.Fatalf("ida e volta mudou valores: %+v\n%s", p.Manifest, Render(m))
+	}
+}
+
 func TestWriteRoundTrip(t *testing.T) {
 	root := mkdirs(t, t.TempDir(), "app")
 	writeFile(t, filepath.Join(root, "public", "index.php"), "")

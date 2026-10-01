@@ -190,3 +190,30 @@ func TestWriteFilesPreservaDiretorioComKeep(t *testing.T) {
 		t.Fatal("logs/.keep sumiu")
 	}
 }
+
+// ".dir" garante o diretório, mas um vhost que saiu da lista tem de sumir:
+// senão o projeto removido continua servido.
+func TestWriteFilesDirNaoProtegeConteudo(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, map[string][]byte{
+		"vhosts/.dir":     nil,
+		"vhosts/app.conf": []byte("vhost\n"),
+		"logs/.keep":      nil,
+	})
+	if err := os.WriteFile(filepath.Join(dir, "logs", "error.log"), []byte("erro"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if changed := write(t, dir, map[string][]byte{"vhosts/.dir": nil, "logs/.keep": nil}); !changed {
+		t.Fatal("remover vhost obsoleto devia reportar changed=true")
+	}
+	if exists(filepath.Join(dir, "vhosts", "app.conf")) {
+		t.Fatal("vhosts/app.conf obsoleto continuou no disco")
+	}
+	if !exists(filepath.Join(dir, "vhosts")) {
+		t.Fatal("vhosts/ devia continuar existindo")
+	}
+	if !exists(filepath.Join(dir, "logs", "error.log")) {
+		t.Fatal("logs/error.log em diretório com .keep foi apagado")
+	}
+}

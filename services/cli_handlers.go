@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"slices"
 	"strings"
 	"time"
@@ -318,8 +317,12 @@ func (c *CLIService) cliIniReset(_ context.Context, raw json.RawMessage) (any, e
 
 func (c *CLIService) cliDB() cli.DB {
 	cr := c.d.Database.Credentials()
+	client := "mysql"
+	if cr.Engine == string(runtime.MariaDB) {
+		client = "mariadb"
+	}
 	out := cli.DB{
-		Engine: cr.Engine, Client: cr.Client, Host: cr.Host, Port: cr.Port, User: cr.User, Password: cr.Password,
+		Engine: cr.Engine, Client: client, Command: cr.Command, Host: cr.Host, Port: cr.Port, User: cr.User, Password: cr.Password,
 		State: string(c.d.Database.Status().State), Databases: []cli.Database{},
 	}
 	dbs, err := c.d.Database.Databases()
@@ -400,7 +403,7 @@ func (c *CLIService) cliWarnings() []cli.Warning {
 
 func (c *CLIService) cliShowWindow(context.Context, json.RawMessage) (any, error) {
 	if c.d.ShowWindow == nil {
-		return nil, errors.New("cli: janela indisponível")
+		return nil, i18n.Errorf("err.cli.noWindow")
 	}
 	c.d.ShowWindow()
 	return struct{}{}, nil

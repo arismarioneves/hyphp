@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 )
 
 // WebServerName identifica o web server ativo.
@@ -101,7 +102,7 @@ func Load(path string) (State, error) {
 		return State{}, fmt.Errorf("state: ler %s: %w", path, err)
 	}
 	if err := json.Unmarshal(raw, &s); err != nil {
-		return State{}, fmt.Errorf("state: decodificar %s: %w", path, err)
+		return State{}, &decodeError{path: path, err: err}
 	}
 	if s.Roots == nil {
 		s.Roots = []string{}
@@ -110,6 +111,39 @@ func Load(path string) (State, error) {
 		s.PortAlloc = map[string][]int{}
 	}
 	return s, nil
+}
+
+// decodeError separa "o arquivo existe mas não é um state válido" de erro de
+// E/S: só o primeiro é recuperável descartando o arquivo.
+type decodeError struct {
+	path string
+	err  error
+}
+
+func (e *decodeError) Error() string {
+	return fmt.Sprintf("state: decodificar %s: %v", e.path, e.err)
+}
+
+func (e *decodeError) Unwrap() error { return e.err }
+
+// LoadOrRecover é o Load do boot. Um state.json que não decodifica (truncado
+// ou zerado por queda de energia) impedia o app de abrir até o usuário achar
+// e apagar o arquivo; como tudo nele é preferência regenerável, o arquivo vai
+// para <path>.corrupt-<AAAAMMDD-HHMMSS> — guardado para diagnóstico — e o boot
+// segue com Default(). recovered é o caminho do arquivo separado, vazio se
+// nada foi recuperado. Erro de E/S continua sendo erro: descartar um arquivo
+// que só não pôde ser lido apagaria preferências válidas.
+func LoadOrRecover(path string) (st State, recovered string, err error) {
+	st, err = Load(path)
+	var de *decodeError
+	if !errors.As(err, &de) {
+		return st, "", err
+	}
+	recovered = path + ".corrupt-" + time.Now().Format("20060102-150405")
+	if rerr := os.Rename(path, recovered); rerr != nil {
+		return State{}, "", fmt.Errorf("state: separar %s corrompido: %w", path, rerr)
+	}
+	return Default(), recovered, nil
 }
 
 // Save escreve atomicamente: grava path+".tmp" e renomeia por cima do destino.
@@ -125,7 +159,7 @@ func Save(path string, s State) error {
 	raw = append(raw, '\n')
 
 	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
+	if err := writeSynced(tmp, raw); err != nil {
 		return fmt.Errorf("state: escrever %s: %w", tmp, err)
 	}
 	// os.Rename no Windows usa MOVEFILE_REPLACE_EXISTING: substitui o destino.
@@ -134,4 +168,23 @@ func Save(path string, s State) error {
 		return fmt.Errorf("state: renomear %s → %s: %w", tmp, path, err)
 	}
 	return nil
+}
+
+// writeSynced grava e força o conteúdo para o disco antes de o Save renomear.
+// Sem o Sync, o rename pode chegar ao disco antes dos dados, e uma queda de
+// energia logo depois deixava state.json com 0 bytes ou truncado.
+func writeSynced(path string, raw []byte) error {
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.Write(raw); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
 }

@@ -104,7 +104,8 @@ func TestAllocatorSnapshotIsCopy(t *testing.T) {
 }
 
 func TestParseNetstatListening(t *testing.T) {
-	fixtures := []string{"netstat_ptbr.txt", "netstat_enus.txt"}
+	// de-DE traduz o estado ("ABHÖREN"): o listener tem de sair da coluna remota.
+	fixtures := []string{"netstat_ptbr.txt", "netstat_enus.txt", "netstat_dede.txt"}
 	cases := []struct {
 		port    int
 		wantPID int

@@ -73,7 +73,7 @@ func (s *Stack) syncWildcard(projs []project.Project) []Warning {
 		s.d.Logger.Info("stack: resolvedor DNS no ar", "addr", dnsAddr, "suffix", dnsSuffix)
 	}
 
-	if s.nrptDone {
+	if s.nrptDone || nrptRuleExists(dnsSuffix) {
 		return nil
 	}
 	return []Warning{{
@@ -85,9 +85,9 @@ func (s *Stack) syncWildcard(projs []project.Project) []Warning {
 // ApplyWildcardDNS registra a regra NRPT pelo helper elevado. É a terceira e
 // última porta do produto que dispara UAC, junto de ApplyHosts e InstallCA.
 func (s *Stack) ApplyWildcardDNS(ctx context.Context) error {
-	s.mu.Lock()
+	s.lock()
 	ativo := s.resolver != nil
-	s.mu.Unlock()
+	s.unlock()
 	if !ativo {
 		return errors.New(i18n.T("err.stack.resolverDown"))
 	}
@@ -105,9 +105,9 @@ func (s *Stack) ApplyWildcardDNS(ctx context.Context) error {
 		return fmt.Errorf("helper nrpt-add: %w", err)
 	}
 
-	s.mu.Lock()
+	s.lock()
 	s.nrptDone = true
-	s.mu.Unlock()
+	s.unlock()
 	s.d.Logger.Info("stack: regra NRPT registrada", "namespace", dnsSuffix)
 
 	_, rerr := s.Reconcile(ctx)
@@ -130,9 +130,9 @@ func (s *Stack) RemoveWildcardDNS(ctx context.Context) error {
 		return fmt.Errorf("helper nrpt-remove: %w", err)
 	}
 
-	s.mu.Lock()
+	s.lock()
 	s.nrptDone = false
-	s.mu.Unlock()
+	s.unlock()
 	s.d.Logger.Info("stack: regra NRPT removida", "namespace", dnsSuffix)
 
 	_, rerr := s.Reconcile(ctx)
@@ -143,11 +143,17 @@ func (s *Stack) RemoveWildcardDNS(ctx context.Context) error {
 // porta 53 presa até o processo morrer — e no encerramento limpo do app o
 // processo ainda vive por alguns instantes, tempo suficiente para a próxima
 // execução falhar no bind.
-func (s *Stack) Close() error {
-	s.mu.Lock()
+//
+// Desiste com ctx.Err() se o ctx vencer esperando uma operação em curso: no
+// encerramento, esperar um Reconcile longo aqui travaria o app aberto, e o
+// fim do processo solta a porta de qualquer jeito.
+func (s *Stack) Close(ctx context.Context) error {
+	if err := s.lockCtx(ctx); err != nil {
+		return err
+	}
 	r := s.resolver
 	s.resolver = nil
-	s.mu.Unlock()
+	s.unlock()
 	if r == nil {
 		return nil
 	}

@@ -61,7 +61,7 @@ func (w *Watcher) SetRoots(roots []string) error {
 			continue
 		}
 		for _, e := range entries {
-			if !e.IsDir() || e.Name()[0] == '.' || skipDirs[e.Name()] {
+			if e.Name()[0] == '.' || skipDirs[e.Name()] || !isDirEntry(abs, e) {
 				continue
 			}
 			want[filepath.Join(abs, e.Name())] = true
@@ -124,6 +124,12 @@ func (w *Watcher) loop() {
 			if ev.Has(fsnotify.Chmod) {
 				continue
 			}
+			// O fsnotify descarta o watch de um diretório removido, mas
+			// watched continuaria true e SetRoots nunca o observaria de novo
+			// quando a pasta fosse recriada (rmdir + git clone).
+			if ev.Has(fsnotify.Remove) {
+				w.forget(ev.Name)
+			}
 			w.bump()
 		case _, ok := <-w.fs.Errors:
 			if !ok {
@@ -133,6 +139,15 @@ func (w *Watcher) loop() {
 			w.bump()
 		}
 	}
+}
+
+// forget só esquece o diretório: chamar w.fs.Remove daqui, a goroutine que
+// consome Events, pode travar com o fsnotify bloqueado entregando o próximo
+// evento — e o watch de um diretório removido já foi descartado por ele.
+func (w *Watcher) forget(dir string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	delete(w.watched, dir)
 }
 
 func (w *Watcher) bump() {

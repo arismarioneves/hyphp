@@ -10,6 +10,7 @@ import { Skeleton } from '../components/Skeleton';
 import { StatusDot, type ServiceState } from '../components/StatusDot';
 import type { ScreenProps } from '../lib/screens';
 import { formatUptime } from '../lib/status';
+import { errorText } from '../lib/errors';
 import type { ServiceStatus } from '../lib/types';
 import { useNow } from '../lib/useNow';
 import { useServices } from '../lib/useServices';
@@ -19,10 +20,10 @@ import type { services as servicesMessages } from '../i18n/locales/pt-BR/service
 // Nomes de produto ficam literais; os grupos com texto guardam a chave do
 // catálogo, resolvida dentro do componente.
 const GROUP_LABELS: Record<string, { text: string } | { key: keyof typeof servicesMessages }> = {
-  web: { text: 'WEB SERVER' },
+  web: { key: 'groupWeb' },
   php: { text: 'PHP' },
   db: { key: 'groupDb' },
-  mail: { text: 'MAIL' },
+  mail: { key: 'groupMail' },
   proc: { key: 'groupProc' },
 };
 /** Ordem de exibição dos grupos; grupo desconhecido do Go cai para o fim. */
@@ -45,6 +46,7 @@ function groupServices(services: ServiceStatus[]): Array<{ group: string; items:
 
 export function Services({ onNavigate }: ScreenProps) {
   const t = useT('services');
+  const tc = useT('common');
   const { services, loading } = useServices();
   const now = useNow(1000);
   const [openLog, setOpenLog] = useState<string | null>(null);
@@ -63,7 +65,7 @@ export function Services({ onNavigate }: ScreenProps) {
       else if (action === 'stop') await ServicesService.Stop(id);
       else await ServicesService.Restart(id);
     } catch (e) {
-      setErrors((prev) => ({ ...prev, [id]: e instanceof Error ? e.message : String(e) }));
+      setErrors((prev) => ({ ...prev, [id]: errorText(e) }));
     } finally {
       setPending((p) => {
         const next = { ...p };
@@ -109,8 +111,8 @@ export function Services({ onNavigate }: ScreenProps) {
                   <th className="py-1 font-normal">{t('service')}</th>
                   <th className="py-1 font-normal">PID</th>
                   <th className="py-1 font-normal">{t('port')}</th>
-                  <th className="py-1 font-normal">Uptime</th>
-                  <th className="py-1 font-normal">Restarts</th>
+                  <th className="py-1 font-normal">{t('uptime')}</th>
+                  <th className="py-1 font-normal">{t('restarts')}</th>
                   <th className="py-1 text-right font-normal">{t('actions')}</th>
                 </tr>
               </thead>
@@ -129,7 +131,7 @@ export function Services({ onNavigate }: ScreenProps) {
                         <div className="flex flex-col">
                           <span className="text-fg">{s.name}</span>
                           <span className="selectable font-mono text-xs text-fg-faint">
-                            {s.id} · {s.state}
+                            {s.id} · {tc(`state_${state}`)}
                           </span>
                           {s.lastError && <span className="selectable text-xs text-err">{s.lastError}</span>}
                           {errors[s.id] && <span className="selectable text-xs text-err">{errors[s.id]}</span>}

@@ -10,12 +10,14 @@ import type { ScreenProps } from '../lib/screens'
 import { useServices } from '../lib/useServices'
 import { useSettings } from '../lib/useSettings'
 import { useT } from '../i18n'
+import { errorText } from '../lib/errors'
 
 /** Porta padrão da UI do Mailpit; `State` recém-criado traz 0 no campo. */
 const DEFAULT_HTTP_PORT = 8025
 
 export function Mail({ onNavigate }: ScreenProps) {
   const t = useT('mail')
+  const tc = useT('common')
   const { services } = useServices()
   const { settings } = useSettings()
   const [error, setError] = useState<string | null>(null)
@@ -33,7 +35,7 @@ export function Mail({ onNavigate }: ScreenProps) {
     try {
       await ServicesService.Start('mailpit')
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setStarting(false)
     }
@@ -65,19 +67,24 @@ export function Mail({ onNavigate }: ScreenProps) {
           size="sm"
           icon={<ArrowSquareOut size={14} />}
           className="ml-auto"
-          onClick={() => void AppService.OpenExternal(url)}
+          onClick={() => void AppService.OpenExternal(url).catch((e: unknown) => setError(errorText(e)))}
         >
           {t('openInNewTab')}
         </Button>
       </div>
+      {state === 'ready' && error && <span className="selectable text-sm text-err">{error}</span>}
       {state === 'ready' ? (
-        <iframe title="Mailpit" src={url} className="h-full w-full rounded-card border border-border bg-bg-card" />
+        // Sem `settings` a porta ainda é a padrão: montar o iframe agora
+        // mostraria "conexão recusada" a quem mudou a porta, até recarregar.
+        settings && (
+          <iframe title="Mailpit" src={url} className="h-full w-full rounded-card border border-border bg-bg-card" />
+        )
       ) : (
         <Card>
           <SectionLabel>MAILPIT</SectionLabel>
           <div className="mt-3 flex items-center gap-3 text-sm">
             <StatusDot state={state} />
-            <span className="text-fg">{state}</span>
+            <span className="text-fg">{tc(`state_${state}`)}</span>
             {mailpit.lastError && <span className="selectable text-err">{mailpit.lastError}</span>}
             {error && <span className="selectable text-err">{error}</span>}
             <Button

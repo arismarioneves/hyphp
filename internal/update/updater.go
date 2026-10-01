@@ -406,6 +406,8 @@ func (u *Updater) Prepare() (ApplyRequest, error) {
 	return ApplyRequest{
 		PID:       os.Getpid(),
 		Installer: inst,
+		SHA256:    l.WindowsAMD64.SHA256,
+		Size:      l.WindowsAMD64.Size,
 		Dir:       filepath.Dir(self),
 		Exe:       filepath.Base(self),
 		Result:    filepath.Join(u.c.Dir, resultFile),

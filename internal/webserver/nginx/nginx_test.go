@@ -86,7 +86,7 @@ func TestRenderGolden(t *testing.T) {
 	sort.Strings(keys)
 	want := []string{
 		"html/index.html", "logs/.keep", "nginx.conf",
-		"sites/.keep", "sites/app72.conf", "sites/app81.conf", "temp/.keep", "upstreams.conf",
+		"sites/.dir", "sites/app72.conf", "sites/app81.conf", "temp/.keep", "upstreams.conf",
 	}
 	if strings.Join(keys, ",") != strings.Join(want, ",") {
 		t.Fatalf("chaves = %v, quero %v", keys, want)
@@ -182,8 +182,8 @@ func TestRenderSemProjetosMantemDiretorioSites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := files["sites/.keep"]; !ok {
-		t.Error("falta sites/.keep; o nginx recusaria a config")
+	if _, ok := files["sites/.dir"]; !ok {
+		t.Error("falta sites/.dir; o nginx recusaria a config")
 	}
 }
 

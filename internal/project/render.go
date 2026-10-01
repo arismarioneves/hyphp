@@ -31,20 +31,22 @@ func Render(m Manifest) []byte {
 	b.WriteString(i18n.T("yaml.header", SiteURL) + "\n")
 	b.WriteString(i18n.T("yaml.headerSub") + "\n\n")
 
-	campo(&b, "name", m.Name, i18n.T("yaml.name"))
-	campo(&b, "domain", m.Domain, i18n.T("yaml.domain"))
+	// Valores do usuário passam por yamlEscalar: "loja: v2" ou "web #x" soltos
+	// não voltariam iguais no Load, e o projeto sumiria.
+	campo(&b, "name", yamlEscalar(m.Name), i18n.T("yaml.name"))
+	campo(&b, "domain", yamlEscalar(m.Domain), i18n.T("yaml.domain"))
 	// php sempre com aspas: 8.10 sem aspas vira o número 8.1 e a série muda
 	// silenciosamente para outra versão.
 	campo(&b, "php", quoted(m.PHP), i18n.T("yaml.php"))
 
 	if m.Docroot != "" {
-		campo(&b, "docroot", m.Docroot, i18n.T("yaml.docroot"))
+		campo(&b, "docroot", yamlEscalar(m.Docroot), i18n.T("yaml.docroot"))
 	}
 	if m.Wildcard {
 		campo(&b, "wildcard", "true", i18n.T("yaml.wildcard", m.Domain))
 	}
 	if m.Database != "" {
-		campo(&b, "database", m.Database, i18n.T("yaml.database"))
+		campo(&b, "database", yamlEscalar(m.Database), i18n.T("yaml.database"))
 	}
 	if len(m.Extensions) > 0 {
 		b.WriteString("\n" + i18n.T("yaml.extensions") + "\n")
@@ -108,7 +110,7 @@ func campo(b *strings.Builder, chave, valor, comentario string) {
 func lista(b *strings.Builder, chave string, valores []string) {
 	fmt.Fprintf(b, "%s:\n", chave)
 	for _, v := range valores {
-		fmt.Fprintf(b, "  - %s\n", v)
+		fmt.Fprintf(b, "  - %s\n", yamlEscalar(v))
 	}
 }
 
@@ -128,8 +130,12 @@ func mapa(b *strings.Builder, chave string, valores map[string]string) {
 
 // yamlEscalar cita o valor quando ele não é seguro solto (dois-pontos, aspas,
 // começo com caractere especial). Delega ao yaml.v3 para não reinventar as
-// regras de quoting.
+// regras de quoting. Vazio continua vazio: é o sinal de campo ausente para
+// campo, que então não escreve a linha.
 func yamlEscalar(v string) string {
+	if v == "" {
+		return ""
+	}
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)
 	if err := enc.Encode(v); err != nil {

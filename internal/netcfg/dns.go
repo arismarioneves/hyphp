@@ -21,7 +21,7 @@ const (
 )
 
 // Resolver é um servidor DNS UDP mínimo: responde A → target para o sufixo configurado e
-// qualquer nome sob ele, NXDOMAIN para todo o resto. Existe só para o caso wildcard
+// qualquer nome sob ele, NODATA para os outros tipos sob ele e NXDOMAIN para todo o resto. Existe só para o caso wildcard
 // (spec §10.3): o arquivo hosts não aceita curinga.
 type Resolver struct {
 	addr   string
@@ -190,7 +190,8 @@ func buildResponse(msg []byte, suffix string, target net.IP) ([]byte, bool) {
 	if !ok {
 		return nil, false
 	}
-	answer := q.qtype == dnsTypeA && matchesSuffix(q.name, suffix)
+	inZone := matchesSuffix(q.name, suffix)
+	answer := inZone && q.qtype == dnsTypeA
 
 	out := make([]byte, dnsHeaderLen, dnsHeaderLen+len(q.raw)+16)
 	binary.BigEndian.PutUint16(out[0:2], id)
@@ -201,7 +202,10 @@ func buildResponse(msg []byte, suffix string, target net.IP) ([]byte, bool) {
 	var ancount uint16
 	if answer {
 		ancount = 1
-	} else {
+	} else if !inZone {
+		// Só fora do sufixo o nome "não existe". Dentro, AAAA e afins são
+		// NODATA (NOERROR sem resposta, RFC 2308 §2.2): NXDOMAIN negaria o
+		// nome inteiro e stubs com cache negativo passariam a negar o A.
 		flags |= dnsRcodeNXDomain
 	}
 	binary.BigEndian.PutUint16(out[2:4], flags)

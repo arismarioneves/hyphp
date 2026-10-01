@@ -73,6 +73,9 @@ func run() error {
 	if err := checkVersions(".", version.Current); err != nil {
 		return err
 	}
+	if err := checkInstallerVersion(*inst, version.Current); err != nil {
+		return err
+	}
 	rel, err := Publish(Options{WebDir: *web, Repo: update.GitHubRepo, Installer: *inst, Version: version.Current, Date: *data, Notes: ns, NotesEN: en, Key: priv, GH: runGH})
 	if err != nil {
 		return err

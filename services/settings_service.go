@@ -2,14 +2,11 @@ package services
 
 import (
 	"context"
-	"reflect"
-	"sort"
 	"sync"
 	"time"
 
 	"hyphp/internal/autostart"
 	"hyphp/internal/i18n"
-	"hyphp/internal/project"
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
 )
@@ -23,10 +20,13 @@ type SettingsService struct {
 	// onLanguage roda depois que o idioma muda, para o que o Go desenha fora
 	// da UI (o menu do tray) trocar de texto. Nil em testes.
 	onLanguage func()
+	// applyAutostart é autostart.Apply; teste troca para não mexer na chave
+	// Run real do usuário (Set com Autostart=false apagaria a entrada HyPHP).
+	applyAutostart func(enabled bool) error
 }
 
 func NewSettingsService(stk *stack.Stack, emit func(name string, data any), onLanguage func()) *SettingsService {
-	return &SettingsService{stk: stk, emit: emit, onLanguage: onLanguage}
+	return &SettingsService{stk: stk, emit: emit, onLanguage: onLanguage, applyAutostart: autostart.Apply}
 }
 
 // SystemLanguage devolve o idioma que vale quando state.Language está vazio.
@@ -104,9 +104,16 @@ func (s *SettingsService) RemoveWildcardDNS() error {
 	return nil
 }
 
-// Set aplica os campos editáveis. SchemaVersion e PortAlloc pertencem ao Stack
-// e são ignorados. Mudança de WebServer é delegada a SwitchWebServer depois de
-// gravar o resto (para a troca já usar as portas/pool novos).
+// Set aplica os campos da tela Configurações. SchemaVersion e PortAlloc
+// pertencem ao Stack e são ignorados. Roots (ProjectsService),
+// PHPExtensions (RuntimesService), WebServer (SwitchWebServer, chamado
+// pelos cards da tela e por `hyphp web`) e DBEngine (SwitchDatabase) também
+// ficam de fora: são mudados por outros caminhos, e a cópia que a UI manda
+// pode ser anterior à mudança — gravá-la a desfaria (uma pasta recém-adicionada
+// sumia ao recolher a sidebar; um salvar qualquer trocava o web server de
+// volta). DefaultPHP fica: a tela tem o seletor "Versão padrão", e o rascunho
+// dela recebe o valor novo quando o Runtimes ou a CLI o trocam
+// (settings:changed).
 func (s *SettingsService) Set(in state.State) error {
 	if err := validateSettings(in); err != nil {
 		return err
@@ -118,17 +125,16 @@ func (s *SettingsService) Set(in state.State) error {
 	relevant := cur.DefaultPHP != in.DefaultPHP || cur.PoolSize != in.PoolSize ||
 		cur.HTTPPort != in.HTTPPort || cur.HTTPSPort != in.HTTPSPort ||
 		cur.MySQLPort != in.MySQLPort || cur.MailpitSMTPPort != in.MailpitSMTPPort ||
-		cur.MailpitHTTPPort != in.MailpitHTTPPort || !reflect.DeepEqual(cur.PHPExtensions, in.PHPExtensions) ||
+		cur.MailpitHTTPPort != in.MailpitHTTPPort ||
 		// Avisos e a página padrão do web server são escritos pelo Reconcile
 		// no idioma atual: trocar o idioma tem de reescrevê-los.
 		cur.Language != in.Language
-	rootsChanged := !sameSet(cur.Roots, in.Roots)
 
 	// O toggle "Iniciar o HyPHP no login" só valia como campo persistido; sem
 	// isto a tela promete um comportamento que não acontece. Aplicar antes de
 	// gravar mantém state.json honesto: se o registro recusar, nada é
 	// persistido e a UI não passa a exibir um estado que a máquina não tem.
-	if err := autostart.Apply(in.Autostart); err != nil {
+	if err := s.applyAutostart(in.Autostart); err != nil {
 		return err
 	}
 
@@ -140,8 +146,6 @@ func (s *SettingsService) Set(in state.State) error {
 		st.MySQLPort = in.MySQLPort
 		st.MailpitSMTPPort = in.MailpitSMTPPort
 		st.MailpitHTTPPort = in.MailpitHTTPPort
-		st.Roots = append([]string(nil), in.Roots...)
-		st.PHPExtensions = in.PHPExtensions
 		st.Editor = in.Editor
 		st.Terminal = in.Terminal
 		st.SidebarCollapsed = in.SidebarCollapsed
@@ -160,29 +164,23 @@ func (s *SettingsService) Set(in state.State) error {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
-	defer cancel()
-
-	if rootsChanged {
-		projs, err := project.Discover(in.Roots)
-		if err != nil {
-			return err
-		}
-		s.stk.SetProjects(projs)
-		s.emit("project:changed", s.stk.Projects()) // resolvido, não o Discover cru
-	}
-
-	switch {
-	case in.WebServer != cur.WebServer:
-		if err := s.stk.SwitchWebServer(ctx, in.WebServer); err != nil {
-			s.emit("settings:changed", s.stk.State())
-			return err
-		}
-	case relevant || rootsChanged:
+	if relevant {
+		ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+		defer cancel()
 		if _, err := s.stk.Reconcile(ctx); err != nil {
 			s.emit("settings:changed", s.stk.State())
 			return i18n.Errorf("err.reconcile", err)
 		}
+	}
+	s.emit("settings:changed", s.stk.State())
+	return nil
+}
+
+// SetSidebarCollapsed grava só o estado da sidebar. O toggle não pode passar
+// por Set: a cópia da UI levaria junto campos que outros serviços mudaram.
+func (s *SettingsService) SetSidebarCollapsed(collapsed bool) error {
+	if err := s.stk.UpdateState(func(st *state.State) { st.SidebarCollapsed = collapsed }); err != nil {
+		return err
 	}
 	s.emit("settings:changed", s.stk.State())
 	return nil
@@ -224,9 +222,6 @@ func (s *SettingsService) SwitchDatabase(engine string) error {
 }
 
 func validateSettings(st state.State) error {
-	if st.WebServer != state.Apache && st.WebServer != state.Nginx {
-		return i18n.Errorf("err.settings.webServerField", st.WebServer)
-	}
 	switch st.Theme {
 	case "", state.ThemeDark, state.ThemeLight, state.ThemeSystem:
 	default:
@@ -234,11 +229,6 @@ func validateSettings(st state.State) error {
 	}
 	if !i18n.Valid(st.Language) {
 		return i18n.Errorf("err.settings.language", st.Language)
-	}
-	switch st.DBEngine {
-	case "", state.DBMySQL, state.DBMariaDB:
-	default:
-		return i18n.Errorf("err.settings.dbEngine", st.DBEngine)
 	}
 	if st.PoolSize < 1 || st.PoolSize > 16 {
 		return i18n.Errorf("err.settings.poolSize", st.PoolSize)
@@ -261,15 +251,4 @@ func validateSettings(st state.State) error {
 		seen[port] = name
 	}
 	return nil
-}
-
-func sameSet(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	sa := append([]string(nil), a...)
-	sb := append([]string(nil), b...)
-	sort.Strings(sa)
-	sort.Strings(sb)
-	return reflect.DeepEqual(sa, sb)
 }

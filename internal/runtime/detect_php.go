@@ -33,7 +33,7 @@ func detectPHP(ctx context.Context, dir, exe string) (Installed, error) {
 	return Installed{
 		Kind:       PHP,
 		Version:    version,
-		Major:      majorOf(version),
+		Major:      MajorOf(version),
 		Dir:        dir,
 		Exe:        exe,
 		CGIExe:     filepath.Join(dir, "php-cgi.exe"),

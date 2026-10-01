@@ -82,7 +82,9 @@ func writeZipFile(f *zip.File, target string) error {
 		return fmt.Errorf("extract: abrir %s: %w", f.Name, err)
 	}
 	defer rc.Close()
-	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+	// O modo do zip preserva o bit de execução (no-op no Windows); o piso 0600
+	// cobre zips gerados no Windows, que gravam modo zero.
+	out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, f.Mode().Perm()|0o600)
 	if err != nil {
 		return fmt.Errorf("extract: criar %s: %w", target, err)
 	}

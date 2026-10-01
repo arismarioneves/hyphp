@@ -22,9 +22,12 @@ func table(w io.Writer, header []string, rows [][]string) {
 	tw.Flush()
 }
 
+// orDash marca célula vazia. Decoração da saída humana é só ASCII: com a
+// saída redirecionada, o PowerShell 5 decodifica no code page OEM e "—", "·"
+// viram lixo que ainda desalinha as tabelas.
 func orDash(s string) string {
 	if s == "" {
-		return "—"
+		return "-"
 	}
 	return s
 }
@@ -66,7 +69,7 @@ func servicesTable(w io.Writer, list []cli.Service) {
 	}
 	rows := make([][]string, 0, len(list))
 	for _, s := range list {
-		pid, port := "—", "—"
+		pid, port := "-", "-"
 		if s.PID > 0 {
 			pid = fmt.Sprint(s.PID)
 		}
@@ -138,7 +141,7 @@ func printResult(w io.Writer, cmd string, out any) {
 }
 
 func printStatus(w io.Writer, s cli.Status) {
-	fmt.Fprintf(w, "HyPHP %s · %s\n", s.Version, s.Root)
+	fmt.Fprintf(w, "HyPHP %s - %s\n", s.Version, s.Root)
 	svc := i18n.T("cli.status.ready", s.Ready, s.Total)
 	if s.Failed > 0 {
 		svc += ", " + i18n.T("cli.status.failed", s.Failed)
@@ -162,10 +165,7 @@ func printDB(w io.Writer, d cli.DB) {
 	if pass == "" {
 		pass = i18n.T("cli.db.emptyPassword")
 	}
-	conn := fmt.Sprintf("%s -u%s -h%s -P%d", d.Client, d.User, d.Host, d.Port)
-	if d.Password != "" {
-		conn = fmt.Sprintf("%s -u%s -p%s -h%s -P%d", d.Client, d.User, d.Password, d.Host, d.Port)
-	}
+	conn := orDash(d.Command)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for _, r := range [][]string{
 		{i18n.T("cli.db.engine"), orDash(d.Engine) + " (" + d.State + ")"},

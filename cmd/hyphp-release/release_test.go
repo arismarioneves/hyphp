@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"os"
@@ -226,6 +227,47 @@ func TestVersoesConsistentes(t *testing.T) {
 	escrever("1.0.0", "1.0.0", "0.1.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("wails_tools.nsh divergente aceito")
+	}
+}
+
+// stringVersao monta uma String da StringTable do VS_VERSIONINFO como o NSIS
+// grava: wLength, wValueLength (caracteres com o NUL), wType = 1, szKey com
+// NUL, preenchimento até 4 bytes, valor com NUL e o alinhamento da próxima.
+func stringVersao(chave, valor string) []byte {
+	b := append(make([]byte, 6), utf16LE(chave+"\x00")...)
+	for len(b)%4 != 0 {
+		b = append(b, 0)
+	}
+	v := utf16LE(valor + "\x00")
+	b = append(b, v...)
+	binary.LittleEndian.PutUint16(b[0:], uint16(len(b)))
+	binary.LittleEndian.PutUint16(b[2:], uint16(len(v)/2))
+	binary.LittleEndian.PutUint16(b[4:], 1)
+	for len(b)%4 != 0 {
+		b = append(b, 0)
+	}
+	return b
+}
+
+// Versão subiu sem reempacotar: o bin/ ainda tem o instalador anterior, e
+// publicá-lo numa release imutável põe todo app em loop de update. A
+// FileVersion diferente ao lado garante que a chave lida é a ProductVersion.
+func TestVersaoDoInstalador(t *testing.T) {
+	rsrc := slices.Concat(
+		[]byte("cabeçalho de recursos qualquer"),
+		stringVersao("FileVersion", "9.9.9"),
+		stringVersao("ProductVersion", "3.0.1"),
+		stringVersao("ProductName", "HyPHP"),
+	)
+	if err := checkProductVersion(rsrc, "3.0.1"); err != nil {
+		t.Errorf("instalador da versão certa recusado: %v", err)
+	}
+	err := checkProductVersion(rsrc, "3.0.2")
+	if err == nil || !strings.Contains(err.Error(), `"3.0.1"`) || !strings.Contains(err.Error(), "3.0.2") {
+		t.Errorf("instalador desatualizado: esperava erro citando as duas versões, veio %v", err)
+	}
+	if err := checkProductVersion(stringVersao("FileVersion", "3.0.2"), "3.0.2"); err == nil {
+		t.Error("recurso sem ProductVersion aceito")
 	}
 }
 

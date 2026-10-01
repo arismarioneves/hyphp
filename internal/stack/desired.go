@@ -120,6 +120,16 @@ func desired(in desiredInput) (desiredOutput, error) {
 
 	// 3. sites (um por projeto servido)
 	for _, s := range srv {
+		// O nginx interpola $nome até dentro de aspas: um root com "$" dá
+		// "unknown variable", o nginx -t falha e o Reconcile cai para TODOS
+		// os projetos. Fica de fora só o site; pools e procs do projeto seguem.
+		if in.State.WebServer == state.Nginx && strings.Contains(s.p.DocrootAbs, "$") {
+			out.Warnings = append(out.Warnings, Warning{
+				Code: "docroot-unsupported", ProjectID: s.p.ID,
+				Message: i18n.T("warn.docrootDollar", s.p.ID),
+			})
+			continue
+		}
 		site, warns := siteFor(in, s.p, s.inst.Major)
 		out.Sites = append(out.Sites, site)
 		out.Warnings = append(out.Warnings, warns...)

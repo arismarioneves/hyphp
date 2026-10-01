@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"hyphp/internal/runtime"
 )
@@ -198,6 +199,39 @@ func TestInstallSHAMismatchApagaTmp(t *testing.T) {
 	}
 }
 
+// Uma pasta extraída que Detect não reconhece fica invisível para Scan e para o
+// Remover da UI e faz o próximo Instalar falhar com "já existe".
+func TestInstallDetectFalhoRemovePastaExtraida(t *testing.T) {
+	var buf bytes.Buffer
+	w := zip.NewWriter(&buf)
+	f, err := w.Create("nginx-9.9.9/nginx.exe")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.Write([]byte("não é executável")); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(buf.Bytes())
+	}))
+	defer srv.Close()
+	bin, tmp := t.TempDir(), t.TempDir()
+	m := NewManager(bin, tmp, srv.Client())
+	pkg := Package{ID: "nginx-9.9.9", Kind: runtime.Nginx, Version: "9.9.9", URL: srv.URL + "/nginx.zip"}
+
+	_, err = m.Install(context.Background(), pkg, nil)
+	if err == nil || !strings.Contains(err.Error(), "não detectado") {
+		t.Fatalf("esperava erro de detecção, veio %v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(bin, "nginx", "nginx-9.9.9")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("pasta extraída deveria ter sido removida: %v", statErr)
+	}
+}
+
 // Cancelar no meio do download (runtimes de centenas de MB) tem de parar a
 // transferência, avisar a UI com a fase própria — não "erro" — e não deixar o
 // .part nem nada em bin/.
@@ -239,5 +273,76 @@ func TestInstallCanceladoNoDownload(t *testing.T) {
 	}
 	if _, statErr := os.Stat(filepath.Join(bin, "mysql")); statErr == nil {
 		t.Fatal("nada deveria ter ido para bin/mysql")
+	}
+}
+
+// encurtarStall troca o stallTimeout pelo tempo do teste e o restaura no fim.
+func encurtarStall(t *testing.T, d time.Duration) {
+	t.Helper()
+	old := stallTimeout
+	stallTimeout = d
+	t.Cleanup(func() { stallTimeout = old })
+}
+
+// Conexão que entrega parte do corpo e para sem fechar (Wi-Fi caiu, proxy
+// segurando) não pode congelar a barra para sempre: expira como falha — fase
+// "error", não "canceled", porque o usuário não cancelou nada.
+func TestInstallDownloadParadoExpira(t *testing.T) {
+	encurtarStall(t, 200*time.Millisecond)
+	fim := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Content-Length", "1000000")
+		_, _ = w.Write(make([]byte, 1000))
+		w.(http.Flusher).Flush()
+		select { // nunca termina a resposta nem fecha a conexão por conta própria
+		case <-r.Context().Done():
+		case <-fim:
+		}
+	}))
+	defer srv.Close()
+	defer close(fim)
+	bin, tmp := t.TempDir(), t.TempDir()
+	m := NewManager(bin, tmp, srv.Client())
+	pkg := Package{ID: "mysql-9.9.9", Kind: runtime.MySQL, Version: "9.9.9", URL: srv.URL + "/mysql.zip"}
+
+	// Sem o watchdog o teste esbarra neste prazo e falha com DeadlineExceeded.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var last Progress
+	_, err := m.Install(ctx, pkg, func(p Progress) { last = p })
+	if !errors.Is(err, ErrStalled) || errors.Is(err, context.Canceled) {
+		t.Fatalf("esperava ErrStalled sem context.Canceled, veio %v", err)
+	}
+	if last.Phase != PhaseError || !strings.Contains(last.Error, ErrStalled.Error()) {
+		t.Fatalf("último Progress = %+v; esperava Phase=%s com o motivo", last, PhaseError)
+	}
+	if entries, _ := os.ReadDir(tmp); len(entries) != 0 {
+		t.Fatalf("sobrou download parcial em tmp: %d entradas", len(entries))
+	}
+}
+
+// O watchdog mede tempo sem bytes, não duração: um download lento que leva
+// várias vezes o stallTimeout, mas nunca para, tem de terminar.
+func TestDownloadLentoMasContinuoTermina(t *testing.T) {
+	const passo = 40 * time.Millisecond
+	encurtarStall(t, 5*passo)
+	const pedacos = 12 // 12 × 40 ms ≈ 2,4 × stallTimeout
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/zip")
+		for range pedacos {
+			_, _ = w.Write([]byte("0123456789"))
+			w.(http.Flusher).Flush()
+			time.Sleep(passo)
+		}
+	}))
+	defer srv.Close()
+
+	dst := filepath.Join(t.TempDir(), "x.part")
+	if _, err := Download(context.Background(), srv.Client(), srv.URL+"/x.zip", dst, func(int64, int64) {}); err != nil {
+		t.Fatalf("download lento mas contínuo abortado: %v", err)
+	}
+	if st, err := os.Stat(dst); err != nil || st.Size() != pedacos*10 {
+		t.Fatalf("arquivo destino: %v %v", st, err)
 	}
 }

@@ -58,7 +58,7 @@ func PhpMyAdminConfig(mysqlPort int, secret, tmpDir string) []byte {
 	fmt.Fprintf(&b, "$cfg['Servers'][$i]['compress'] = false;\n")
 	fmt.Fprintf(&b, "$cfg['ServerDefault'] = 1;\n\n")
 
-	fmt.Fprintf(&b, "$cfg['TempDir'] = %s;\n", phpString(slashDir(tmpDir)))
+	fmt.Fprintf(&b, "$cfg['TempDir'] = %s;\n", phpString(SlashDir(tmpDir)))
 	// Upload e export ficam desligados: apontá-los para uma pasta do HyPHP faria
 	// o phpMyAdmin oferecer arquivos do ambiente na interface. O navegador já
 	// resolve os dois casos por envio e download direto.

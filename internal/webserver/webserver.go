@@ -45,12 +45,6 @@ type Tool struct {
 	PoolName string // pool da série compatível
 }
 
-// TLS descreve o estado global de TLS. Mantido por C6; o detalhe por site vive
-// em Site.TLSCert/TLSKey.
-type TLS struct {
-	Enabled bool
-}
-
 // Ports são as portas de escuta globais (state.HTTPPort / state.HTTPSPort).
 type Ports struct {
 	HTTP  int

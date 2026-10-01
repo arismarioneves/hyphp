@@ -23,4 +23,5 @@ export const dashboard: typeof base = {
   fixInstallCompatiblePhp: 'Install compatible PHP',
   fixReviewProject: 'Review project',
   fixInstallDb: 'Install database',
+  workers: '{ready}/{total} workers',
 }

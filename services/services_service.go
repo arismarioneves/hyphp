@@ -1,14 +1,19 @@
 package services
 
 import (
+	"context"
 	"log/slog"
 
+	"hyphp/internal/stack"
 	"hyphp/internal/supervisor"
 )
 
 // ServicesDeps são as dependências injetadas por main.go.
 type ServicesDeps struct {
-	Sup    *supervisor.Supervisor
+	Sup *supervisor.Supervisor
+	// Stack faz o Iniciar/Parar tudo: é ele que guarda se a stack foi
+	// iniciada, e o Reconcile usa isso para decidir se sobe serviço novo.
+	Stack  *stack.Stack
 	Logger *slog.Logger
 }
 
@@ -42,9 +47,13 @@ func (s *ServicesService) Restart(id string) error {
 }
 
 func (s *ServicesService) StartAll() error {
-	return s.d.Sup.StartAll()
+	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	defer cancel()
+	return s.d.Stack.StartAll(ctx)
 }
 
 func (s *ServicesService) StopAll() error {
-	return s.d.Sup.StopAll()
+	ctx, cancel := context.WithTimeout(context.Background(), reconcileTimeout)
+	defer cancel()
+	return s.d.Stack.StopAll(ctx)
 }

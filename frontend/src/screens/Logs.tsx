@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Scroll } from '@phosphor-icons/react'
 import { LogsService } from '../../bindings/hyphp/services'
 import { Button } from '../components/Button'
@@ -44,8 +44,13 @@ export function Logs({ onNavigate }: ScreenProps) {
   const [sources, setSources] = useState<LogSource[] | null>(null)
   const [selected, setSelected] = useState('')
 
+  // Cada service:state relê a lista; numa rajada (Iniciar tudo) as respostas
+  // podem chegar fora de ordem, e só a da chamada mais recente vale.
+  const lastCall = useRef(0)
   const loadSources = () => {
+    const call = ++lastCall.current
     void LogsService.Sources().then((list) => {
+      if (call !== lastCall.current) return
       const src = list ?? []
       setSources(src)
       // a seleção só muda se a fonte escolhida sumiu da lista.

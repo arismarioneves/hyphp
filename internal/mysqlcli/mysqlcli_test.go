@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"hyphp/internal/runtime"
 )
 
 func TestValidateName(t *testing.T) {
@@ -70,5 +72,35 @@ func TestParseDatabases(t *testing.T) {
 func TestParseDatabasesVazio(t *testing.T) {
 	if got := parseDatabases(""); got != nil {
 		t.Fatalf("parseDatabases(\"\") = %+v, want nil", got)
+	}
+}
+
+// O comando que a tela Banco e o `hyphp db` mostram tem de abrir o cliente
+// certo copiado e colado num terminal: caminho completo (o `mysql` do PATH
+// pode ser de outra instalação), cliente do mesmo motor e aspas quando o
+// caminho tem espaço (perfil "C:\Users\João Silva"), e cada valor separado
+// da opção, porque o PowerShell parte `-h127.0.0.1` no primeiro ponto.
+func TestCommand(t *testing.T) {
+	casos := []struct {
+		nome string
+		inst runtime.Installed
+		pass string
+		want string
+	}{
+		{"mysql", runtime.Installed{Kind: runtime.MySQL, Dir: `C:\HyPHP\bin\mysql\mysql-8.4.11-winx64`}, "",
+			`C:\HyPHP\bin\mysql\mysql-8.4.11-winx64\bin\mysql.exe -u root -h 127.0.0.1 -P 3306`},
+		{"mariadb usa o mariadb.exe", runtime.Installed{Kind: runtime.MariaDB, Dir: `C:\HyPHP\bin\mariadb\mariadb-11.4.13-winx64`}, "",
+			`C:\HyPHP\bin\mariadb\mariadb-11.4.13-winx64\bin\mariadb.exe -u root -h 127.0.0.1 -P 3306`},
+		{"caminho com espaço vai entre aspas", runtime.Installed{Kind: runtime.MySQL, Dir: `C:\Users\João Silva\AppData\Local\HyPHP\bin\mysql\m`}, "",
+			`"C:\Users\João Silva\AppData\Local\HyPHP\bin\mysql\m\bin\mysql.exe" -u root -h 127.0.0.1 -P 3306`},
+		{"senha", runtime.Installed{Kind: runtime.MySQL, Dir: `C:\m`}, "s3cr3t",
+			`C:\m\bin\mysql.exe -u root -ps3cr3t -h 127.0.0.1 -P 3306`},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			if got := New(c.inst, 3306).Command(c.pass); got != c.want {
+				t.Errorf("Command() =\n  %s\nwant\n  %s", got, c.want)
+			}
+		})
 	}
 }

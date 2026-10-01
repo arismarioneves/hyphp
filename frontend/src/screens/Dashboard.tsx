@@ -10,6 +10,7 @@ import { Skeleton } from '../components/Skeleton'
 import { StatusDot, type ServiceState } from '../components/StatusDot'
 import type { Screen, ScreenProps } from '../lib/screens'
 import { phpPools } from '../lib/status'
+import { errorText } from '../lib/errors'
 import { newestVersions } from '../lib/versions'
 import type { Installed, RuntimeKind, ServiceStatus } from '../lib/types'
 import { useProjects } from '../lib/useProjects'
@@ -20,7 +21,13 @@ import { useWarnings } from '../lib/useWarnings'
 import { useT } from '../i18n'
 import type { dashboard as dashboardMessages } from '../i18n/locales/pt-BR/dashboard'
 
-type StackRow = { key: string; state: ServiceState; name: string; version: string; extra?: string }
+type StackRow = {
+  key: string
+  state: ServiceState
+  name: string
+  version: string
+  workers?: { ready: number; total: number }
+}
 
 // Como resolver cada pendência. As que pedem UAC executam aqui mesmo: mandar o
 // usuário para outra tela para clicar num botão equivalente é um salto sem
@@ -71,7 +78,7 @@ function stackRows(services: ServiceStatus[], installed: Installed[]): StackRow[
       state: pool.state,
       name: `PHP ${pool.major}`,
       version: phpVersionFor(installed, pool.major),
-      extra: `${pool.ready}/${pool.total} workers`,
+      workers: { ready: pool.ready, total: pool.total },
     })
   }
   // O serviço "mysql" roda o motor escolhido; o nome que o Go dá a ele
@@ -88,6 +95,7 @@ function stackRows(services: ServiceStatus[], installed: Installed[]): StackRow[
 
 export function Dashboard({ onNavigate }: ScreenProps) {
   const t = useT('dashboard')
+  const tc = useT('common')
   const { services, loading } = useServices()
   const { projects } = useProjects()
   const { installed } = useRuntimes()
@@ -103,7 +111,7 @@ export function Dashboard({ onNavigate }: ScreenProps) {
       if (kind === 'start') await ServicesService.StartAll()
       else await ServicesService.StopAll()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(null)
     }
@@ -125,7 +133,7 @@ export function Dashboard({ onNavigate }: ScreenProps) {
     } catch (e) {
       // Recusar o UAC chega como rejeição; sem isto o erro só existiria no
       // console do WebView e o aviso continuaria na tela sem explicação.
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setResolvendo(null)
     }
@@ -196,8 +204,8 @@ export function Dashboard({ onNavigate }: ScreenProps) {
                 <StatusDot state={r.state} />
                 <span className="text-sm text-fg">{r.name}</span>
                 <span className="selectable font-mono text-sm text-fg-muted">{r.version}</span>
-                {r.extra && <Badge mono>{r.extra}</Badge>}
-                <span className="ml-auto text-xs text-fg-faint">{r.state}</span>
+                {r.workers && <Badge mono>{t('workers', r.workers)}</Badge>}
+                <span className="ml-auto text-xs text-fg-faint">{tc(`state_${r.state}`)}</span>
               </li>
             ))}
           </ul>
@@ -234,7 +242,9 @@ export function Dashboard({ onNavigate }: ScreenProps) {
                   </span>
                   <button
                     type="button"
-                    onClick={() => void AppService.OpenExternal(`https://${p.domain}`)}
+                    onClick={() =>
+                      void AppService.OpenExternal(`https://${p.domain}`).catch((e: unknown) => setError(errorText(e)))
+                    }
                     title={p.domain}
                     className="ml-auto inline-flex min-w-0 max-w-[60%] shrink-0 items-center gap-1 whitespace-nowrap font-mono text-sm text-accent-fg hover:underline focus-visible:outline-2 focus-visible:outline-accent"
                   >

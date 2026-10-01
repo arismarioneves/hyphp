@@ -5,6 +5,7 @@ package project
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -27,7 +28,11 @@ type Manifest struct {
 }
 
 var (
-	phpMajorRe  = regexp.MustCompile(`^\d+\.\d+$`)
+	phpMajorRe = regexp.MustCompile(`^\d+\.\d+$`)
+	// domainRe aceita rótulos de hostname (RFC 1123) separados por ponto.
+	// Sem diferenciar caixa: DNS e hosts não diferenciam, e recusar
+	// "Loja.test" quebraria manifestos que já funcionavam.
+	domainRe    = regexp.MustCompile(`(?i)^([a-z0-9-]{1,63}\.)+test$`)
 	nonNameRe   = regexp.MustCompile(`[^a-z0-9-]+`)
 	multiDashRe = regexp.MustCompile(`-{2,}`)
 )
@@ -95,6 +100,21 @@ func Validate(m Manifest) error {
 	}
 	if !strings.HasSuffix(m.Domain, ".test") || len(m.Domain) <= len(".test") {
 		return fmt.Errorf("manifesto: domain %q deve terminar em .test", m.Domain)
+	}
+	// O domínio vai cru para ServerName/server_name, mkcert e o bloco do
+	// hosts gravado pelo helper elevado: espaço ou quebra de linha viraria
+	// argumento a mais ou uma entrada de hosts arbitrária.
+	if !domainRe.MatchString(m.Domain) {
+		return fmt.Errorf("manifesto: domain %q não é um nome de host válido (rótulos [a-z0-9-] de até 63 caracteres)", m.Domain)
+	}
+	// Docroot absoluto ou com ".." tiraria o DocumentRoot de dentro do
+	// projeto — e o vhost escuta em todas as interfaces.
+	if d := filepath.ToSlash(m.Docroot); d != "" {
+		clean := path.Clean(d)
+		if filepath.IsAbs(m.Docroot) || filepath.VolumeName(m.Docroot) != "" || strings.HasPrefix(d, "/") ||
+			clean == ".." || strings.HasPrefix(clean, "../") {
+			return fmt.Errorf("manifesto: docroot %q deve ser relativo e ficar dentro do projeto", m.Docroot)
+		}
 	}
 	if m.PHP != "" && !phpMajorRe.MatchString(m.PHP) {
 		return fmt.Errorf("manifesto: php %q deve ter o formato major.minor (ex.: \"8.1\")", m.PHP)

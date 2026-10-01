@@ -110,7 +110,7 @@ func RunElevated(exe string, args []string) error {
 	full = append(full, "--result", resultPath)
 	full = append(full, args...)
 
-	code, err := shellExecuteWait("runas", exe, quoteArgs(full), helperTimeoutMS)
+	code, err := shellExecuteWait("runas", exe, quoteArgs(full), helperTimeoutMS, true)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,9 @@ func readResultMessage(path string) string {
 // instalador de escopo usuário, que é o que permite testar o fluxo de update
 // inteiro sem UAC com este mesmo código. UAC recusado → ErrElevationDenied.
 func RunInstaller(exe, params string, timeout time.Duration) (uint32, error) {
-	code, err := shellExecuteWait("open", exe, params, uint32(timeout/time.Millisecond))
+	// O instalador NSIS nunca é morto no timeout: interrompê-lo no meio deixa a
+	// instalação pela metade.
+	code, err := shellExecuteWait("open", exe, params, uint32(timeout/time.Millisecond), false)
 	if errors.Is(err, ErrHelperTimeout) {
 		return 0, fmt.Errorf("instalador não terminou em %s", timeout)
 	}
@@ -203,7 +205,9 @@ func RunInstaller(exe, params string, timeout time.Duration) (uint32, error) {
 
 // shellExecuteWait chama ShellExecuteExW, espera até timeoutMS e devolve o exit code.
 // verb é "runas" para o helper; os testes usam "open" para exercitar o caminho sem UAC.
-func shellExecuteWait(verb, exe, params string, timeoutMS uint32) (uint32, error) {
+// killOnTimeout encerra o processo ao estourar o prazo: um helper esquecido vivo
+// recriaria o arquivo de resultado depois de apagado e somaria UACs a cada nova tentativa.
+func shellExecuteWait(verb, exe, params string, timeoutMS uint32, killOnTimeout bool) (uint32, error) {
 	verbPtr, err := windows.UTF16PtrFromString(verb)
 	if err != nil {
 		return 0, fmt.Errorf("verbo %q: %w", verb, err)
@@ -253,6 +257,9 @@ func shellExecuteWait(verb, exe, params string, timeoutMS uint32) (uint32, error
 	switch event {
 	case windows.WAIT_OBJECT_0:
 	case uint32(windows.WAIT_TIMEOUT): // WAIT_TIMEOUT é syscall.Errno em x/sys/windows
+		if killOnTimeout {
+			_ = windows.TerminateProcess(info.hProcess, 1)
+		}
 		return 0, fmt.Errorf("%w (%d s)", ErrHelperTimeout, timeoutMS/1000)
 	default:
 		return 0, fmt.Errorf("WaitForSingleObject devolveu 0x%x", event)

@@ -1,8 +1,13 @@
 package stack
 
 import (
+	"io"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
+	"time"
 
 	"hyphp/internal/supervisor"
 )
@@ -25,5 +30,50 @@ func TestSpecsUsingDirSoOsDaquelaPasta(t *testing.T) {
 	}
 	if got := specsUsingDir(specs, `C:\HyPHP\bin\nginx\nginx-1.30.5`); got != nil {
 		t.Errorf("pasta sem serviço: %v", got)
+	}
+}
+
+// Remover uma versão com outra do mesmo tipo instalada mantém o ID do spec e
+// muda só o executável. O serviço tem de voltar na versão que ficou: era o
+// StopUsingDir, e não o usuário, quem o tinha parado.
+func TestTrocaDeVersaoDepoisDeStopUsingDirReligaOServico(t *testing.T) {
+	sup, err := supervisor.New(slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("supervisor.New: %v", err)
+	}
+	t.Cleanup(func() { _ = sup.Close() })
+	s := New(Deps{Sup: sup, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
+
+	cmdExe := os.Getenv("ComSpec")
+	if cmdExe == "" {
+		t.Skip("ComSpec ausente")
+	}
+	spec := func(args ...string) supervisor.Spec {
+		return supervisor.Spec{
+			ID: MySQLSpecID, Group: "db", Exe: cmdExe, Args: args,
+			Probe: supervisor.AliveProbe{Grace: 300 * time.Millisecond},
+		}
+	}
+	if err := s.applySpecs([]supervisor.Spec{spec("/c", "ping -n 30 127.0.0.1 >nul")}, false, nil, false); err != nil {
+		t.Fatalf("applySpecs: %v", err)
+	}
+	if err := s.StartAll(t.Context()); err != nil {
+		t.Fatalf("StartAll: %v", err)
+	}
+
+	if err := s.StopUsingDir(filepath.Dir(cmdExe)); err != nil {
+		t.Fatalf("StopUsingDir: %v", err)
+	}
+	if s.isRunning(MySQLSpecID) {
+		t.Fatal("StopUsingDir não parou o serviço")
+	}
+	// A revarredura troca o spec (aqui, os argumentos fazem as vezes do
+	// executável da outra versão).
+	if err := s.applySpecs([]supervisor.Spec{spec("/c", "ping -n 31 127.0.0.1 >nul")}, false, nil, false); err != nil {
+		t.Fatalf("applySpecs com o spec trocado: %v", err)
+	}
+	if !s.isRunning(MySQLSpecID) {
+		st, _ := sup.Status(MySQLSpecID)
+		t.Fatalf("serviço ficou %q depois da troca de versão; quero no ar", st.State)
 	}
 }

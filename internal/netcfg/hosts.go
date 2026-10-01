@@ -6,6 +6,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -46,12 +47,15 @@ func detectEOL(s string) string {
 }
 
 // normalizeDomains devolve os domínios em minúsculas, sem vazios, sem duplicatas, ordenados.
+// Descarta domínio com espaço, controle ou "#": no hosts isso viraria outra entrada ou
+// comentário, e o bloco é gravado pelo helper elevado. project.Validate já recusa; aqui é a
+// segunda linha de defesa.
 func normalizeDomains(domains []string) []string {
 	seen := make(map[string]struct{}, len(domains))
 	out := make([]string, 0, len(domains))
 	for _, d := range domains {
 		d = strings.ToLower(strings.TrimSpace(d))
-		if d == "" {
+		if d == "" || strings.ContainsFunc(d, func(r rune) bool { return r == '#' || unicode.IsSpace(r) || unicode.IsControl(r) }) {
 			continue
 		}
 		if _, dup := seen[d]; dup {
@@ -177,17 +181,17 @@ func ParseHostsBlock(existing string) []string {
 }
 
 // ValidateHostsContent aceita apenas conteúdo com cara de arquivo hosts: não vazio, ≤ 1 MiB,
-// UTF-8 válido, sem NUL, e toda linha não-vazia/não-comentário no formato "<ip> <host> [...]".
-// É a defesa do hyphp-helper contra sobrescrever o hosts com lixo.
+// sem NUL, e toda linha não-vazia/não-comentário no formato "<ip> <host> [...]", com a parte
+// de dados em UTF-8 válido. É a defesa do hyphp-helper contra sobrescrever o hosts com lixo.
+//
+// Comentários ficam fora da exigência de UTF-8: um hosts salvo em ANSI pelo Bloco de Notas com
+// "# Configuração" é legítimo, passa intacto pelo RenderHostsBlock e seria recusado para sempre.
 func ValidateHostsContent(content string) error {
 	if content == "" {
 		return errors.New("conteúdo vazio")
 	}
 	if len(content) > maxHostsSize {
 		return fmt.Errorf("conteúdo excede %d bytes", maxHostsSize)
-	}
-	if !utf8.ValidString(content) {
-		return errors.New("conteúdo não é UTF-8 válido")
 	}
 	if strings.IndexByte(content, 0) >= 0 {
 		return errors.New("conteúdo contém byte NUL")
@@ -198,6 +202,10 @@ func ValidateHostsContent(content string) error {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
+		}
+		data, _, _ := strings.Cut(line, "#")
+		if !utf8.ValidString(data) {
+			return fmt.Errorf("linha %d não é UTF-8 válido", n+1)
 		}
 		if !validHostsLine(line) {
 			return fmt.Errorf("linha %d não tem formato \"<ip> <host>\": %q", n+1, line)

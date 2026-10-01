@@ -69,6 +69,26 @@ func protegido(dir string) bool {
 // instalação anterior, criaria o problema inverso: o usuário instala runtimes
 // numa raiz e o app lê a outra, vendo tudo vazio.
 func Root() string {
+	if frozen != "" {
+		return frozen
+	}
+	return resolveRoot()
+}
+
+// frozen é a raiz fixada por Freeze; vazio = recalcular a cada chamada.
+var frozen string
+
+// Freeze calcula Root() uma vez e a fixa para o resto do processo. Sem isso
+// cada Etc()/Var()/Log() refazia a sonda de escrita, e uma falha passageira
+// dela (antivírus segurando a pasta, disco cheio) mandava só aquela chamada
+// para %LOCALAPPDATA%: state.json numa raiz, etc/ e logs em outra. O app
+// chama no início do main, antes de qualquer goroutine; os testes não chamam
+// e continuam variando HYPHP_ROOT à vontade.
+func Freeze() {
+	frozen = resolveRoot()
+}
+
+func resolveRoot() string {
 	if v := os.Getenv(EnvRoot); v != "" {
 		if abs, err := filepath.Abs(v); err == nil {
 			return abs

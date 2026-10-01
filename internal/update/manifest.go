@@ -15,9 +15,10 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
+
+	"hyphp/internal/runtime"
 )
 
 // SchemaVersion é o único schema que este binário entende.
@@ -135,39 +136,13 @@ func validPath(p string) error {
 }
 
 // Compare devolve -1, 0 ou 1 comparando numericamente parte a parte. A ordem
-// lexicográfica diria que 1.0.10 < 1.0.9.
+// lexicográfica diria que 1.0.10 < 1.0.9. O formato é validado aqui, estrito;
+// a ordem é a mesma do resto do app.
 func Compare(a, b string) (int, error) {
-	pa, err := parseVersion(a)
-	if err != nil {
-		return 0, err
-	}
-	pb, err := parseVersion(b)
-	if err != nil {
-		return 0, err
-	}
-	for i := range pa {
-		switch {
-		case pa[i] > pb[i]:
-			return 1, nil
-		case pa[i] < pb[i]:
-			return -1, nil
+	for _, v := range []string{a, b} {
+		if !versionRe.MatchString(v) {
+			return 0, fmt.Errorf("update: versão %q fora do formato MAIOR.MENOR.CORREÇÃO", v)
 		}
 	}
-	return 0, nil
-}
-
-func parseVersion(v string) ([3]int, error) {
-	m := versionRe.FindStringSubmatch(v)
-	if m == nil {
-		return [3]int{}, fmt.Errorf("update: versão %q fora do formato MAIOR.MENOR.CORREÇÃO", v)
-	}
-	var out [3]int
-	for i := range out {
-		n, err := strconv.Atoi(m[i+1])
-		if err != nil {
-			return [3]int{}, fmt.Errorf("update: versão %q: %w", v, err)
-		}
-		out[i] = n
-	}
-	return out, nil
+	return runtime.CompareVersions(a, b), nil
 }

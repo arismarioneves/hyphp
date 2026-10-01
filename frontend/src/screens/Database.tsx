@@ -10,6 +10,7 @@ import { Skeleton } from '../components/Skeleton'
 import { StatusDot, type ServiceState } from '../components/StatusDot'
 import type { ScreenProps } from '../lib/screens'
 import type { Credentials, DBInfo } from '../lib/types'
+import { errorText } from '../lib/errors'
 import { useServices } from '../lib/useServices'
 import { useT } from '../i18n'
 
@@ -18,6 +19,7 @@ const NAME_RE = /^[a-z0-9_]{1,64}$/
 
 export function Database({ onNavigate }: ScreenProps) {
   const t = useT('database')
+  const tc = useT('common')
   const { services } = useServices()
   const mysql = services.find((s) => s.id === 'mysql')
   // `ServiceStatus.state` é o enum gerado `supervisor.State` (nominal).
@@ -41,20 +43,30 @@ export function Database({ onNavigate }: ScreenProps) {
       setDbs(list ?? [])
       setError(null)
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
       setDbs([])
     }
   }, [])
 
+  // Porta, comando do cliente e URL do phpMyAdmin dependem do motor ativo: a
+  // troca de motor (pela CLI ou por outra tela) muda o nome/estado do serviço
+  // sem desmontar esta tela, então relê nesses momentos. `cancelled` impede
+  // que a resposta de um motor antigo sobrescreva a do novo.
+  // Em PhpMyAdminURL, "" significa não instalado; null é "ainda não perguntei
+  // ao Go", e nesse intervalo nenhum dos dois botões deve aparecer piscando.
+  const mysqlName = mysql?.name
   useEffect(() => {
-    void DatabaseService.Credentials().then(setCreds)
-  }, [])
-
-  // "" significa phpMyAdmin não instalado; null é "ainda não perguntei ao Go",
-  // e nesse intervalo nenhum dos dois botões deve aparecer piscando.
-  useEffect(() => {
-    void DatabaseService.PhpMyAdminURL().then(setPmaURL)
-  }, [])
+    let cancelled = false
+    void DatabaseService.Credentials().then((c) => {
+      if (!cancelled) setCreds(c)
+    })
+    void DatabaseService.PhpMyAdminURL().then((u) => {
+      if (!cancelled) setPmaURL(u)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [mysqlName, state])
 
   // sem servidor no ar não há schema para listar: volta ao skeleton em vez de manter dados velhos.
   useEffect(() => {
@@ -74,7 +86,7 @@ export function Database({ onNavigate }: ScreenProps) {
       setCreating(false)
       await loadDbs()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }
@@ -87,15 +99,16 @@ export function Database({ onNavigate }: ScreenProps) {
       setConfirmDrop(null)
       await loadDbs()
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e))
+      setError(errorText(e))
     } finally {
       setBusy(false)
     }
   }
 
-  const connCmd = creds
-    ? `${creds.client} -u${creds.user}${creds.password ? ` -p${creds.password}` : ''} -h${creds.host} -P${creds.port}`
-    : ''
+  // Vem pronto do Go (mysqlcli.Client.Command), com o caminho completo do
+  // cliente que casa com o banco ativo: o `mysql` do PATH pode ser de outra
+  // instalação, e `mariadb` nem costuma estar lá.
+  const connCmd = creds?.command ?? ''
 
   return (
     <div className="flex flex-col gap-4">
@@ -122,9 +135,7 @@ export function Database({ onNavigate }: ScreenProps) {
                 icon={<ArrowSquareOut size={14} />}
                 disabled={state !== 'ready'}
                 onClick={() =>
-                  void AppService.OpenExternal(pmaURL).catch((e: unknown) =>
-                    setError(e instanceof Error ? e.message : String(e)),
-                  )
+                  void AppService.OpenExternal(pmaURL).catch((e: unknown) => setError(errorText(e)))
                 }
               >
                 {t('openPma')}
@@ -135,7 +146,7 @@ export function Database({ onNavigate }: ScreenProps) {
         <div className="mt-3 flex items-center gap-3">
           <StatusDot state={state} />
           <span className="text-sm text-fg">{mysql?.name ?? engine}</span>
-          <span className="text-xs text-fg-faint">{state}</span>
+          <span className="text-xs text-fg-faint">{tc(`state_${state}`)}</span>
           {mysql?.lastError && <span className="selectable text-xs text-err">{mysql.lastError}</span>}
         </div>
         {creds === null ? (
@@ -171,7 +182,7 @@ export function Database({ onNavigate }: ScreenProps) {
       </Card>
 
       <Card
-        title="Databases"
+        title={t('databasesTitle')}
         actions={
           <Button
             variant="secondary"

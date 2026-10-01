@@ -1,13 +1,20 @@
 package supervisor
 
 import (
+	"context"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
+	"os/exec"
 	"reflect"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/sys/windows"
 )
 
 func newTestSupervisor(t *testing.T) *Supervisor {
@@ -96,6 +103,79 @@ func TestSupervisor_StartFicaReadyEStopMataOProcesso(t *testing.T) {
 	}
 }
 
+// Dois Stops ao mesmo tempo (o watcher removendo o spec enquanto o usuário
+// clica Parar): só o primeiro mata a árvore. O segundo repetia o
+// TerminateJobObject com o job que o primeiro fecha, e no Windows o valor de
+// um handle fechado é reciclado. O segundo também só pode voltar com o
+// serviço já parado.
+func TestSupervisor_StopConcorrenteParaUmaVezSo(t *testing.T) {
+	sup := newTestSupervisor(t)
+	if err := sup.Add(longRunningSpec("web")); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	sub, cancel := sup.Subscribe()
+	defer cancel()
+	if err := sup.Start("web"); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	ready := waitState(t, sub, "web", Ready, 10*time.Second)
+
+	var calls atomic.Int32
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	liberar := sync.OnceFunc(func() { close(release) })
+	orig := stopProcessFn
+	t.Cleanup(func() { stopProcessFn = orig })
+	// Registrado depois do Close de newTestSupervisor, roda antes dele: um
+	// teste que falhe com o primeiro Stop preso não trava o Close.
+	t.Cleanup(liberar)
+	stopProcessFn = func(cmd *exec.Cmd, job windows.Handle, timeout time.Duration) error {
+		if calls.Add(1) == 1 {
+			close(entered)
+			<-release
+		}
+		return orig(cmd, job, timeout)
+	}
+
+	first := make(chan error, 1)
+	go func() { first <- sup.Stop("web") }()
+	select {
+	case <-entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("primeiro Stop não chegou a parar o processo")
+	}
+	second := make(chan error, 1)
+	go func() { second <- sup.Stop("web") }()
+
+	// O segundo Stop não tem como avisar que chegou à espera; meio segundo
+	// sobra para ele, sem a correção, alcançar o stopProcess e voltar.
+	select {
+	case err := <-second:
+		t.Fatalf("segundo Stop voltou (%v) com o primeiro ainda parando", err)
+	case <-time.After(500 * time.Millisecond):
+	}
+	liberar()
+	for i, ch := range []chan error{first, second} {
+		select {
+		case err := <-ch:
+			if err != nil {
+				t.Fatalf("Stop %d: %v", i+1, err)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("Stop %d não voltou", i+1)
+		}
+	}
+	if n := calls.Load(); n != 1 {
+		t.Fatalf("stopProcess chamado %d vezes, quero 1", n)
+	}
+	if st, _ := sup.Status("web"); st.State != Stopped {
+		t.Fatalf("estado após os dois Stops = %q, want %q", st.State, Stopped)
+	}
+	if processAlive(ready.PID) {
+		t.Fatalf("processo %d continua vivo após Stop", ready.PID)
+	}
+}
+
 // Quem mostra a lista só por eventos (a UI) precisa saber que o serviço saiu:
 // o "stopped" final de Remove é igual ao de um Stop comum, e um serviço
 // removido que continua na tela como parado deixa o resumo amarelo.
@@ -130,6 +210,148 @@ func TestSupervisor_RemoveAvisaQueOServicoSaiu(t *testing.T) {
 		case <-deadline:
 			t.Fatal("Remove não publicou evento com Removed")
 		}
+	}
+}
+
+// travaNoStopped segura a goroutine que loga a transição de id para
+// "stopped". Dentro de Remove esse é o instante entre o Stop terminar e a
+// entry sair do mapa — onde um Start concorrente achava o serviço parado.
+type travaNoStopped struct {
+	id     string
+	armado atomic.Bool
+	entrou chan struct{}
+	solta  chan struct{}
+	once   sync.Once
+}
+
+func (h *travaNoStopped) Enabled(context.Context, slog.Level) bool { return true }
+func (h *travaNoStopped) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h *travaNoStopped) WithGroup(string) slog.Handler            { return h }
+
+func (h *travaNoStopped) Handle(_ context.Context, r slog.Record) error {
+	if !h.armado.Load() {
+		return nil
+	}
+	var id, st string
+	r.Attrs(func(a slog.Attr) bool {
+		switch a.Key {
+		case "id":
+			id = a.Value.String()
+		case "state":
+			st = a.Value.String()
+		}
+		return true
+	})
+	if id == h.id && st == string(Stopped) {
+		h.once.Do(func() {
+			close(h.entrou)
+			<-h.solta
+		})
+	}
+	return nil
+}
+
+// Start (botão, Restart, StartAll) chegando enquanto Remove para o serviço
+// subia um processo numa entry que Remove apagava em seguida: vivo, fora de
+// List() e com Stop respondendo "desconhecido" até o app fechar.
+func TestSupervisor_StartDuranteRemoveNaoDeixaProcessoOrfao(t *testing.T) {
+	const id = "php:8.1:0"
+	h := &travaNoStopped{id: id, entrou: make(chan struct{}), solta: make(chan struct{})}
+	soltar := sync.OnceFunc(func() { close(h.solta) })
+	sup, err := New(slog.New(h))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	t.Cleanup(func() { _ = sup.Close() })
+	// Registrado depois do Close, roda antes dele: um teste que falhe com o
+	// Remove preso não trava o Close.
+	t.Cleanup(soltar)
+	if err := sup.Add(longRunningSpec(id)); err != nil {
+		t.Fatalf("Add: %v", err)
+	}
+	sub, cancel := sup.Subscribe()
+	defer cancel()
+	if err := sup.Start(id); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	waitState(t, sub, id, Ready, 10*time.Second)
+
+	h.armado.Store(true)
+	removed := make(chan error, 1)
+	go func() { removed <- sup.Remove(id) }()
+	select {
+	case <-h.entrou:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Remove não chegou a parar o serviço")
+	}
+
+	if err := sup.Start(id); err == nil {
+		st, _ := sup.Status(id)
+		_ = sup.Stop(id) // enquanto ainda alcançável, para não sobrar processo
+		soltar()
+		<-removed
+		t.Fatalf("Start durante Remove subiu o processo %d, que sairia da lista ainda vivo", st.PID)
+	} else if !errors.Is(err, ErrRemoving) {
+		t.Fatalf("Start durante Remove = %v, quero ErrRemoving", err)
+	}
+	soltar()
+	select {
+	case err := <-removed:
+		if err != nil {
+			t.Fatalf("Remove: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("Remove não voltou")
+	}
+	if _, ok := sup.Status(id); ok {
+		t.Fatal("serviço continua na lista depois do Remove")
+	}
+}
+
+// A stack troca o spec de um serviço (outra versão do Apache, outro motor de
+// banco) com Replace. Remove+Add mandava o serviço para o fim da ordem, e o
+// StopAll do Close passava a parar o PHP antes do web server.
+func TestSupervisor_ReplaceMantemAOrdemDoStopAll(t *testing.T) {
+	sup := newTestSupervisor(t)
+	ids := []string{"php:8.1:0", "web:apache", "mysql"}
+	for _, id := range ids {
+		if err := sup.Add(longRunningSpec(id)); err != nil {
+			t.Fatalf("Add %s: %v", id, err)
+		}
+	}
+	novo := longRunningSpec("web:apache")
+	novo.Name = "Apache 2.4.66"
+	if err := sup.Replace(novo); err != nil {
+		t.Fatalf("Replace: %v", err)
+	}
+	if st, _ := sup.Status("web:apache"); st.Name != novo.Name || st.State != Stopped {
+		t.Fatalf("status após Replace = %+v, quero o spec novo parado", st)
+	}
+
+	sub, cancel := sup.Subscribe()
+	defer cancel()
+	for _, id := range ids {
+		if err := sup.Start(id); err != nil {
+			t.Fatalf("Start %s: %v", id, err)
+		}
+	}
+	if err := sup.StopAll(); err != nil {
+		t.Fatalf("StopAll: %v", err)
+	}
+	var got []string
+	deadline := time.After(5 * time.Second)
+	for len(got) < len(ids) {
+		select {
+		case ev := <-sub:
+			if ev.Status.State == Stopping {
+				got = append(got, ev.Status.ID)
+			}
+		case <-deadline:
+			t.Fatalf("paradas vistas: %v", got)
+		}
+	}
+	if want := []string{"mysql", "web:apache", "php:8.1:0"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("ordem do StopAll = %v, quero %v", got, want)
 	}
 }
 

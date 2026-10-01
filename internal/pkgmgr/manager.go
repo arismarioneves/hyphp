@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"hyphp/internal/runtime"
 )
@@ -42,10 +43,16 @@ type Manager struct {
 }
 
 // NewManager cria um Manager que instala em binDir usando tmpDir para downloads
-// parciais. client nil usa http.DefaultClient (sem timeout global: o ctx de Install manda).
+// parciais. client nil usa um client com timeouts de transporte, que cobrem
+// conexão e cabeçalhos; o corpo que para de chegar sem a conexão fechar é
+// coberto pelo stallTimeout de Download. Não há Timeout total porque downloads
+// grandes demoram; o ctx de Install manda.
 func NewManager(binDir, tmpDir string, client *http.Client) *Manager {
 	if client == nil {
-		client = http.DefaultClient
+		tr := http.DefaultTransport.(*http.Transport).Clone()
+		tr.ResponseHeaderTimeout = 30 * time.Second
+		tr.IdleConnTimeout = 90 * time.Second
+		client = &http.Client{Transport: tr}
 	}
 	return &Manager{binDir: binDir, tmpDir: tmpDir, client: client}
 }
@@ -93,6 +100,11 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 
 	inst, err := runtime.Detect(pkg.Kind, destDir)
 	if err != nil {
+		// Pasta não detectável fica fora de Scan e do Remover da UI e bloqueia a
+		// reinstalação; mesma regra de place: a pasta do kind é compartilhada.
+		if destDir != filepath.Join(m.binDir, string(pkg.Kind)) {
+			_ = os.RemoveAll(destDir)
+		}
 		return fail(fmt.Errorf("pkgmgr: instalado em %s mas não detectado: %w", destDir, err))
 	}
 	report(PhaseDone, 0, 0)

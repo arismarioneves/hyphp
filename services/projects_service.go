@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -31,10 +32,14 @@ type ProjectsService struct {
 	stk     *stack.Stack
 	watcher *project.Watcher // pode ser nil
 	emit    func(name string, data any)
+	log     *slog.Logger
 }
 
-func NewProjectsService(app *application.App, stk *stack.Stack, watcher *project.Watcher, emit func(name string, data any)) *ProjectsService {
-	return &ProjectsService{app: app, stk: stk, watcher: watcher, emit: emit}
+func NewProjectsService(app *application.App, stk *stack.Stack, watcher *project.Watcher, emit func(name string, data any), logger *slog.Logger) *ProjectsService {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &ProjectsService{app: app, stk: stk, watcher: watcher, emit: emit, log: logger}
 }
 
 // dialogCancelledMsg é a mensagem de cfd.ErrorCancelled, devolvida pelo
@@ -190,9 +195,12 @@ func (p *ProjectsService) find(id string) (project.Project, error) {
 // O erro do Reconcile é devolvido à UI, mas a lista de projetos já foi publicada.
 func (p *ProjectsService) rescanLocked() error {
 	roots := p.stk.State().Roots
+	// Discover devolve os válidos mesmo com projetos ignorados: abortar aqui
+	// congelava a lista (watcher e Rescan manual) enquanto um hyphp.yaml ruim
+	// existisse.
 	projs, err := project.Discover(roots)
 	if err != nil {
-		return err
+		p.log.Warn("projetos ignorados na descoberta", "err", err)
 	}
 	p.stk.SetProjects(projs)
 	if p.watcher != nil {

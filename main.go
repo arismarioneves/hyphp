@@ -48,6 +48,10 @@ func main() {
 		os.Exit(update.RunApply(os.Args[2:]))
 	}
 
+	// A raiz fica fixa a partir daqui: uma variável de ambiente ou o cwd
+	// mudando no meio da execução não pode espalhar o estado em duas pastas.
+	paths.Freeze()
+
 	// O log vai para log/hyphp.log e, havendo console, também para stderr.
 	// Sob o Wails em modo GUI não há console, então sem o arquivo qualquer
 	// falha de bootstrap fica invisível — inclusive para a tela Logs.
@@ -64,10 +68,13 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	logger.Info("hyphp iniciando", "root", paths.Root())
 	statePath := filepath.Join(paths.Var(), "state.json")
-	st, err := state.Load(statePath)
+	st, recovered, err := state.LoadOrRecover(statePath)
 	if err != nil {
 		logger.Error("carregar state.json", "path", statePath, "err", err)
 		os.Exit(1)
+	}
+	if recovered != "" {
+		logger.Warn("state.json corrompido; guardado à parte e recriado com o padrão", "path", statePath, "backup", recovered)
 	}
 	// Antes de qualquer texto do Go: avisos, tray e diálogos saem no idioma
 	// escolhido (ou no do Windows).
@@ -147,14 +154,18 @@ func main() {
 			if stk != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 				defer cancel()
+				// StopAll e Close desistem quando o ctx vence esperando um
+				// Reconcile longo (InitDBData, httpd -t, mkcert): o app fecha
+				// mesmo assim, porque o sup.Close abaixo para os serviços e o
+				// Job Object global (kill-on-close) mata o que sobrar — inclusive
+				// um mysqld --initialize, cujo datadir pela metade o marcador
+				// <datadir>.hyphp-initializing faz refazer na próxima execução.
 				if err := stk.StopAll(ctx); err != nil {
 					logger.Warn("parar stack no shutdown", "err", err)
 				}
-			}
-			if stk != nil {
 				// O resolvedor DNS precisa soltar a porta 53; se ficasse preso,
 				// a próxima execução falharia no bind.
-				if err := stk.Close(); err != nil {
+				if err := stk.Close(ctx); err != nil {
 					logger.Warn("fechar stack", "err", err)
 				}
 			}
@@ -184,15 +195,18 @@ func main() {
 		}
 	}
 	rtSvc := services.NewRuntimesService(services.RuntimesDeps{
-		App:       app,
-		BinDir:    paths.Bin(),
-		TmpDir:    tmpDir,
-		Manager:   pkgmgr.NewManager(paths.Bin(), tmpDir, http.DefaultClient),
-		Catalog:   catalog,
-		State:     &st,
-		StatePath: statePath,
-		Logger:    logger,
-		Emit:      emit,
+		App:    app,
+		BinDir: paths.Bin(),
+		TmpDir: tmpDir,
+		// nil: o pkgmgr monta um client com timeout de resposta; o
+		// http.DefaultClient esperava para sempre um CDN que parou de responder.
+		Manager: pkgmgr.NewManager(paths.Bin(), tmpDir, nil),
+		Catalog: catalog,
+		// Só chamados depois de stack.New: antes dele o serviço apenas varre bin/.
+		UpdateState: func(fn func(*state.State)) error { return stk.UpdateState(fn) },
+		State:       func() state.State { return stk.State() },
+		Logger:      logger,
+		Emit:        emit,
 		OnChange: func(list []runtime.Installed) {
 			// O primeiro Installed() acontece ANTES de stack.New (o Stack precisa
 			// da lista de runtimes para escolher o web server). Nesse instante não
@@ -237,6 +251,8 @@ func main() {
 		Logger:    logger,
 		Emit:      emit,
 	})
+	// Discover devolve os projetos válidos mesmo quando algum falha; o erro
+	// lista só os ignorados.
 	projs, err := project.Discover(st.Roots)
 	if err != nil {
 		logger.Warn("descobrir projetos", "err", err)
@@ -257,7 +273,7 @@ func main() {
 		logger.Warn("watcher indisponível; use Rescan manual", "err", err)
 		watcher = nil
 	}
-	projSvc = services.NewProjectsService(app, stk, watcher, emit)
+	projSvc = services.NewProjectsService(app, stk, watcher, emit, logger)
 	if watcher != nil {
 		if err := watcher.SetRoots(st.Roots); err != nil {
 			logger.Warn("observar roots", "err", err)
@@ -287,7 +303,7 @@ func main() {
 
 	// hyphp: services
 	appSvc := services.NewAppService(services.AppDeps{
-		Quit: app.Quit, State: &st, StatePath: statePath, Logger: logger,
+		Quit: app.Quit, State: stk.State, Logger: logger,
 		// Mesma regra do Reconcile (stack/desired.go): state.DefaultPHP manda e,
 		// vazio, vale a maior série instalada. O PATH do usuário precisa apontar
 		// para o PHP que a stack de fato serve.
@@ -300,7 +316,7 @@ func main() {
 			return runtime.PHPByMajor(phps, major)
 		},
 	})
-	svcSvc := services.NewServicesService(services.ServicesDeps{Sup: sup, Logger: logger})
+	svcSvc := services.NewServicesService(services.ServicesDeps{Sup: sup, Stack: stk, Logger: logger})
 	setSvc := services.NewSettingsService(stk, emit, func() { relabelTray() })
 	logsSvc := services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})
 	dbSvc := services.NewDatabaseService(services.DatabaseDeps{

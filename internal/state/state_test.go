@@ -157,3 +157,65 @@ func TestSaveAtomico(t *testing.T) {
 		t.Fatalf("esperava JSON indentado com schemaVersion, veio:\n%s", raw)
 	}
 }
+
+func TestLoadOrRecoverSeparaArquivoCorrompido(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "state.json")
+	// Truncado no meio, como uma queda de energia deixa.
+	corrompido := []byte(`{"webServer": "ngi`)
+	if err := os.WriteFile(path, corrompido, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, recovered, err := LoadOrRecover(path)
+	if err != nil {
+		t.Fatalf("LoadOrRecover: %v", err)
+	}
+	if !reflect.DeepEqual(got, Default()) {
+		t.Fatalf("esperava Default(), veio %+v", got)
+	}
+	if filepath.Dir(recovered) != dir || !strings.HasPrefix(filepath.Base(recovered), "state.json.corrupt-") {
+		t.Fatalf("recovered = %q, esperava %s.corrupt-<data>", recovered, path)
+	}
+	raw, err := os.ReadFile(recovered)
+	if err != nil {
+		t.Fatalf("arquivo separado nao existe: %v", err)
+	}
+	if string(raw) != string(corrompido) {
+		t.Fatalf("conteudo separado = %q, want %q", raw, corrompido)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("state.json corrompido devia ter saido do lugar: %v", err)
+	}
+}
+
+func TestLoadOrRecoverArquivoValidoNaoRecupera(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.json")
+	want := Default()
+	want.WebServer = Nginx
+	if err := Save(path, want); err != nil {
+		t.Fatal(err)
+	}
+	got, recovered, err := LoadOrRecover(path)
+	if err != nil || recovered != "" {
+		t.Fatalf("LoadOrRecover = (_, %q, %v), want (_, \"\", nil)", recovered, err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("LoadOrRecover() = %+v, want %+v", got, want)
+	}
+}
+
+func TestLoadOrRecoverErroDeLeituraNaoDescarta(t *testing.T) {
+	// Um diretório no lugar do arquivo falha na leitura, não na decodificação:
+	// não pode ser tratado como corrompido.
+	path := filepath.Join(t.TempDir(), "state.json")
+	if err := os.Mkdir(path, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, recovered, err := LoadOrRecover(path); err == nil || recovered != "" {
+		t.Fatalf("LoadOrRecover = (_, %q, %v), want erro sem recuperar", recovered, err)
+	}
+	if fi, err := os.Stat(path); err != nil || !fi.IsDir() {
+		t.Fatalf("o caminho original devia continuar intacto: %v", err)
+	}
+}

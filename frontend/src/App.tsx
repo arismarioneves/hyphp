@@ -1,4 +1,5 @@
 import { useState, type ReactElement } from 'react';
+import { SettingsService } from '../bindings/hyphp/services';
 import '@wailsio/runtime';
 import { Sidebar } from './components/Sidebar';
 import { StatusDot, type ServiceState } from './components/StatusDot';
@@ -38,16 +39,18 @@ export default function App() {
   const t = useT('app');
   const [screen, setScreen] = useState<Screen>('dashboard');
   const { services } = useServices();
-  const { settings, save } = useSettings();
+  const { settings } = useSettings();
   useApplyTheme(settings?.theme);
 
   // O colapso mora no state.json, não no localStorage: o WebView pode ter o
   // armazenamento limpo entre execuções, e a preferência tem que sobreviver a
   // fechar para o tray e reabrir.
+  // Grava só o campo: mandar a cópia inteira deste `settings` reverteria o que
+  // outra tela ou a CLI gravou depois (raízes, portas).
   const collapsed = settings?.sidebarCollapsed ?? false;
   const toggleCollapsed = () => {
     if (!settings) return;
-    void save({ ...settings, sidebarCollapsed: !collapsed });
+    void SettingsService.SetSidebarCollapsed(!collapsed);
   };
 
   const summary = summarize(services);

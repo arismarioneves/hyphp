@@ -9,13 +9,13 @@ import (
 	"embed"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"syscall"
 	"text/template"
 
+	hrender "hyphp/internal/render"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
@@ -64,8 +64,8 @@ type vhostData struct {
 }
 
 func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports webserver.Ports, logDir string, tool *webserver.Tool) (map[string][]byte, error) {
-	root := slashDir(s.inst.Dir)
-	log := slashDir(logDir)
+	root := hrender.SlashDir(s.inst.Dir)
+	log := hrender.SlashDir(logDir)
 
 	files := make(map[string][]byte, len(sites)+3)
 
@@ -110,9 +110,11 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 	// projeto a pasta vhosts/ não existiria e o httpd -t recusaria a config
 	// inteira com "Could not open directory". Isso derrubava o Reconcile no
 	// boot e nenhum serviço chegava a ser criado — nem MySQL, nem Mailpit, nem
-	// o próprio Apache. O ".keep" garante o diretório sem gerar config.
-	files["vhosts/.keep"] = nil
-	files["tools/.keep"] = nil
+	// o próprio Apache. O ".dir" garante o diretório sem gerar config e, ao
+	// contrário do ".keep", deixa WriteFiles apagar vhosts de projetos que
+	// saíram da lista.
+	files["vhosts/"+hrender.DirFile] = nil
+	files["tools/"+hrender.DirFile] = nil
 
 	files["default/index.html"] = webserver.DefaultIndexHTML()
 	return files, nil
@@ -142,15 +144,17 @@ func (s server) Command(etcDir string) (string, []string, string) {
 }
 
 func (s server) command(etcDir string, test bool) (string, []string, string) {
-	etc := slashDir(etcDir)
+	etc := hrender.SlashDir(etcDir)
 	args := make([]string, 0, 8)
 	if test {
 		args = append(args, "-t")
 	}
+	// -C é tokenizado como uma linha de config: sem aspas, um perfil com
+	// espaço ("C:/Users/João Silva/...") daria três argumentos ao Define.
 	args = append(args,
 		"-f", etc+"/httpd.conf",
-		"-d", slashDir(s.inst.Dir),
-		"-C", "Define "+etcVar+" "+etc,
+		"-d", hrender.SlashDir(s.inst.Dir),
+		"-C", "Define "+etcVar+" \""+etc+"\"",
 	)
 	return s.inst.Exe, args, s.inst.Dir
 }
@@ -165,14 +169,4 @@ func render(name string, data any) ([]byte, error) {
 		return nil, fmt.Errorf("apache: template %s: %w", name, err)
 	}
 	return buf.Bytes(), nil
-}
-
-// slashDir normaliza um diretório para "/" sem barra final. Apache aceita "/"
-// no Windows e a barra final duplicaria separadores nos Include.
-func slashDir(dir string) string {
-	s := filepath.ToSlash(dir)
-	if len(s) > 1 {
-		s = strings.TrimSuffix(s, "/")
-	}
-	return s
 }
