@@ -9,3 +9,12 @@
 *.jar binary
 *.woff2 binary
 *.ttf binary
+
+# Embutidos no binario e comparados byte a byte pelos testes de golden: LF
+# sempre, mesmo com core.autocrlf=true (o gitconfig do Git for Windows liga
+# isso para quem nao tem config propria, e um checkout com CRLF fazia o teste
+# do Apache e do nginx falhar e o binario embutir a pagina com CRLF).
+internal/webserver/default-index.html text eol=lf
+internal/webserver/*/templates/** text eol=lf
+internal/pkgmgr/catalog.json text eol=lf
+internal/**/testdata/** text eol=lf
