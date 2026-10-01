@@ -215,7 +215,9 @@ func (u *Updater) Check(ctx context.Context) error {
 	if err != nil {
 		return u.fail(err)
 	}
-	if c <= 0 {
+	// Sem artefato para esta plataforma (hoje: Mac, até o release publicar
+	// darwin_arm64) não há o que instalar, então é o mesmo que estar em dia.
+	if c <= 0 || platformArtifact(l) == nil {
 		u.clean("")
 		u.mu.Lock()
 		u.latest = nil
@@ -233,7 +235,7 @@ func (u *Updater) Check(ctx context.Context) error {
 	})
 	// Arquivo final só existe depois de verificado; a conferência de novo
 	// cobre o caso de ele ter sido mexido entre um boot e outro.
-	if verifyFile(final, l.WindowsAMD64) != nil {
+	if verifyFile(final, platformArtifact(l)) != nil {
 		if err := u.download(ctx, l, final); err != nil {
 			return u.fail(err)
 		}
@@ -290,7 +292,7 @@ func (u *Updater) get(ctx context.Context, rawURL string, limit int64) ([]byte, 
 }
 
 func (u *Updater) download(ctx context.Context, l Latest, final string) error {
-	a := l.WindowsAMD64
+	a := platformArtifact(l)
 	base, err := url.Parse(u.c.URL)
 	if err != nil {
 		return err
@@ -319,7 +321,7 @@ func (u *Updater) download(ctx context.Context, l Latest, final string) error {
 }
 
 func (u *Updater) installerPath(l Latest) string {
-	return filepath.Join(u.c.Dir, l.Version, path.Base(l.WindowsAMD64.Path))
+	return filepath.Join(u.c.Dir, l.Version, path.Base(platformArtifact(l).Path))
 }
 
 // clean apaga os instaladores de versões diferentes de keep ("" apaga todos).
@@ -395,7 +397,7 @@ func (u *Updater) Prepare() (ApplyRequest, error) {
 	inst := u.installerPath(*l)
 	// var/update é gravável pelo usuário: o que foi verificado no download
 	// pode não ser o que está no disco agora.
-	if err := verifyFile(inst, l.WindowsAMD64); err != nil {
+	if err := verifyFile(inst, platformArtifact(*l)); err != nil {
 		return ApplyRequest{}, u.fail(err)
 	}
 	self, err := os.Executable()
@@ -406,8 +408,8 @@ func (u *Updater) Prepare() (ApplyRequest, error) {
 	return ApplyRequest{
 		PID:       os.Getpid(),
 		Installer: inst,
-		SHA256:    l.WindowsAMD64.SHA256,
-		Size:      l.WindowsAMD64.Size,
+		SHA256:    platformArtifact(*l).SHA256,
+		Size:      platformArtifact(*l).Size,
 		Dir:       filepath.Dir(self),
 		Exe:       filepath.Base(self),
 		Result:    filepath.Join(u.c.Dir, resultFile),

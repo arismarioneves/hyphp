@@ -41,6 +41,7 @@ type Release struct {
 	Notes        []string  `json:"notes"`
 	NotesEN      []string  `json:"notes_en,omitempty"`
 	WindowsAMD64 *Artifact `json:"windows_amd64,omitempty"`
+	DarwinARM64  *Artifact `json:"darwin_arm64,omitempty"`
 }
 
 // Latest é o latest.json: um Release com o schema ao lado, em JSON plano.
@@ -114,7 +115,23 @@ func (r Release) Validate() error {
 	if !sha256Re.MatchString(a.SHA256) {
 		return fmt.Errorf("update: sha256 %q não tem 64 hex minúsculos", a.SHA256)
 	}
-	return validPath(a.Path)
+	if err := validPath(a.Path); err != nil {
+		return err
+	}
+	// darwin_arm64 é opcional (a M0 ainda não publica), mas se vier tem de
+	// ser tão confiável quanto o do Windows: é ele que o Mac baixaria.
+	if d := r.DarwinARM64; d != nil {
+		if d.Size <= 0 {
+			return fmt.Errorf("update: tamanho darwin_arm64 %d inválido", d.Size)
+		}
+		if !sha256Re.MatchString(d.SHA256) {
+			return fmt.Errorf("update: sha256 darwin_arm64 %q não tem 64 hex minúsculos", d.SHA256)
+		}
+		if err := validPath(d.Path); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // validPath exige caminho relativo à pasta do manifesto. Absoluto ou com
