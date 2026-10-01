@@ -5,58 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // EnvRoot é a variável de ambiente que sobrescreve a raiz de runtime.
 const EnvRoot = "HYPHP_ROOT"
 
-// writable é variável para o teste poder simular um diretório protegido sem
-// depender de permissões reais da máquina.
-var writable = canWrite
-
-// canWrite responde se dá para criar arquivo em dir. Testar de verdade é a
-// única resposta confiável no Windows: a ACL efetiva depende de herança,
-// virtualização e do token do processo, e os.Stat não diz nada sobre isso.
-func canWrite(dir string) bool {
-	f, err := os.CreateTemp(dir, ".hyphp-write-*")
-	if err != nil {
-		return false
-	}
-	name := f.Name()
-	f.Close()
-	os.Remove(name)
-	return true
-}
-
-// localRoot é %LOCALAPPDATA%\HyPHP ("" se a variável não existir).
-func localRoot() string {
-	if local := os.Getenv("LOCALAPPDATA"); local != "" {
-		return filepath.Join(local, "HyPHP")
-	}
-	return ""
-}
-
-// protegido responde se dir está sob um diretório do sistema onde dados de
-// usuário não devem morar, mesmo que o processo consiga escrever lá.
-func protegido(dir string) bool {
-	for _, env := range []string{"ProgramFiles", "ProgramFiles(x86)", "ProgramW6432", "SystemRoot"} {
-		base := os.Getenv(env)
-		if base == "" {
-			continue
-		}
-		rel, err := filepath.Rel(base, dir)
-		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return true
-		}
-	}
-	return false
-}
-
 // Root retorna a raiz de runtime, sempre absoluta e limpa.
 //
-// Ordem: $HYPHP_ROOT; diretório do executável, se der para escrever nele e não
-// for área do sistema; senão %LOCALAPPDATA%\HyPHP.
+// Ordem: $HYPHP_ROOT; senão defaultRoot(), que é por SO. No Windows: diretório
+// do executável, se der para escrever nele e não for área do sistema; senão
+// %LOCALAPPDATA%\HyPHP. No macOS: ~/Library/Application Support/HyPHP.
 //
 // A recusa de Program Files, Program Files (x86) e Windows é o que mantém a
 // resposta estável: esses diretórios são graváveis para um processo elevado, e
@@ -95,17 +53,7 @@ func resolveRoot() string {
 		}
 		return filepath.Clean(v)
 	}
-	if exe, err := os.Executable(); err == nil {
-		dir := filepath.Dir(exe)
-		if !protegido(dir) && writable(dir) {
-			return dir
-		}
-	}
-	if local := localRoot(); local != "" {
-		return local
-	}
-	wd, _ := os.Getwd()
-	return wd
+	return defaultRoot()
 }
 
 // Bin é Root()/bin — runtimes instalados (php/, apache/, nginx/, mysql/, mailpit/, mkcert/).
