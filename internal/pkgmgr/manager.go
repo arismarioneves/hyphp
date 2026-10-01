@@ -43,9 +43,10 @@ type Manager struct {
 }
 
 // NewManager cria um Manager que instala em binDir usando tmpDir para downloads
-// parciais. client nil usa um client com timeouts de transporte: sem eles uma
-// conexão que para de entregar bytes sem fechar trava o download para sempre.
-// Não há Timeout total porque downloads grandes demoram; o ctx de Install manda.
+// parciais. client nil usa um client com timeouts de transporte, que cobrem
+// conexão e cabeçalhos; o corpo que para de chegar sem a conexão fechar é
+// coberto pelo stallTimeout de Download. Não há Timeout total porque downloads
+// grandes demoram; o ctx de Install manda.
 func NewManager(binDir, tmpDir string, client *http.Client) *Manager {
 	if client == nil {
 		tr := http.DefaultTransport.(*http.Transport).Clone()

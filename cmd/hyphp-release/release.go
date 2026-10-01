@@ -1,9 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"debug/pe"
 	"encoding/base64"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -14,6 +17,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"unicode/utf16"
 
 	"gopkg.in/yaml.v3"
 
@@ -334,4 +338,92 @@ func checkVersions(repo, current string) error {
 		}
 	}
 	return nil
+}
+
+// checkInstallerVersion recusa publicar um instalador que não seja da versão
+// em publicação. checkVersions só olha os arquivos do repositório; se a versão
+// subiu e o `wails3 task windows:package` não rodou de novo, o bin/ ainda tem
+// o instalador anterior, e a release (imutável) entregaria o binário velho a
+// todos os apps, que achariam de novo uma versão "nova": loop de update.
+func checkInstallerVersion(path, want string) error {
+	f, err := pe.Open(path)
+	if err != nil {
+		return fmt.Errorf("instalador %s não é um executável válido: %w", path, err)
+	}
+	defer f.Close()
+	s := f.Section(".rsrc")
+	if s == nil {
+		return fmt.Errorf("instalador %s sem seção de recursos (.rsrc)", path)
+	}
+	rsrc, err := s.Data()
+	if err != nil {
+		return fmt.Errorf("instalador %s: ler recursos: %w", path, err)
+	}
+	if err := checkProductVersion(rsrc, want); err != nil {
+		return fmt.Errorf("instalador %s: %w", path, err)
+	}
+	return nil
+}
+
+// checkProductVersion compara a string ProductVersion do recurso de versão com
+// want, sem tolerar diferença: o NSIS grava ali o INFO_PRODUCTVERSION do
+// wails_tools.nsh como está ("3.0.0", via VIAddVersionKey). O "3.0.0.0" de
+// VIProductVersion vai só para o VS_FIXEDFILEINFO binário, que não é lido aqui.
+func checkProductVersion(rsrc []byte, want string) error {
+	got, err := productVersion(rsrc)
+	if err != nil {
+		return err
+	}
+	if got != want {
+		return fmt.Errorf("ProductVersion = %q, mas internal/version.Current = %s: instalador desatualizado, rode `wails3 task windows:package` de novo", got, want)
+	}
+	return nil
+}
+
+// productVersionKey é o szKey da String procurada, em UTF-16LE com o NUL.
+var productVersionKey = utf16LE("ProductVersion\x00")
+
+// productVersion acha, nos bytes da seção .rsrc, a String "ProductVersion" da
+// StringTable do VS_VERSIONINFO e devolve o valor. Procurar a chave evita
+// percorrer a árvore de diretórios de recursos; o cabeçalho antes dela
+// (wLength, wValueLength, wType = 1 de texto) confirma que é mesmo uma String
+// e não a mesma sequência de bytes em outro recurso.
+func productVersion(rsrc []byte) (string, error) {
+	const hdr = 6 // wLength, wValueLength, wType
+	for off := 0; ; {
+		i := bytes.Index(rsrc[off:], productVersionKey)
+		if i < 0 {
+			return "", errors.New("recurso de versão sem ProductVersion")
+		}
+		i += off
+		off = i + 1
+		if i < hdr {
+			continue
+		}
+		start := i - hdr
+		end := start + int(binary.LittleEndian.Uint16(rsrc[start:]))
+		if binary.LittleEndian.Uint16(rsrc[start+4:]) != 1 || end > len(rsrc) {
+			continue
+		}
+		// O valor começa no próximo limite de 4 bytes depois da chave,
+		// contado do início da String, e termina no NUL ou em wLength.
+		v := start + (hdr+len(productVersionKey)+3)&^3
+		var u []uint16
+		for ; v+2 <= end; v += 2 {
+			c := binary.LittleEndian.Uint16(rsrc[v:])
+			if c == 0 {
+				break
+			}
+			u = append(u, c)
+		}
+		return string(utf16.Decode(u)), nil
+	}
+}
+
+func utf16LE(s string) []byte {
+	var b []byte
+	for _, c := range utf16.Encode([]rune(s)) {
+		b = binary.LittleEndian.AppendUint16(b, c)
+	}
+	return b
 }
