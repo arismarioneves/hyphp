@@ -15,10 +15,10 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"hyphp/internal/runtime"
+	"hyphp/internal/sysproc"
 )
 
 // cmdTimeout cobre qualquer comando do cliente.
@@ -146,7 +146,7 @@ func (c Client) query(ctx context.Context, sql string) (string, error) {
 		"-e", sql,
 	}
 	cmd := exec.CommandContext(ctx, c.Exe, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	// Resultado só do stdout: o cliente do MariaDB 11.4+ avisa no stderr
 	// ("--ssl-verify-server-cert is disabled ... passwordless login") a cada
 	// chamada, e com a saída combinada o aviso virava um database na lista.

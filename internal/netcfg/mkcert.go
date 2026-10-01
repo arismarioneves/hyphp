@@ -11,8 +11,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
+
+	"hyphp/internal/sysproc"
 )
 
 // renewBefore: certificados que expiram em menos que isto são reemitidos (spec §10.4).
@@ -24,7 +25,7 @@ type Mkcert struct{ Exe, CARoot, CertDir string }
 // NewMkcert roda `mkcert -CAROOT` uma vez e devolve o Mkcert com CARoot preenchido.
 func NewMkcert(exe, certDir string) (Mkcert, error) {
 	cmd := exec.Command(exe, "-CAROOT")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	out, err := cmd.Output()
 	if err != nil {
 		return Mkcert{}, fmt.Errorf("mkcert -CAROOT: %w", err)
@@ -75,7 +76,7 @@ func (m Mkcert) IssueCert(domains []string) (certPath, keyPath string, err error
 	}
 	args := append([]string{"-cert-file", certPath, "-key-file", keyPath}, domains...)
 	cmd := exec.Command(m.Exe, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	if m.CARoot != "" {
 		cmd.Env = append(os.Environ(), "CAROOT="+m.CARoot)
 	}

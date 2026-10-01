@@ -22,6 +22,7 @@ import (
 	"hyphp/internal/project"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
+	"hyphp/internal/sysproc"
 	"hyphp/internal/version"
 )
 
@@ -111,7 +112,8 @@ func (a *AppService) OpenInEditor(path string) error {
 	// linha é montada à mão porque o os/exec só põe aspas quando há espaço, e
 	// o cmd interpretaria `&`, `^` ou `(` de um caminho como sintaxe.
 	cmd := exec.Command("cmd.exe")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow, CmdLine: editorCmdLine(path)}
+	cmd.SysProcAttr = &syscall.SysProcAttr{CmdLine: editorCmdLine(path)}
+	sysproc.Hide(cmd)
 	return a.logged("abrir no editor", path, start(cmd))
 }
 
@@ -168,7 +170,7 @@ func (a *AppService) OpenTerminal(path string) error {
 	// `start` abre uma nova janela de console herdando o cwd do cmd /c (= path).
 	cmd := exec.Command("cmd.exe", "/c", "start", "", "cmd.exe")
 	cmd.Dir = path
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	return a.logged("abrir terminal", path, start(cmd))
 }
 
@@ -285,7 +287,7 @@ func mustDir(path string) error {
 // startHidden inicia exe sem janela de console própria e não espera término.
 func startHidden(exe string, args ...string) error {
 	cmd := exec.Command(exe, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	return start(cmd)
 }
 

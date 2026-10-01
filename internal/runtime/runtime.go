@@ -12,8 +12,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
+
+	"hyphp/internal/sysproc"
 )
 
 type Kind string
@@ -202,7 +203,7 @@ func PHPByMajor(list []Installed, major string) (Installed, bool) {
 func run(ctx context.Context, dir, exe string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Dir = dir
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		return string(out), fmt.Errorf("runtime: %s %s: %w: %s", filepath.Base(exe), strings.Join(args, " "), err, strings.TrimSpace(string(out)))

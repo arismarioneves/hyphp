@@ -20,11 +20,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
+	"hyphp/internal/sysproc"
 )
 
 // Exit codes do contrato C10.
@@ -244,7 +244,7 @@ func mkcertInstall(argv []string) (int, error) {
 		return exitUsage, fmt.Errorf("mkcert-install: %s não encontrado: %w", *exe, err)
 	}
 	cmd := exec.Command(*exe, "-install")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	if *caroot != "" {
 		cmd.Env = append(os.Environ(), "CAROOT="+*caroot)
 	}
@@ -258,7 +258,7 @@ func mkcertInstall(argv []string) (int, error) {
 // única pista útil quando a regra NRPT não entra.
 func powershell(script string) (string, error) {
 	cmd := exec.Command("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true, CreationFlags: createNoWindow}
+	sysproc.Hide(cmd)
 	out, err := cmd.CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
