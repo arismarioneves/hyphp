@@ -61,19 +61,48 @@ type Client struct {
 // New monta o cliente a partir do servidor de banco detectado (MySQL ou
 // MariaDB). root sem senha é o resultado da inicialização dos dois motores
 // (--initialize-insecure e mariadb-install-db); o servidor só escuta em
-// loopback. No MariaDB o cliente é o mariadb.exe: o mysql.exe do mesmo zip é
-// o mesmo programa com o nome antigo, que o MariaDB vem aposentando.
+// loopback.
 func New(inst runtime.Installed, port int) Client {
-	exe := "mysql.exe"
-	if inst.Kind == runtime.MariaDB {
-		exe = "mariadb.exe"
-	}
 	return Client{
-		Exe:  filepath.Join(inst.Dir, "bin", exe),
+		Exe:  ClientExe(inst),
 		Host: "127.0.0.1",
 		Port: port,
 		User: "root",
 	}
+}
+
+// ClientExe é o cliente de linha de comando que casa com o servidor. No
+// MariaDB é o mariadb.exe: o mysql.exe do mesmo zip é o mesmo programa com o
+// nome antigo, que o MariaDB vem aposentando. Um cliente do outro motor não
+// serve: o do MariaDB não traz o caching_sha2_password que o root do MySQL
+// 8.4 usa.
+func ClientExe(inst runtime.Installed) string {
+	exe := "mysql.exe"
+	if inst.Kind == runtime.MariaDB {
+		exe = "mariadb.exe"
+	}
+	return filepath.Join(inst.Dir, "bin", exe)
+}
+
+// Command é a linha para abrir o cliente num terminal, com o caminho
+// completo: o HyPHP não põe os clientes no PATH, e o `mysql` que estiver lá
+// pode ser de outra instalação (Laragon, XAMPP) e de outra versão.
+//
+// Cada valor vai separado da opção (`-h 127.0.0.1`): o PowerShell, o shell
+// padrão do Windows Terminal, parte `-h127.0.0.1` no primeiro ponto e o
+// cliente tenta o host "127". A senha é a exceção: `-p senha` com espaço faz
+// o cliente pedir a senha e tomar "senha" por database. Caminho com espaço
+// vai entre aspas, a forma do cmd; no PowerShell ela precisa de `&` na frente.
+func (c Client) Command(password string) string {
+	exe := c.Exe
+	if strings.ContainsRune(exe, ' ') {
+		exe = `"` + exe + `"`
+	}
+	cmd := fmt.Sprintf("%s -u %s", exe, c.User)
+	if password != "" {
+		cmd += " -p" + password
+	}
+	return fmt.Sprintf("%s -h %s -P %d", cmd, c.Host, c.Port)
 }
 
 // Create cria o database se não existir, em utf8mb4.

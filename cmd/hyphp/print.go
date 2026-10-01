@@ -162,10 +162,7 @@ func printDB(w io.Writer, d cli.DB) {
 	if pass == "" {
 		pass = i18n.T("cli.db.emptyPassword")
 	}
-	conn := fmt.Sprintf("%s -u%s -h%s -P%d", d.Client, d.User, d.Host, d.Port)
-	if d.Password != "" {
-		conn = fmt.Sprintf("%s -u%s -p%s -h%s -P%d", d.Client, d.User, d.Password, d.Host, d.Port)
-	}
+	conn := orDash(d.Command)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	for _, r := range [][]string{
 		{i18n.T("cli.db.engine"), orDash(d.Engine) + " (" + d.State + ")"},

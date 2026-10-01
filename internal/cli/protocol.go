@@ -159,10 +159,13 @@ type Database struct {
 }
 
 // DB é o banco ativo: conexão e databases. Databases vem vazio com o banco
-// fora do ar (DatabasesError diz por quê).
+// fora do ar (DatabasesError diz por quê). Client é o nome do cliente
+// ("mysql" ou "mariadb"); Command, a linha que abre esse cliente com o
+// caminho completo (vazio sem banco instalado).
 type DB struct {
 	Engine         string     `json:"engine"`
 	Client         string     `json:"client"`
+	Command        string     `json:"command"`
 	Host           string     `json:"host"`
 	Port           int        `json:"port"`
 	User           string     `json:"user"`

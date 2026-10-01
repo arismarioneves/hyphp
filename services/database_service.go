@@ -27,10 +27,10 @@ type Credentials struct {
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
 	// Engine é o motor no ar ("mysql" ou "mariadb", vazio sem banco) e
-	// Client o comando de linha do cliente dele, para o comando de conexão
-	// que a tela mostra.
-	Engine string `json:"engine"`
-	Client string `json:"client"`
+	// Command a linha para abrir o cliente dele num terminal, com o caminho
+	// completo (mysqlcli.Client.Command); vazio sem banco instalado.
+	Engine  string `json:"engine"`
+	Command string `json:"command"`
 }
 
 // ErrMySQLIndisponivel é devolvido quando não há MySQL instalado ou o serviço
@@ -122,12 +122,10 @@ func (d *DatabaseService) Drop(name string) error {
 // resultado do --initialize-insecure. É ambiente de desenvolvimento escutando
 // só em loopback; a senha vazia é decisão registrada, não descuido.
 func (d *DatabaseService) Credentials() Credentials {
-	c := Credentials{User: "root", Password: "", Host: "127.0.0.1", Port: d.stk.State().MySQLPort, Client: "mysql"}
+	c := Credentials{User: "root", Password: "", Host: "127.0.0.1", Port: d.stk.State().MySQLPort}
 	if inst, ok := stack.DBRuntime(d.runtimes(), d.stk.State()); ok {
 		c.Engine = string(inst.Kind)
-		if inst.Kind == runtime.MariaDB {
-			c.Client = "mariadb"
-		}
+		c.Command = mysqlcli.New(inst, c.Port).Command(c.Password)
 	}
 	return c
 }
