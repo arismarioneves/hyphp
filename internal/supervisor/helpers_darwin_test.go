@@ -1,10 +1,6 @@
 package supervisor
 
-import (
-	"time"
-
-	"golang.org/x/sys/unix"
-)
+import "time"
 
 // longRunningSpec é o par do "ping -n 30" do Windows: um sh com filhos
 // (cada sleep), para o Stop ter uma árvore a matar, e que sai sozinho em
@@ -42,22 +38,8 @@ func echoSpec(id, text string) Spec {
 	}
 }
 
-// sZomb é SZOMB de <sys/proc.h>: o processo saiu e espera o pai colher o
-// status. x/sys/unix não exporta a constante.
-const sZomb = 5
-
-// processAlive responde se o PID ainda está em execução. Kill(pid, 0) sozinho
-// não serve: o XNU devolve sucesso para zumbi (o POSIX manda), e entre a
-// saída e o cmd.Wait() o processo é zumbi — o teste veria vivo um processo já
-// morto. Zumbi conta como morto, igual ao Windows, onde GetExitCodeProcess
-// deixa de dar STILL_ACTIVE na saída e não na colheita.
+// processAlive responde se o PID ainda está em execução; zumbi conta como
+// morto (ver exited em process_darwin.go).
 func processAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	kp, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
-	if err != nil { // EIO: o sysctl não achou o pid
-		return false
-	}
-	return kp.Proc.P_pid == int32(pid) && kp.Proc.P_stat != sZomb
+	return !exited(pid)
 }
