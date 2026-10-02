@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // procHandle no macOS guarda o grupo do serviço. Setpgid deixa o pid do
@@ -64,41 +66,40 @@ func closeProcessHandle(h procHandle) {
 }
 
 // waitExit espera a saída do pid sem colher o status (quem colhe é o
-// cmd.Wait() do laço run()). kqueue com NOTE_EXIT avisa na saída mesmo que o
-// processo ainda seja zumbi, que é o mesmo momento em que o Windows sinaliza o
-// handle do processo.
+// cmd.Wait() do laço run()). Consulta exited a cada 20 ms até o prazo. Um
+// polling simples em vez de kqueue/NOTE_EXIT: no CI o kevent devolvia na hora
+// (o registro voltava como evento EV_ERROR e era contado como saída), e o
+// Stop retornava com o processo vivo.
 func waitExit(pid int, timeout time.Duration) bool {
-	kq, err := syscall.Kqueue()
-	if err != nil {
-		return pollExit(pid, timeout)
-	}
-	defer syscall.Close(kq)
-	ev := syscall.Kevent_t{Ident: uint64(pid), Filter: syscall.EVFILT_PROC, Flags: syscall.EV_ADD | syscall.EV_ONESHOT, Fflags: syscall.NOTE_EXIT}
-	ts := syscall.NsecToTimespec(timeout.Nanoseconds())
-	out := make([]syscall.Kevent_t, 1)
-	for {
-		n, err := syscall.Kevent(kq, []syscall.Kevent_t{ev}, out, &ts)
-		switch {
-		case err == syscall.ESRCH:
-			return true // já saiu antes do registro
-		case err == syscall.EINTR:
-			continue
-		case err != nil:
-			return pollExit(pid, timeout)
-		}
-		return n > 0
-	}
-}
-
-// pollExit é a reserva se o kqueue falhar: Kill(pid, 0) dá ESRCH quando o
-// processo não existe mais.
-func pollExit(pid int, timeout time.Duration) bool {
 	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if syscall.Kill(pid, 0) == syscall.ESRCH {
+	for {
+		if exited(pid) {
 			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	return false
+}
+
+// sZomb é SZOMB de <sys/proc.h>: o processo saiu e espera o pai colher o
+// status. x/sys/unix não exporta a constante.
+const sZomb = 5
+
+// exited responde se o pid já encerrou. Kill(pid, 0) sozinho não serve: o XNU
+// devolve sucesso para zumbi (o POSIX manda), e entre a saída e o cmd.Wait()
+// do run() o processo é zumbi. Zumbi conta como encerrado porque quem colhe é
+// o Wait do run(); é o mesmo momento em que o Windows sinaliza o handle do
+// processo (GetExitCodeProcess deixa de dar STILL_ACTIVE na saída, não na
+// colheita).
+func exited(pid int) bool {
+	if pid <= 0 {
+		return true
+	}
+	kp, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil { // EIO: o sysctl não achou o pid
+		return true
+	}
+	return kp.Proc.P_pid != int32(pid) || kp.Proc.P_stat == sZomb
 }
