@@ -22,9 +22,11 @@ func TestRenderHostsBlock(t *testing.T) {
 		},
 		{
 			name:     "arquivo sem EOL final: acrescenta EOL antes da linha em branco",
+			// Sem nenhuma quebra de linha não há EOL a detectar: vale o padrão
+			// do sistema (CRLF no Windows, LF no macOS).
 			existing: "127.0.0.1 x.local",
 			domains:  []string{"a.test"},
-			want:     "127.0.0.1 x.local\r\n\r\n# hyphp:start\r\n127.0.0.1 a.test\r\n# hyphp:end\r\n",
+			want:     "127.0.0.1 x.local" + defaultEOL + defaultEOL + "# hyphp:start" + defaultEOL + "127.0.0.1 a.test" + defaultEOL + "# hyphp:end" + defaultEOL,
 		},
 		{
 			name:     "arquivo LF: mantém LF",
