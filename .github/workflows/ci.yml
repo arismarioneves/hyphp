@@ -6,7 +6,9 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    # TEMPORÁRIO (M0): workflow_dispatch só vale com o arquivo na branch
+    # padrão, e este ci.yml ainda não está na main. Sai antes do PR.
+    branches: [main, macos-m0]
   workflow_dispatch:
 
 permissions:
