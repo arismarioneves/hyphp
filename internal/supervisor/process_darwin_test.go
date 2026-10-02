@@ -79,10 +79,15 @@ func TestStopProcess_MataGrupoInteiro(t *testing.T) {
 // O mysqld e o php-fpm recebem SIGTERM para fechar com ordem, mas um serviço
 // que ignora o sinal não pode prender o Stop: depois do prazo vem o SIGKILL.
 func TestStopProcess_SIGKILLAposGraceParaProcessoQueIgnoraSIGTERM(t *testing.T) {
+	// O sh só ignora o SIGTERM depois de executar o trap; mandar o sinal logo
+	// após o startProcess corria o risco de matar o shell antes disso (ação
+	// padrão) e o Stop voltava antes do prazo. O script cria o arquivo pronto
+	// depois do trap, e o teste espera por ele.
+	pronto := filepath.Join(t.TempDir(), "pronto")
 	spec := Spec{
 		ID:    "teste-ignora-term",
 		Exe:   "/bin/sh",
-		Args:  []string{"-c", "trap '' TERM; while true; do sleep 0.1; done"},
+		Args:  []string{"-c", fmt.Sprintf("trap '' TERM; : > '%s'; while true; do sleep 0.1; done", pronto)},
 		Probe: AliveProbe{},
 	}
 	cmd, h, err := startProcess(spec, NewLogRing(16))
@@ -92,6 +97,17 @@ func TestStopProcess_SIGKILLAposGraceParaProcessoQueIgnoraSIGTERM(t *testing.T) 
 	defer closeProcessHandle(h)
 
 	pid := cmd.Process.Pid
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		if _, err := os.Stat(pronto); err == nil {
+			break
+		}
+		if !time.Now().Before(deadline) {
+			_ = cmd.Process.Kill()
+			t.Fatal("o sh não instalou o trap a tempo")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
 	if !processAlive(pid) {
 		t.Fatalf("processo %d deveria estar vivo", pid)
 	}
