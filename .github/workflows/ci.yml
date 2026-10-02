@@ -6,9 +6,7 @@ name: ci
 
 on:
   push:
-    # TEMPORÁRIO (M0): workflow_dispatch só vale com o arquivo na branch
-    # padrão, e este ci.yml ainda não está na main. Sai antes do PR.
-    branches: [main, macos-m0]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -69,8 +67,8 @@ jobs:
       # O main precisa do cgo do Wails (Cocoa/WebKit): só compila num Mac.
       - run: go build $PKGS
       - run: go vet $PKGS
-      # Os stubs darwin de elevate/update sempre retornam erro ate a M2/M3
-      # implementa-los, entao o `if err != nil` nos chamadores e sempre
+      # Os stubs darwin de elevate/update sempre retornam erro até a M2/M3
+      # implementá-los, então o `if err != nil` nos chamadores é sempre
       # verdadeiro no Mac. O SA4023 volta ao job do Mac quando esses stubs sumirem.
       - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks inherit,-SA4023 $PKGS
       - run: go test -count=1 ./cmd/... ./services/... ./internal/...
