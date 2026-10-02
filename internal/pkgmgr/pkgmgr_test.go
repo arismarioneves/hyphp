@@ -325,9 +325,12 @@ func TestInstallDownloadParadoExpira(t *testing.T) {
 // O watchdog mede tempo sem bytes, não duração: um download lento que leva
 // várias vezes o stallTimeout, mas nunca para, tem de terminar.
 func TestDownloadLentoMasContinuoTermina(t *testing.T) {
-	const passo = 40 * time.Millisecond
-	encurtarStall(t, 5*passo)
-	const pedacos = 12 // 12 × 40 ms ≈ 2,4 × stallTimeout
+	// Folga para runner de CI lento: com 40 ms/200 ms um soluço do agendador
+	// passava do stallTimeout entre duas leituras. Cada intervalo fica em ~1/7
+	// do prazo e a duração total (≈ 1,8 s) segue bem acima dele.
+	const passo = 150 * time.Millisecond
+	encurtarStall(t, time.Second)
+	const pedacos = 12 // 12 × 150 ms ≈ 1,8 × stallTimeout
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/zip")
 		for range pedacos {

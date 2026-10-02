@@ -72,13 +72,17 @@ func TestRenderPHPIniDeterministico(t *testing.T) {
 func TestRenderPHPIniIgnoraExtensaoSemDLL(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
 	out := string(RenderPHPIni(inst, runtime.DefaultExtensions, "C:/tmp", "C:/log", 1025, nil))
-	if strings.Contains(out, "extension=zip") {
+	// Comparação por início de linha: no macOS a saída tem
+	// "zend_extension=opcache.so", que contém "extension=opcache" como
+	// substring e daria falso positivo.
+	lines := "\n" + out
+	if strings.Contains(lines, "\nextension=zip") {
 		t.Fatalf("emitiu extension=zip sem %s; isso vira warning no corpo da resposta", runtime.ExtFile("zip"))
 	}
 	if !strings.Contains(out, "zend_extension="+opcacheFile()) {
 		t.Fatal("opcache existe em ext/ e devia sair como zend_extension")
 	}
-	if strings.Contains(out, "extension=opcache") {
+	if strings.Contains(lines, "\nextension=opcache") {
 		t.Fatal("opcache é zend_extension, nunca extension")
 	}
 }
