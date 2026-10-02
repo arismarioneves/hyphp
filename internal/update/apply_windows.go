@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -16,6 +17,20 @@ import (
 
 	"hyphp/internal/elevate"
 )
+
+func (r ApplyRequest) args() []string {
+	return []string{
+		"--pid", strconv.Itoa(r.PID),
+		"--instalador", r.Installer,
+		"--sha256", r.SHA256,
+		"--tamanho", strconv.FormatInt(r.Size, 10),
+		"--dir", r.Dir,
+		"--exe", r.Exe,
+		"--resultado", r.Result,
+		"--de", r.From,
+		"--para", r.To,
+	}
+}
 
 const (
 	// createBreakawayFromJob tira o atualizador do Job Object kill-on-close do
