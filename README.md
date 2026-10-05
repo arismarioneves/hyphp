@@ -180,10 +180,13 @@ builds (without `-tags production`) do not take part.
 
 ### Publishing a version
 
-The version lives in four places, which `hyphp-release` checks before publishing:
+The version lives in five places, which `hyphp-release` checks before publishing:
 `internal/version/version.go`, `info.version` in `build/config.yml`,
-`build/windows/info.json` and `INFO_PRODUCTVERSION` in
-`build/windows/nsis/wails_tools.nsh`. With the `v<version>` tag already on GitHub:
+`build/windows/info.json`, `INFO_PRODUCTVERSION` in
+`build/windows/nsis/wails_tools.nsh` and `CFBundleShortVersionString`/`CFBundleVersion` in
+`build/darwin/Info.plist` (bump `build/darwin/Info.dev.plist` too; it is not checked).
+The darwin plists are edited by hand: don't run `wails3 task common:update:build-assets`.
+With the `v<version>` tag already on GitHub:
 
 ```powershell
 wails3 task windows:package

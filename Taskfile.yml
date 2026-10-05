@@ -41,11 +41,11 @@ tasks:
     env:
       HYPHP_ROOT: '{{.ROOT_DIR}}/.runtime'
     cmds:
-      # O helper elevado só existe no Windows; a CLI sai para o SO atual (no
-      # macOS vai para HyPHP.app/Contents/Helpers no bundle de dev).
-      - task: build:helper
-        platforms: [windows]
-      - task: "{{.GOOS}}:build:cli"
+      # Dependências do dev por SO (helper elevado só no Windows; CLI em ambos).
+      # Não dá para usar `platforms:` numa chamada `task:`: o Task embutido no
+      # wails3 ignora esse campo em chamadas de task (só o respeita em `cmd:`),
+      # e no macOS chamaria darwin:build:helper, que não existe.
+      - task: "{{.GOOS}}:dev:deps"
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
   build:helper:
