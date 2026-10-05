@@ -11,7 +11,8 @@ import (
 // App e CLI precisam achar o mesmo socket sem depender do TMPDIR, que muda
 // entre o app aberto pelo Finder e uma sessão ssh/sudo.
 func TestSocketNaPastaRunDoHyPHP(t *testing.T) {
-	root := t.TempDir()
+	// Raiz curta: o t.TempDir() do macOS já estoura os 103 bytes do socket.
+	root := "/tmp/hyphp-teste"
 	t.Setenv(paths.EnvRoot, root)
 	t.Setenv(EnvPipe, "")
 	got, err := Address()
