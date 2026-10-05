@@ -1,20 +1,37 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RuntimesService } from '../../bindings/hyphp/services'
 import { EVENTS, useEvent } from './events'
-import type { Installed, Package, Progress } from './types'
+import type { BrewStatus, Installed, Package, Progress } from './types'
+
+// Antes da primeira resposta assume Windows (supported=false): a UI do
+// Homebrew só aparece quando o Go confirma a plataforma, sem piscar no Windows.
+const NO_BREW: BrewStatus = { supported: false, found: false, prefix: '', installCommand: '' }
 
 export function useRuntimes() {
   const [installed, setInstalled] = useState<Installed[]>([])
   const [available, setAvailable] = useState<Package[]>([])
   const [progress, setProgress] = useState<Record<string, Progress>>({})
   const [loading, setLoading] = useState(true)
+  const [homebrew, setHomebrew] = useState<BrewStatus>(NO_BREW)
 
   const refresh = useCallback(async () => {
-    const [inst, avail] = await Promise.all([RuntimesService.Installed(), RuntimesService.Available()])
+    const [inst, avail, brew] = await Promise.all([
+      RuntimesService.Installed(),
+      RuntimesService.Available(),
+      RuntimesService.Homebrew(),
+    ])
     setInstalled(inst ?? [])
     setAvailable(avail ?? [])
+    setHomebrew(brew)
     setLoading(false)
   }, [])
+
+  // Rescan relocaliza o Homebrew no Go; a lista chega por runtime:changed, mas
+  // o status do brew e os disponíveis (fórmulas) só vêm relendo.
+  const rescan = useCallback(async () => {
+    await RuntimesService.Rescan()
+    await refresh()
+  }, [refresh])
 
   useEffect(() => {
     void refresh()
@@ -22,6 +39,8 @@ export function useRuntimes() {
 
   useEvent<Installed[]>(EVENTS.runtimeChanged, (list) => {
     setInstalled(list ?? [])
+    // o brew pode ter sido instalado/removido entre varreduras: relê o status.
+    void RuntimesService.Homebrew().then(setHomebrew)
     // instalação concluída já refletiu em `installed`; limpa barras "done"
     setProgress((prev) => {
       const next: Record<string, Progress> = {}
@@ -34,5 +53,5 @@ export function useRuntimes() {
     setProgress((prev) => ({ ...prev, [p.packageId]: p }))
   })
 
-  return { installed, available, progress, loading, refresh }
+  return { installed, available, progress, loading, homebrew, refresh, rescan }
 }

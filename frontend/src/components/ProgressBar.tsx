@@ -12,8 +12,9 @@ export function ProgressBar({ value = 0, indeterminate = false, label, tone = 'a
   return (
     <div className="flex flex-col gap-1">
       {label && (
-        <div className="flex justify-between text-xs text-fg-muted">
-          <span>{label}</span>
+        <div className="flex justify-between gap-2 text-xs text-fg-muted">
+          {/* a última linha do `brew install` pode ser longa: corta numa linha só */}
+          <span className="min-w-0 truncate" title={label}>{label}</span>
           {!indeterminate && <span className="font-mono">{Math.round(pct)}%</span>}
         </div>
       )}

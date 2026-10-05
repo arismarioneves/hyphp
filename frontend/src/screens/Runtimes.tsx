@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { DownloadSimple, FolderOpen, Star, Trash, X } from '@phosphor-icons/react'
+import { ArrowClockwise, DownloadSimple, FolderOpen, Star, Trash, X } from '@phosphor-icons/react'
 import { AppService, RuntimesService } from '../../bindings/hyphp/services'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
+import { CopyButton } from '../components/CopyButton'
 import { EmptyState } from '../components/EmptyState'
 import { ProgressBar } from '../components/ProgressBar'
 import { SectionLabel } from '../components/SectionLabel'
@@ -58,10 +59,12 @@ function formatBytes(n: number): string {
 type InstalledCardProps = {
   inst: Installed
   isDefault: boolean
+  /** Mac com Homebrew: muda o texto das extensões (não há DLLs) */
+  brew: boolean
   onError: (msg: string) => void
 }
 
-function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
+function InstalledCard({ inst, isDefault, brew, onError }: InstalledCardProps) {
   const t = useT('runtimes')
   const tIni = useT('phpini')
   const [confirmRemove, setConfirmRemove] = useState(false)
@@ -161,7 +164,11 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
           )}
           {confirmRemove ? (
             <>
-              <span className="text-xs text-fg-muted">{t('removeConfirm')}</span>
+              {/* remover um keg roda `brew uninstall`, que some para qualquer
+                  outra ferramenta do Mac que dependa da fórmula: avisa antes. */}
+              <span className="text-xs text-fg-muted">
+                {inst.formula ? t('removeConfirmBrew', { formula: inst.formula }) : t('removeConfirm')}
+              </span>
               <Button
                 variant="danger"
                 size="sm"
@@ -194,12 +201,16 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
           {extensions === null ? (
             <Skeleton lines={4} className="mt-2" />
           ) : extensions.length === 0 ? (
-            <p className="mt-2 text-sm text-fg-faint">{t('noDlls')}</p>
+            <p className="mt-2 text-sm text-fg-faint">{brew ? t('noModules') : t('noDlls')}</p>
           ) : (
             <ul className="mt-2 grid grid-cols-3 gap-x-6 gap-y-1">
               {extensions.map((ext) => (
                 <li key={ext.name} className="flex items-center justify-between py-1 text-sm">
-                  <span className="selectable font-mono text-fg">{ext.name}</span>
+                  <span className="flex items-center gap-1">
+                    <span className="selectable font-mono text-fg">{ext.name}</span>
+                    {ext.builtin && <Badge>{t('builtin')}</Badge>}
+                  </span>
+                  {/* embutida está compilada no binário: não há linha de ini a ligar/desligar */}
                   <Toggle
                     checked={ext.enabled}
                     disabled={busy || ext.builtin}
@@ -220,10 +231,12 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
 type AvailableCardProps = {
   pkg: Package
   progress: Progress | undefined
+  /** Mac sem Homebrew: fórmulas não têm como ser instaladas */
+  brewMissing: boolean
   onError: (msg: string) => void
 }
 
-function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
+function AvailableCard({ pkg, progress, brewMissing, onError }: AvailableCardProps) {
   const t = useT('runtimes')
   const [starting, setStarting] = useState(false)
   const [canceling, setCanceling] = useState(false)
@@ -269,9 +282,16 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
           {/* `notes` do catálogo é anotação de manutenção — procedência do
               SHA-256, layout do zip, aviso de 404 do php.net. Não é texto de
               usuário: quem vê a lista quer versão, compilador e arquitetura. */}
-          <span className="selectable truncate font-mono text-xs text-fg-faint" title={pkg.url}>
-            {pkg.url}
-          </span>
+          {/* fórmula do Homebrew não tem URL: mostra o comando que será rodado */}
+          {pkg.formula ? (
+            <span className="selectable truncate font-mono text-xs text-fg-faint">
+              {t('brewInstallCmd', { formula: pkg.formula })}
+            </span>
+          ) : (
+            <span className="selectable truncate font-mono text-xs text-fg-faint" title={pkg.url}>
+              {pkg.url}
+            </span>
+          )}
         </div>
         <div className="ml-auto flex items-center gap-2">
           {progress?.phase === 'download' && (
@@ -290,11 +310,11 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
             variant="primary"
             size="sm"
             icon={<DownloadSimple size={14} />}
-            disabled={active || starting}
+            disabled={active || starting || (brewMissing && !!pkg.formula)}
             loading={starting}
             onClick={() => void install()}
           >
-            {t('download')}
+            {pkg.formula ? t('install') : t('download')}
           </Button>
         </div>
       </div>
@@ -307,7 +327,10 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
             label={
               determinate
                 ? `${t(PHASE_LABELS.download)} · ${formatBytes(progress.done)} / ${formatBytes(progress.total)}`
-                : PHASE_LABELS[progress.phase] ? t(PHASE_LABELS[progress.phase]) : progress.phase
+                : // sem total (brew, ou download sem Content-Length): fase + última linha de saída
+                  [PHASE_LABELS[progress.phase] ? t(PHASE_LABELS[progress.phase]) : progress.phase, progress.message]
+                    .filter(Boolean)
+                    .join(' · ')
             }
           />
           {progress.phase === 'error' && <p className="selectable mt-1 text-xs text-err">{progress.error}</p>}
@@ -319,12 +342,14 @@ function AvailableCard({ pkg, progress, onError }: AvailableCardProps) {
 
 export function Runtimes({ onNavigate }: ScreenProps) {
   const t = useT('runtimes')
-  const { installed, available, progress, loading } = useRuntimes()
+  const { installed, available, progress, loading, homebrew, rescan } = useRuntimes()
   const { settings } = useSettings()
   const [tab, setTab] = useState<RuntimeKind>('php')
   const [error, setError] = useState<string | null>(null)
   const [runtimeRoot, setRuntimeRoot] = useState('')
   const [importing, setImporting] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const brewMissing = homebrew.supported && !homebrew.found
 
   useEffect(() => {
     void AppService.RuntimeRoot().then(setRuntimeRoot)
@@ -372,40 +397,73 @@ export function Runtimes({ onNavigate }: ScreenProps) {
         </div>
       )}
 
+      {brewMissing && (
+        <Card>
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="text-fg">{t('brewMissingTitle')}</span>
+            <span className="text-fg-muted">{t('brewMissingBody')}</span>
+            <div className="flex items-center gap-2">
+              <code className="selectable flex-1 truncate rounded-card bg-bg-card-hover px-2 py-1 font-mono text-xs text-fg">
+                {homebrew.installCommand}
+              </code>
+              <CopyButton text={homebrew.installCommand} label={t('brewCopyAria')} />
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<ArrowClockwise size={14} />}
+                disabled={checking}
+                loading={checking}
+                onClick={() => {
+                  setChecking(true)
+                  void rescan()
+                    .catch((e: unknown) => setError(errorText(e)))
+                    .finally(() => setChecking(false))
+                }}
+              >
+                {t('brewCheckAgain')}
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {tab === 'php' && (
         <div className="flex items-center justify-between gap-2 text-sm text-fg-muted">
-          <span>{t('phpHint')}</span>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<FolderOpen size={14} />}
-              disabled={!runtimeRoot}
-              onClick={() =>
-                void AppService.OpenFolder(`${runtimeRoot}\\bin\\php`).catch((e: unknown) => setError(errorText(e)))
-              }
-            >
-              {t('openBinPhp')}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<FolderOpen size={14} />}
-              disabled={importing}
-              onClick={() => {
-                setImporting(true)
-                setError(null)
-                // PickImportDir devolve "" quando o usuário cancela: nesse caso
-                // não há nada a importar.
-                void RuntimesService.PickImportDir()
-                  .then((dir) => (dir === '' ? undefined : RuntimesService.ImportFrom(dir)))
-                  .catch((e: unknown) => setError(errorText(e)))
-                  .finally(() => setImporting(false))
-              }}
-            >
-              {importing ? t('importing') : t('importFrom')}
-            </Button>
-          </div>
+          <span>{homebrew.supported ? t('phpHintBrew') : t('phpHint')}</span>
+          {/* no Mac o PHP vem do Homebrew: não há bin/php nem pasta a importar */}
+          {!homebrew.supported && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<FolderOpen size={14} />}
+                disabled={!runtimeRoot}
+                onClick={() =>
+                  void AppService.OpenFolder(`${runtimeRoot}\\bin\\php`).catch((e: unknown) => setError(errorText(e)))
+                }
+              >
+                {t('openBinPhp')}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<FolderOpen size={14} />}
+                disabled={importing}
+                onClick={() => {
+                  setImporting(true)
+                  setError(null)
+                  // PickImportDir devolve "" quando o usuário cancela: nesse caso
+                  // não há nada a importar.
+                  void RuntimesService.PickImportDir()
+                    .then((dir) => (dir === '' ? undefined : RuntimesService.ImportFrom(dir)))
+                    .catch((e: unknown) => setError(errorText(e)))
+                    .finally(() => setImporting(false))
+                }}
+              >
+                {importing ? t('importing') : t('importFrom')}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
@@ -436,6 +494,7 @@ export function Runtimes({ onNavigate }: ScreenProps) {
               key={`${inst.kind}-${inst.dir}`}
               inst={inst}
               isDefault={(inst.kind as string) === 'php' && settings?.defaultPhp === inst.major}
+              brew={homebrew.supported}
               onError={setError}
             />
           ))
@@ -448,7 +507,13 @@ export function Runtimes({ onNavigate }: ScreenProps) {
           <p className="text-sm text-fg-faint">{t('noneAvailable')}</p>
         ) : (
           availableOfKind.map((pkg) => (
-            <AvailableCard key={pkg.id} pkg={pkg} progress={progress[pkg.id]} onError={setError} />
+            <AvailableCard
+              key={pkg.id}
+              pkg={pkg}
+              progress={progress[pkg.id]}
+              brewMissing={brewMissing}
+              onError={setError}
+            />
           ))
         )}
       </section>
