@@ -10,10 +10,11 @@ import (
 	"hyphp/internal/runtime"
 )
 
-// fakePHP monta um runtime.Installed com um ext/ povoado, que é o que
+// fakePHP monta um runtime.Installed com um ExtDir povoado, que é o que
 // RenderPHPIni consulta para decidir quais `extension=` emitir. Os módulos
 // têm o nome de runtime.ExtFile, o mesmo que o render procura: php_<n>.dll no
-// Windows, <n>.so no macOS.
+// Windows, <n>.so no macOS. A pasta é <dir>/ext, a do Windows: o golden
+// continua com "__PHPDIR__/ext".
 func fakePHP(t *testing.T, major, version string, exts []string) runtime.Installed {
 	t.Helper()
 	dir := t.TempDir()
@@ -29,6 +30,7 @@ func fakePHP(t *testing.T, major, version string, exts []string) runtime.Install
 	return runtime.Installed{
 		Kind: runtime.PHP, Version: version, Major: major, Dir: dir,
 		Exe: filepath.Join(dir, "php.exe"), CGIExe: filepath.Join(dir, "php-cgi.exe"),
+		ExtDir: extDir,
 	}
 }
 

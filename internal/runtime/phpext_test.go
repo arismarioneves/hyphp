@@ -18,7 +18,7 @@ func TestListExtensions(t *testing.T) {
 	}
 	mustMkdir(t, filepath.Join(ext, ExtFile("subdir"))) // diretório com nome de módulo: ignorado
 
-	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir}, []string{"pdo_mysql", "inexistente"})
+	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir, ExtDir: ext}, []string{"pdo_mysql", "inexistente"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -32,10 +32,57 @@ func TestListExtensions(t *testing.T) {
 	}
 }
 
-func TestListExtensionsSemExtDir(t *testing.T) {
-	_, err := ListExtensions(Installed{Kind: PHP, Dir: t.TempDir()}, nil)
-	if err == nil {
-		t.Fatal("esperava erro para pasta sem ext/")
+// Módulo compilado no binário aparece ligado e marcado como embutido mesmo sem
+// arquivo; o que tem arquivo na pasta segue alternável. Um embutido que também
+// tenha arquivo continua embutido: carregar o arquivo de novo só gera o
+// warning "already loaded".
+func TestListaMarcaBuiltins(t *testing.T) {
+	dir := t.TempDir()
+	ext := filepath.Join(dir, "ext")
+	for _, f := range []string{ExtFile("curl"), ExtFile("pdo_mysql"), ExtFile("zip")} {
+		mustWrite(t, filepath.Join(ext, f), "")
+	}
+
+	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir, ExtDir: ext}, []string{"pdo_mysql"}, []string{"core", "zip", "date", "opcache"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Extension{
+		{Name: "core", Enabled: true, Builtin: true},
+		{Name: "curl", File: ExtFile("curl")},
+		{Name: "date", Enabled: true, Builtin: true},
+		{Name: "opcache", Enabled: true, Builtin: true},
+		{Name: "pdo_mysql", File: ExtFile("pdo_mysql"), Enabled: true},
+		{Name: "zip", Enabled: true, Builtin: true},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ListExtensions =\n%+v\nwant\n%+v", got, want)
+	}
+}
+
+// O PHP do Homebrew pode não ter pasta de módulos (tudo estático, como o
+// opcache a partir do 8.5): a lista mostra só os embutidos, sem erro.
+func TestListaSemPastaDeModulos(t *testing.T) {
+	dir := t.TempDir()
+	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir, ExtDir: filepath.Join(dir, "ext")}, nil, []string{"opcache"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []Extension{{Name: "opcache", Enabled: true, Builtin: true}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ListExtensions = %+v, want %+v", got, want)
+	}
+}
+
+// Saída real de `php -n -m` (8.5, Homebrew, encurtada): os cabeçalhos não são
+// módulos, os nomes saem em minúsculas como os de extension=, e o "Zend
+// OPcache", que aparece nas duas seções, vira um "opcache" só.
+func TestParseModulos(t *testing.T) {
+	out := "[PHP Modules]\r\nCore\r\nctype\r\nPDO\r\nSimpleXML\r\nZend OPcache\r\n\r\n[Zend Modules]\r\nZend OPcache\r\n\r\n"
+	got := parseModules(out)
+	want := []string{"core", "ctype", "pdo", "simplexml", "opcache"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("parseModules = %q, want %q", got, want)
 	}
 }
 

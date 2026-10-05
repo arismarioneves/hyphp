@@ -28,6 +28,7 @@ func php(version, major, dir string) runtime.Installed {
 	return runtime.Installed{
 		Kind: runtime.PHP, Version: version, Major: major, Dir: dir,
 		Exe: filepath.Join(dir, "php.exe"), CGIExe: filepath.Join(dir, "php-cgi.exe"),
+		ExtDir: filepath.Join(dir, "ext"),
 	}
 }
 

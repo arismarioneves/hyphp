@@ -33,7 +33,8 @@ export function CancelInstall(packageID: string): $CancellablePromise<void> {
 }
 
 /**
- * Extensions lista ext/*.dll do maior patch da série, marcando as habilitadas.
+ * Extensions lista os módulos do maior patch da série: os embutidos no binário
+ * e os arquivos de ExtDir, marcando os habilitados.
  */
 export function Extensions(major: string): $CancellablePromise<runtime$0.Extension[] | null> {
     return $Call.ByID(2025234643, major);
@@ -115,6 +116,8 @@ export function SetDefaultPHP(major: string): $CancellablePromise<void> {
 
 /**
  * SetExtension liga/desliga uma extensão da série e persiste em state.PHPExtensions.
+ * Embutida é recusada: está sempre ligada, e gravar o nome no state não muda
+ * nada (o render só escreve extension= para módulo com arquivo).
  */
 export function SetExtension(major: string, name: string, on: boolean): $CancellablePromise<void> {
     return $Call.ByID(3681623404, major, name, on);

@@ -56,11 +56,12 @@ type RuntimesService struct {
 	installing map[string]context.CancelFunc // packageID → cancela o download em andamento
 	ctx        context.Context               // de ServiceStartup; Background() antes disso
 
-	// Consultas ao php.exe da série (runtime.PHPIniBuiltins/PHPIniKnows). São
-	// campos para que os testes das regras de php.ini não dependam de um PHP
-	// instalado na máquina.
-	iniBuiltins func(ctx context.Context, inst runtime.Installed, ext, names []string) (map[string]string, error)
-	iniKnows    func(ctx context.Context, inst runtime.Installed, ext []string, name, value string) (bool, error)
+	// Consultas ao php.exe da série (runtime.PHPIniBuiltins/PHPIniKnows e
+	// runtime.BuiltinModules). São campos para que os testes das regras de
+	// php.ini e de extensões não dependam de um PHP instalado na máquina.
+	iniBuiltins    func(ctx context.Context, inst runtime.Installed, ext, names []string) (map[string]string, error)
+	iniKnows       func(ctx context.Context, inst runtime.Installed, ext []string, name, value string) (bool, error)
+	builtinModules func(ctx context.Context, inst runtime.Installed) ([]string, error)
 }
 
 func NewRuntimesService(d RuntimesDeps) *RuntimesService {
@@ -70,7 +71,7 @@ func NewRuntimesService(d RuntimesDeps) *RuntimesService {
 	}
 	return &RuntimesService{
 		d: d, installing: map[string]context.CancelFunc{}, ctx: context.Background(),
-		iniBuiltins: runtime.PHPIniBuiltins, iniKnows: runtime.PHPIniKnows,
+		iniBuiltins: runtime.PHPIniBuiltins, iniKnows: runtime.PHPIniKnows, builtinModules: runtime.BuiltinModules,
 	}
 }
 
@@ -359,27 +360,45 @@ func (r *RuntimesService) SetDefaultPHP(major string) error {
 	return nil
 }
 
-// Extensions lista ext/*.dll do maior patch da série, marcando as habilitadas.
+// Extensions lista os módulos do maior patch da série: os embutidos no binário
+// e os arquivos de ExtDir, marcando os habilitados.
 func (r *RuntimesService) Extensions(major string) ([]runtime.Extension, error) {
 	inst, ok := runtime.PHPByMajor(r.Installed(), major)
 	if !ok {
 		return nil, i18n.Errorf("err.runtimes.phpMissing", major)
 	}
-	return runtime.ListExtensions(inst, r.enabledExtensions(major))
+	return r.listExtensions(inst, r.enabledExtensions(major))
+}
+
+// listExtensions pergunta ao PHP o que vem compilado e junta com ExtDir.
+func (r *RuntimesService) listExtensions(inst runtime.Installed, enabled []string) ([]runtime.Extension, error) {
+	ctx, cancel := context.WithTimeout(r.ctx, iniProbeTimeout)
+	defer cancel()
+	builtin, err := r.builtinModules(ctx, inst)
+	if err != nil {
+		return nil, i18n.Errorf("err.runtimes.iniProbe", inst.Major, err)
+	}
+	return runtime.ListExtensions(inst, enabled, builtin)
 }
 
 // SetExtension liga/desliga uma extensão da série e persiste em state.PHPExtensions.
+// Embutida é recusada: está sempre ligada, e gravar o nome no state não muda
+// nada (o render só escreve extension= para módulo com arquivo).
 func (r *RuntimesService) SetExtension(major, name string, on bool) error {
 	inst, ok := runtime.PHPByMajor(r.Installed(), major)
 	if !ok {
 		return i18n.Errorf("err.runtimes.phpMissing", major)
 	}
-	available, err := runtime.ListExtensions(inst, nil)
+	available, err := r.listExtensions(inst, nil)
 	if err != nil {
 		return err
 	}
-	if !slices.ContainsFunc(available, func(e runtime.Extension) bool { return e.Name == name }) {
-		return i18n.Errorf("err.runtimes.unknownExtension", name, filepath.Join(inst.Dir, "ext"))
+	i := slices.IndexFunc(available, func(e runtime.Extension) bool { return e.Name == name })
+	if i < 0 {
+		return i18n.Errorf("err.runtimes.unknownExtension", name, inst.ExtDir)
+	}
+	if available[i].Builtin {
+		return i18n.Errorf("err.runtimes.builtinExtension", name, major)
 	}
 
 	cur := slices.Clone(r.enabledExtensions(major))

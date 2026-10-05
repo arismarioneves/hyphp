@@ -18,6 +18,11 @@ type Package struct {
 	Compiler string       `json:"compiler"`
 	Arch     string       `json:"arch"`
 	Notes    string       `json:"notes"`
+	// Formula é o nome de instalação no Homebrew ("shivammathur/php/php@8.3");
+	// vazio no catálogo embutido. Os pacotes do Mac montados a partir de
+	// brew.Formulas usam este campo em vez de URL, e a UI mostra
+	// `brew install <formula>` no lugar do link.
+	Formula string `json:"formula,omitempty"`
 }
 
 type Catalog struct {

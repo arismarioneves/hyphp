@@ -90,7 +90,7 @@ func IsManagedIniDirective(name string) bool {
 // vence: assim sobrescrevem os padrões acima sem que o renderer precise
 // removê-los. O chamador já recusou as gerenciadas (IsManagedIniDirective).
 func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int, userIni map[string]string) []byte {
-	extDir := filepath.ToSlash(filepath.Join(inst.Dir, "ext"))
+	extDir := filepath.ToSlash(inst.ExtDir)
 	tmp := SlashDir(tmpDir)
 	log := SlashDir(logDir)
 

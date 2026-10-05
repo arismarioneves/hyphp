@@ -43,7 +43,11 @@ func TestPHPIniContraPHPReal(t *testing.T) {
 	if dir == "" {
 		t.Skip("HYPHP_TEST_PHP não definido")
 	}
-	inst := Installed{Kind: PHP, Dir: dir, Exe: filepath.Join(dir, "php.exe")}
+	// Detect preenche ExtDir pela regra do SO, como na varredura de verdade.
+	inst, err := Detect(PHP, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
