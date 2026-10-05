@@ -8,10 +8,16 @@ export interface Extension {
     "name": string;
 
     /**
-     * "php_pdo_mysql.dll"
+     * "php_pdo_mysql.dll"; vazio nos embutidos
      */
     "file": string;
     "enabled": boolean;
+
+    /**
+     * Builtin marca o módulo compilado no binário (`php -n -m`): está sempre
+     * ligado e não há o que alternar.
+     */
+    "builtin": boolean;
 }
 
 export interface Installed {
@@ -38,7 +44,7 @@ export interface Installed {
     "exe": string;
 
     /**
-     * só PHP: php-cgi.exe
+     * só PHP: php-cgi.exe no Windows, sbin/php-fpm no macOS
      */
     "cgiExe": string;
 
@@ -48,7 +54,7 @@ export interface Installed {
     "compiler": string;
 
     /**
-     * "x64" | "x86" | ""
+     * "x64" | "x86" | "arm64" | ""
      */
     "arch": string;
 
@@ -56,6 +62,12 @@ export interface Installed {
      * só PHP
      */
     "threadSafe": boolean | null;
+
+    /**
+     * ExtDir é a pasta dos módulos carregáveis do PHP: <Dir>/ext no Windows,
+     * <Dir>/lib/php/<api> no Homebrew (regra em phpExtDir). Vazio fora do PHP.
+     */
+    "extDir": string;
 
     /**
      * Formula é o nome de instalação no Homebrew ("shivammathur/php/php@8.3",

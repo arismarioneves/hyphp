@@ -21,4 +21,12 @@ export interface Package {
     "compiler": string;
     "arch": string;
     "notes": string;
+
+    /**
+     * Formula é o nome de instalação no Homebrew ("shivammathur/php/php@8.3");
+     * vazio no catálogo embutido. Os pacotes do Mac montados a partir de
+     * brew.Formulas usam este campo em vez de URL, e a UI mostra
+     * `brew install <formula>` no lugar do link.
+     */
+    "formula"?: string;
 }

@@ -76,6 +76,7 @@ var messagesEN = map[string]string{
 	"err.runtimes.phpMissing":       "PHP %s is not installed",
 	"err.runtimes.saveState":        "save state: %w",
 	"err.runtimes.unknownExtension": "extension %q does not exist in %s",
+	"err.runtimes.builtinExtension": "extension %q is built into PHP %s and is always on",
 	"err.runtimes.iniName":          "invalid directive name %q (lowercase letters, digits, '_' and '.')",
 	"err.runtimes.iniValue":         "the value of %s must be a single, non-empty line",
 	"err.runtimes.iniManaged":       "%s is managed by HyPHP (paths, mail and CGI) and cannot be changed",

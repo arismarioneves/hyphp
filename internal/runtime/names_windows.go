@@ -21,6 +21,23 @@ var mainFile = map[Kind]string{
 	PhpMyAdmin: "index.php",
 }
 
+// binKinds são os kinds que Scan procura em bin/, na ordem de saída. No
+// Windows todo runtime vive em bin/<kind>/.
+var binKinds = []Kind{PHP, Apache, Nginx, MySQL, MariaDB, Mailpit, Mkcert, PhpMyAdmin}
+
+// phpExtDir é sempre <dir>/ext: o PHP_EXTENSION_DIR compilado no zip do
+// php.net aponta para C:\php\ext, que não existe na máquina do usuário, então
+// apiBase não serve aqui.
+func phpExtDir(dir, _ string) string { return filepath.Join(dir, "ext") }
+
+// phpArch é a arquitetura quando o nome da pasta não traz x64/x86.
+func phpArch(intSize int) string {
+	if intSize == 8 {
+		return "x64"
+	}
+	return "x86"
+}
+
 // workerFile é o php-cgi.exe ao lado do php.exe: no Windows cada worker é um
 // processo php-cgi servindo FastCGI.
 func workerFile() string { return "php-cgi.exe" }

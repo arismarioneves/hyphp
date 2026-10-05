@@ -94,9 +94,10 @@ func PHPIniKnows(ctx context.Context, inst Installed, ext []string, name, value 
 }
 
 // extensionArgs monta -n e os -d que carregam as extensões da série, só as que
-// têm DLL (mesma regra do render.RenderPHPIni: DLL ausente vira warning).
+// têm arquivo em inst.ExtDir (mesma regra do render.RenderPHPIni: módulo
+// ausente vira warning).
 func extensionArgs(inst Installed, ext []string) []string {
-	extDir := filepath.Join(inst.Dir, "ext")
+	extDir := inst.ExtDir
 	args := []string{"-n", "-d", "extension_dir=" + filepath.ToSlash(extDir)}
 	for _, name := range ext {
 		if name == "opcache" || !isFile(filepath.Join(extDir, extFile(name))) {

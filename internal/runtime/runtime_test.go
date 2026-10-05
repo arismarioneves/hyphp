@@ -122,29 +122,35 @@ func mustWrite(t *testing.T, path, content string) {
 	}
 }
 
+// O 4º campo é basename(PHP_EXTENSION_DIR): "ext" no zip do Windows, o número
+// da API ("20230831") no Homebrew.
 func TestParsePHPProbe(t *testing.T) {
 	cases := []struct {
 		name, out, version string
 		intSize            int
-		zts, wantErr       bool
+		zts                bool
+		apiBase            string
+		wantErr            bool
 	}{
-		{"8.1.10 zts x64 (laragon)", "8.1.10|8|zts", "8.1.10", 8, true, false},
-		{"7.2.34 zts x64 (laragon)", "7.2.34|8|zts", "7.2.34", 8, true, false},
-		{"nts x86 com CRLF", "8.3.33|4|nts\r\n", "8.3.33", 4, false, false},
-		{"release candidate", "8.4.0RC1|8|nts", "8.4.0RC1", 8, false, false},
-		{"warning de php.ini antes da saída", "Warning: PHP Startup: Unable to load dynamic library 'curl'\n8.1.10|8|zts", "", 0, false, true},
-		{"vazio", "", "", 0, false, true},
-		{"campo faltando", "8.1.10|8", "", 0, false, true},
-		{"thread-safety inválida", "8.1.10|8|tsrm", "", 0, false, true},
+		{"8.1.10 zts x64 (laragon)", "8.1.10|8|zts|ext", "8.1.10", 8, true, "ext", false},
+		{"7.2.34 zts x64 (laragon)", "7.2.34|8|zts|ext", "7.2.34", 8, true, "ext", false},
+		{"nts x86 com CRLF", "8.3.33|4|nts|ext\r\n", "8.3.33", 4, false, "ext", false},
+		{"release candidate", "8.4.0RC1|8|nts|ext", "8.4.0RC1", 8, false, "ext", false},
+		{"homebrew arm64", "8.3.20|8|nts|20230831", "8.3.20", 8, false, "20230831", false},
+		{"warning de php.ini antes da saída", "Warning: PHP Startup: Unable to load dynamic library 'curl'\n8.1.10|8|zts|ext", "", 0, false, "", true},
+		{"vazio", "", "", 0, false, "", true},
+		{"campo faltando", "8.1.10|8|zts", "", 0, false, "", true},
+		{"pasta de módulos vazia", "8.1.10|8|zts|", "", 0, false, "", true},
+		{"thread-safety inválida", "8.1.10|8|tsrm|ext", "", 0, false, "", true},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			version, intSize, zts, err := parsePHPProbe(c.out)
+			version, intSize, zts, apiBase, err := parsePHPProbe(c.out)
 			if (err != nil) != c.wantErr {
 				t.Fatalf("err = %v; wantErr %v", err, c.wantErr)
 			}
-			if version != c.version || intSize != c.intSize || zts != c.zts {
-				t.Fatalf("got (%q, %d, %v); want (%q, %d, %v)", version, intSize, zts, c.version, c.intSize, c.zts)
+			if version != c.version || intSize != c.intSize || zts != c.zts || apiBase != c.apiBase {
+				t.Fatalf("got (%q, %d, %v, %q); want (%q, %d, %v, %q)", version, intSize, zts, apiBase, c.version, c.intSize, c.zts, c.apiBase)
 			}
 		})
 	}

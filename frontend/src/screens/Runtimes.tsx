@@ -202,7 +202,7 @@ function InstalledCard({ inst, isDefault, onError }: InstalledCardProps) {
                   <span className="selectable font-mono text-fg">{ext.name}</span>
                   <Toggle
                     checked={ext.enabled}
-                    disabled={busy}
+                    disabled={busy || ext.builtin}
                     label={t('extensionAria', { name: ext.name })}
                     onChange={(on) => void toggleExt(ext, on)}
                   />

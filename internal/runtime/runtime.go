@@ -36,10 +36,13 @@ type Installed struct {
 	Major      string `json:"major"`      // PHP: "8.1"; outros: igual a Version
 	Dir        string `json:"dir"`        // bin/php/php-8.1.10-Win32-vs16-x64 (absoluto)
 	Exe        string `json:"exe"`        // caminho absoluto do executável principal
-	CGIExe     string `json:"cgiExe"`     // só PHP: php-cgi.exe
+	CGIExe     string `json:"cgiExe"`     // só PHP: php-cgi.exe no Windows, sbin/php-fpm no macOS
 	Compiler   string `json:"compiler"`   // "vs16", "VC15", "VS17" ou ""
-	Arch       string `json:"arch"`       // "x64" | "x86" | ""
+	Arch       string `json:"arch"`       // "x64" | "x86" | "arm64" | ""
 	ThreadSafe *bool  `json:"threadSafe"` // só PHP
+	// ExtDir é a pasta dos módulos carregáveis do PHP: <Dir>/ext no Windows,
+	// <Dir>/lib/php/<api> no Homebrew (regra em phpExtDir). Vazio fora do PHP.
+	ExtDir string `json:"extDir"`
 	// Formula é o nome de instalação no Homebrew ("shivammathur/php/php@8.3",
 	// "httpd"); vazio no Windows e no que veio do catálogo. A remoção no Mac
 	// usa este campo para decidir entre `brew uninstall` e apagar a pasta.
@@ -61,16 +64,15 @@ func ExtFile(name string) string { return extFile(name) }
 // Mailpit e mkcert ficam direto em bin/<kind>/.
 var versioned = map[Kind]bool{PHP: true, Apache: true, Nginx: true, MySQL: true, MariaDB: true, PhpMyAdmin: true}
 
-// scanOrder fixa a ordem de saída de Scan.
-var scanOrder = []Kind{PHP, Apache, Nginx, MySQL, MariaDB, Mailpit, Mkcert, PhpMyAdmin}
-
 // Scan varre bin/<kind>/* e detecta cada runtime que tenha o executável esperado.
+// Só olha os kinds de binKinds (por SO): no macOS os runtimes vêm do Homebrew e
+// uma árvore bin/php perdida não pode se misturar com os kegs.
 // Pastas sem o executável são ignoradas em silêncio. Falhas de detecção (exe presente
 // mas não roda) são acumuladas no erro devolvido; a lista contém o que deu certo.
 func Scan(binDir string) ([]Installed, error) {
 	var list []Installed
 	var errs []error
-	for _, kind := range scanOrder {
+	for _, kind := range binKinds {
 		kindDir := filepath.Join(binDir, string(kind))
 		var dirs []string
 		if versioned[kind] {
