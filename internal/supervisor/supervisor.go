@@ -58,11 +58,15 @@ type Supervisor struct {
 	nextSub    int
 	logger     *slog.Logger
 	globalProc procHandle
-	closed     bool
+	// runDir é onde ficam os registros de processos para o ReapOrphans;
+	// vazio desliga o registro (testes). No Windows o registro não faz nada.
+	runDir string
+	closed bool
 }
 
 // New cria o supervisor e chama attachSelf: no Windows, o Job Object global
-// kill-on-close que leva os serviços junto se o app morrer.
+// kill-on-close que leva os serviços junto se o app morrer. No macOS esse
+// papel é do registro de processos (SetRunDir + ReapOrphans).
 func New(logger *slog.Logger) (*Supervisor, error) {
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -77,6 +81,16 @@ func New(logger *slog.Logger) (*Supervisor, error) {
 		logger:     logger,
 		globalProc: proc,
 	}, nil
+}
+
+// SetRunDir liga o registro de processos em <dir>/procs, lido pelo
+// ReapOrphans da próxima abertura do app. Chamar antes do primeiro Start: um
+// processo iniciado antes fica sem registro. Um setter em vez de parâmetro do
+// New porque só o app usa; os testes seguem sem registro.
+func (s *Supervisor) SetRunDir(dir string) {
+	s.mu.Lock()
+	s.runDir = dir
+	s.mu.Unlock()
 }
 
 // Add registra um serviço parado.
@@ -522,6 +536,14 @@ func (s *Supervisor) launch(e *entry) error {
 		}
 		return err
 	}
+	// Registrado antes de o handle ficar visível na entry: quem libera o
+	// processo (e apaga o registro) só o acha depois daqui.
+	s.mu.Lock()
+	runDir := s.runDir
+	s.mu.Unlock()
+	if err := recordProcess(runDir, spec, cmd, proc); err != nil {
+		s.logger.Warn("registrar processo para a limpeza de órfãos", "id", spec.ID, "err", err)
+	}
 	s.mu.Lock()
 	e.cmd, e.proc, e.logFile = cmd, proc, f
 	e.status.PID = cmd.Process.Pid
@@ -539,7 +561,7 @@ func (s *Supervisor) releaseProcess(e *entry) {
 	s.mu.Lock()
 	proc, f := s.takeProcessLocked(e)
 	s.mu.Unlock()
-	closeProcess(e, proc, f)
+	s.closeProcess(e, proc, f)
 }
 
 // takeProcessLocked tira cmd, handle e log da entry. Separado de closeProcess
@@ -552,8 +574,14 @@ func (s *Supervisor) takeProcessLocked(e *entry) (procHandle, *os.File) {
 	return proc, f
 }
 
-func closeProcess(e *entry, proc procHandle, f *os.File) {
+// closeProcess fecha o handle (matando o que sobrou da árvore) e apaga o
+// registro do processo: daqui em diante não há órfão dele a limpar.
+func (s *Supervisor) closeProcess(e *entry, proc procHandle, f *os.File) {
 	closeProcessHandle(proc)
+	s.mu.Lock()
+	runDir := s.runDir
+	s.mu.Unlock()
+	forgetProcess(runDir, e.spec.ID)
 	if f != nil {
 		f.Close()
 	}
@@ -596,7 +624,7 @@ func (s *Supervisor) run(e *entry, ctx context.Context) {
 		proc, f := s.takeProcessLocked(e)
 		s.mu.Unlock()
 
-		closeProcess(e, proc, f)
+		s.closeProcess(e, proc, f)
 		if !allowed {
 			s.setState(e, Failed, reason)
 			return

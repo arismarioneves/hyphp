@@ -17,7 +17,8 @@ import (
 type procHandle struct{ pgid int }
 
 // attachSelf não tem equivalente no macOS: não existe "mate meus filhos se eu
-// morrer". A limpeza de órfãos depois de um crash do app chega na M1.
+// morrer". Os órfãos de um crash do app são encerrados na próxima abertura,
+// pelo registro de processos (orphans_darwin.go).
 func attachSelf() (procHandle, error) { return procHandle{}, nil }
 
 func startProcess(spec Spec, out io.Writer) (*exec.Cmd, procHandle, error) {
