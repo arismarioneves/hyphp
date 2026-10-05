@@ -1,0 +1,19 @@
+; Gerado pelo HyPHP — não editar à mão.
+; Fonte: internal/render/phpfpm_darwin.go — reescrito a cada Reconcile.
+
+[global]
+; Só reserva: com --force-stderr o log do master vai para o supervisor.
+error_log = "/Users/dev/Library/Application Support/HyPHP/log/php-fpm-8.3.log"
+daemonize = no
+
+[php83]
+listen = 127.0.0.1:9004
+listen.allowed_clients = 127.0.0.1
+pm = ondemand
+pm.max_children = 4
+pm.process_idle_timeout = 10s
+pm.max_requests = 0
+catch_workers_output = yes
+decorate_workers_output = no
+clear_env = no
+rlimit_files = 4096

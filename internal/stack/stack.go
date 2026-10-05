@@ -287,11 +287,12 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 		warnings = append(warnings, s.portConflicts(st, "web:"+string(web.Name()))...)
 	}
 
-	// 4. php.ini por major
+	// 4. php.ini (e, no Mac, php-fpm.conf) por major
 	iniChanged := map[string]bool{}
+	sendmail := phpSendmail(rts, st.MailpitSMTPPort)
 	for _, pool := range out.Pools {
 		inst, _ := runtime.PHPByMajor(runtime.ByKind(rts, runtime.PHP), pool.Version)
-		changed, err := s.renderPHPIni(inst, pool.Version, out.Extensions[pool.Version], st.MailpitSMTPPort, st.PHPIni[pool.Version])
+		changed, err := s.renderPHPIni(inst, pool, st.PoolSize, out.Extensions[pool.Version], st.MailpitSMTPPort, sendmail, st.PHPIni[pool.Version])
 		if err != nil {
 			return s.finish(warnings), err
 		}
@@ -510,8 +511,11 @@ func ensureWebDirs(etcDir string) {
 	_ = os.MkdirAll(filepath.Join(etcDir, "temp"), 0o755)
 }
 
-// renderPHPIni grava etc/php/<major>/php.ini se o conteúdo mudou.
-func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string, smtpPort int, userIni map[string]string) (bool, error) {
+// renderPHPIni grava etc/php/<major>/ (php.ini e, no Mac, php-fpm.conf) se o
+// conteúdo mudou. Os dois arquivos vão no mesmo WriteFiles: changed cobre
+// php.ini, porta e PoolSize, e o iniChanged da série reinicia o php-fpm.
+func (s *Stack) renderPHPIni(inst runtime.Installed, pool webserver.PHPPool, poolSize int, ext []string, smtpPort int, sendmail string, userIni map[string]string) (bool, error) {
+	major := pool.Version
 	dir := filepath.Join(paths.Etc(), "php", major)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", dir, err)
@@ -520,8 +524,8 @@ func (s *Stack) renderPHPIni(inst runtime.Installed, major string, ext []string,
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", tmpDir, err)
 	}
-	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, userIni)
-	changed, err := render.WriteFiles(dir, map[string][]byte{"php.ini": content})
+	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, sendmail, phpMySQLSocket(paths.Var()), userIni)
+	changed, err := render.WriteFiles(dir, phpConfFiles(content, pool, poolSize, paths.Log()))
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar php.ini %s: %w", major, err)
 	}

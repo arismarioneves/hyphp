@@ -107,15 +107,13 @@ func desired(in desiredInput) (desiredOutput, error) {
 	sort.Strings(majors)
 	for _, major := range majors {
 		inst, _ := runtime.PHPByMajor(phps, major)
-		ports, err := in.Alloc.Reserve("php:"+major, in.State.PoolSize)
+		ports, err := in.Alloc.Reserve("php:"+major, phpPoolPorts(in.State.PoolSize))
 		if err != nil {
-			return out, fmt.Errorf("stack: reservar %d portas para PHP %s: %w", in.State.PoolSize, major, err)
+			return out, fmt.Errorf("stack: reservar %d portas para PHP %s: %w", phpPoolPorts(in.State.PoolSize), major, err)
 		}
 		out.Pools = append(out.Pools, webserver.PHPPool{Name: webserver.PoolName(major), Version: major, Ports: ports})
 		out.Extensions[major] = unionSorted(in.State.PHPExtensions[major], byMajor[major])
-		for i, port := range ports {
-			out.Specs = append(out.Specs, phpWorkerSpec(inst, major, i, port, in.EtcDir, in.LogDir))
-		}
+		out.Specs = append(out.Specs, phpSeriesSpecs(inst, major, ports, in.EtcDir, in.LogDir)...)
 	}
 
 	// 3. sites (um por projeto servido)
@@ -232,30 +230,6 @@ func unionSorted(global []string, projs []project.Project) []string {
 
 func defaultRestart() supervisor.RestartPolicy {
 	return supervisor.RestartPolicy{Enabled: true, MaxRetries: 0, BaseDelay: time.Second, MaxDelay: 30 * time.Second}
-}
-
-// phpWorkerSpec é a receita C16: php-cgi em modo FastCGI externo, sem limite
-// de requests por processo (o default 500 mataria o worker sob carga).
-func phpWorkerSpec(inst runtime.Installed, major string, i, port int, etcDir, logDir string) supervisor.Spec {
-	addr := fmt.Sprintf("127.0.0.1:%d", port)
-	return supervisor.Spec{
-		ID:    fmt.Sprintf("php:%s:%d", major, i),
-		Name:  fmt.Sprintf("PHP %s #%d", major, i),
-		Group: "php",
-		Exe:   inst.CGIExe,
-		Args: []string{
-			"-b", addr,
-			"-c", filepath.Join(etcDir, "php", major, "php.ini"),
-			"-d", "cgi.force_redirect=0",
-			"-d", "cgi.fix_pathinfo=1",
-		},
-		Env:     []string{"PHP_FCGI_MAX_REQUESTS=0"},
-		Dir:     inst.Dir,
-		Port:    port,
-		Probe:   &supervisor.TCPProbe{Addr: addr},
-		Restart: defaultRestart(),
-		LogPath: filepath.Join(logDir, fmt.Sprintf("php-%s-%d.log", major, i)),
-	}
 }
 
 func siteFor(in desiredInput, p project.Project, major string) (webserver.Site, []Warning) {
