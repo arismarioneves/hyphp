@@ -18,7 +18,7 @@ import (
 //	func decodeLine(b []byte) string  // decode_<so>.go
 //
 // stopProcess nunca chama cmd.Wait(): o laço run() é o único dono dessa
-// chamada.
+// chamada. A limpeza de órfãos segue o mesmo esquema por SO (ver orphans.go).
 
 // exitReason traduz o erro de cmd.Wait() na causa que vai para Status.LastError.
 func exitReason(waitErr error) error {

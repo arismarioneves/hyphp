@@ -102,12 +102,16 @@ func main() {
 		}
 	}
 
-	// Job Object primeiro: todo filho nasce dentro dele (spec §7.1).
+	// O supervisor nasce antes de qualquer serviço: no Windows, attachSelf
+	// põe o app no Job Object global e todo filho nasce dentro dele (spec
+	// §7.1); no Mac, o registro em var/run/procs é o que permite encerrar os
+	// órfãos de um crash (ReapOrphans, logo depois do application.New).
 	sup, err := supervisor.New(logger)
 	if err != nil {
 		logger.Error("criar supervisor", "err", err)
 		os.Exit(1)
 	}
+	sup.SetRunDir(paths.Run())
 
 	var (
 		window  *application.WebviewWindow
@@ -161,10 +165,12 @@ func main() {
 				defer cancel()
 				// StopAll e Close desistem quando o ctx vence esperando um
 				// Reconcile longo (InitDBData, httpd -t, mkcert): o app fecha
-				// mesmo assim, porque o sup.Close abaixo para os serviços e o
-				// Job Object global (kill-on-close) mata o que sobrar — inclusive
-				// um mysqld --initialize, cujo datadir pela metade o marcador
-				// <datadir>.hyphp-initializing faz refazer na próxima execução.
+				// mesmo assim, porque o sup.Close abaixo para os serviços. No
+				// Windows o Job Object global (kill-on-close) mata o que sobrar
+				// — inclusive um mysqld --initialize —; no Mac, um serviço que
+				// sobrar é encerrado pelo ReapOrphans da próxima abertura. Um
+				// datadir pela metade o marcador <datadir>.hyphp-initializing
+				// faz refazer na próxima execução.
 				if err := stk.StopAll(ctx); err != nil {
 					logger.Warn("parar stack no shutdown", "err", err)
 				}
@@ -182,6 +188,12 @@ func main() {
 			}
 		},
 	})
+
+	// Só a instância primária chega aqui (a segunda sai dentro do
+	// application.New, ao achar o lock), e nenhum serviço subiu ainda: é o
+	// único momento seguro para encerrar os serviços que uma execução anterior
+	// deixou vivos ao cair. No Windows não há o que fazer (Job Object).
+	supervisor.ReapOrphans(paths.Run(), logger)
 
 	emit := func(name string, data any) { app.Event.Emit(name, data) }
 
