@@ -6,6 +6,10 @@ name: build
 
 on:
   workflow_dispatch:
+  # TEMPORÁRIO (M1, PR 1): workflow_dispatch só vale com o arquivo na main.
+  # Sai antes do PR; cada execução continua esperando a aprovação do dono.
+  push:
+    branches: [macos-m1-pacote]
 
 permissions:
   contents: read
