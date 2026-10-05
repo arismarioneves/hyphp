@@ -39,6 +39,8 @@ export type Progress = {
   total: number
   phase: ProgressPhase
   error: string
+  /** linha de saída do `brew install` (macOS); vazio nos downloads do catálogo */
+  message: string
 }
 
 export type RuntimeKind = 'php' | 'apache' | 'nginx' | 'mysql' | 'mariadb' | 'mailpit' | 'mkcert' | 'phpmyadmin'

@@ -20,6 +20,7 @@ func TestProgressContratoComOFrontend(t *testing.T) {
 		"Total":     "total",
 		"Phase":     "phase",
 		"Error":     "error",
+		"Message":   "message",
 	}
 
 	rt := reflect.TypeOf(Progress{})
