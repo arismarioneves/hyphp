@@ -22,27 +22,40 @@ import (
 
 // TestAjudanteOrfao não é um teste: é o processo intermediário de
 // iniciarOrfao, rodado pelo próprio binário de teste. Ele inicia um
-// `sh -c 'sleep 60 & wait'` no próprio grupo (Setpgid, como o
-// startProcess), imprime o pid e sai sem esperar. O sh fica líder do grupo
-// e, com o pai morto, é reparentado ao launchd: exatamente o órfão que um
-// crash do app deixa. O macOS não tem setsid(1) nem subreaper, e um `&` no
-// sh não troca de grupo sem job control (que exige tty), por isso o Go.
+// `/bin/sleep 60` no próprio grupo (Setpgid, como o startProcess), põe um
+// segundo sleep no mesmo grupo (Pgid = o primeiro), imprime o pid do líder e
+// sai sem esperar. Os dois são reparentados ao launchd: exatamente o grupo
+// órfão que um crash do app deixa. O macOS não tem setsid(1) nem subreaper, e
+// um `&` no sh não troca de grupo sem job control (que exige tty), por isso o
+// Go. E nada de /bin/sh: no macOS ele se reexecuta como bash/dash/zsh
+// (/private/var/select/sh), e o exec path do kern.procargs2 é o do último
+// exec, não "/bin/sh"; o /bin/sleep não se reexecuta.
 func TestAjudanteOrfao(t *testing.T) {
 	if os.Getenv("HYPHP_TESTE_ORFAO") != "1" {
 		return
 	}
-	cmd := exec.Command("/bin/sh", "-c", "sleep 60 & wait")
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	if err := cmd.Start(); err != nil {
+	lider := exec.Command(sleepExe, "60")
+	lider.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := lider.Start(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	fmt.Printf("pid=%d\n", cmd.Process.Pid)
+	membro := exec.Command(sleepExe, "60")
+	membro.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: lider.Process.Pid}
+	if err := membro.Start(); err != nil {
+		_ = syscall.Kill(-lider.Process.Pid, syscall.SIGKILL)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	fmt.Printf("pid=%d\n", lider.Process.Pid)
 	os.Exit(0)
 }
 
-// iniciarOrfao devolve o pid de um sh órfão (ppid 1) que lidera o próprio
-// grupo, com um sleep filho no mesmo grupo.
+// sleepExe é o executável dos processos dos testes de órfãos.
+const sleepExe = "/bin/sleep"
+
+// iniciarOrfao devolve o pid de um sleep órfão (ppid 1) que lidera o próprio
+// grupo, com outro sleep órfão no mesmo grupo.
 func iniciarOrfao(t *testing.T) int {
 	t.Helper()
 	cmd := exec.Command(os.Args[0], "-test.run=^TestAjudanteOrfao$")
@@ -70,6 +83,28 @@ func iniciarOrfao(t *testing.T) int {
 		time.Sleep(20 * time.Millisecond)
 	}
 	return pid
+}
+
+// sleepSpec é um serviço que é o próprio /bin/sleep, para o exec path do
+// kern.procargs2 ser o que o registro guarda (ver TestAjudanteOrfao).
+func sleepSpec(id string) Spec {
+	return Spec{
+		ID:    id,
+		Name:  id,
+		Group: "teste",
+		Exe:   sleepExe,
+		Args:  []string{"60"},
+		Probe: AliveProbe{Grace: 300 * time.Millisecond},
+	}
+}
+
+// bateria confere que o registro r, sem a alteração que o teste vai fazer,
+// seria encerrado: assim o teste exercita só o critério que ele altera.
+func bateria(t *testing.T, r procRecord) {
+	t.Helper()
+	if ok, why := shouldReap(r, readProcInfo(r.PID)); !ok {
+		t.Fatalf("o registro verdadeiro já não bate (%s); o teste não exercitaria o critério alterado", why)
+	}
 }
 
 // registrarComo grava o registro que o supervisor gravaria para o pid.
@@ -113,7 +148,7 @@ func grupoVivo(t *testing.T, pgid int) bool {
 func TestReapOrphansEncerraOGrupoOrfaoInteiro(t *testing.T) {
 	runDir := t.TempDir()
 	pid := iniciarOrfao(t)
-	registrarComo(t, runDir, "web:apache", pid, "/bin/sh")
+	registrarComo(t, runDir, "web:apache", pid, sleepExe)
 	if !grupoVivo(t, pid) {
 		t.Fatal("o grupo do órfão já nasceu morto")
 	}
@@ -138,7 +173,8 @@ func TestReapOrphansEncerraOGrupoOrfaoInteiro(t *testing.T) {
 func TestReapOrphansComHorarioDiferenteNaoMataEApagaORegistro(t *testing.T) {
 	runDir := t.TempDir()
 	pid := iniciarOrfao(t)
-	r := registrarComo(t, runDir, "web:apache", pid, "/bin/sh")
+	r := registrarComo(t, runDir, "web:apache", pid, sleepExe)
+	bateria(t, r)
 	// Mesmo pid, outro início: é o caso do pid reciclado por outro processo.
 	r.StartSec--
 	if err := writeRecord(runDir, r); err != nil {
@@ -161,7 +197,12 @@ func TestReapOrphansComExeDiferenteNaoMata(t *testing.T) {
 	pid := iniciarOrfao(t)
 	// pid, início, grupo e ppid 1 batem, como num `brew services` com o
 	// mesmo pid; o executável não.
-	registrarComo(t, runDir, "web:apache", pid, "/opt/homebrew/opt/httpd/bin/httpd")
+	r := registrarComo(t, runDir, "web:apache", pid, sleepExe)
+	bateria(t, r)
+	r.Exe = "/opt/homebrew/opt/httpd/bin/httpd"
+	if err := writeRecord(runDir, r); err != nil {
+		t.Fatal(err)
+	}
 
 	if got := ReapOrphans(runDir, nil); len(got) != 0 {
 		t.Fatalf("ReapOrphans = %v, want nada", got)
@@ -175,7 +216,7 @@ func TestReapOrphansPreservaProcessoComPaiVivo(t *testing.T) {
 	runDir := t.TempDir()
 	sup := newTestSupervisor(t)
 	sup.SetRunDir(runDir)
-	spec := longRunningSpec("srv:pai-vivo")
+	spec := sleepSpec("srv:pai-vivo")
 	if err := sup.Add(spec); err != nil {
 		t.Fatal(err)
 	}
@@ -183,8 +224,20 @@ func TestReapOrphansPreservaProcessoComPaiVivo(t *testing.T) {
 		t.Fatal(err)
 	}
 	st, _ := sup.Status(spec.ID)
-	if !registroExiste(t, runDir, spec.ID) {
-		t.Fatal("Start não gravou o registro")
+	data, err := os.ReadFile(recordPath(runDir, spec.ID))
+	if err != nil {
+		t.Fatalf("Start não gravou o registro: %v", err)
+	}
+	var r procRecord
+	if err := json.Unmarshal(data, &r); err != nil {
+		t.Fatal(err)
+	}
+	// O pai vivo tem de ser o único critério que falta: com ppid 1, o mesmo
+	// processo seria encerrado.
+	info := readProcInfo(st.PID)
+	info.ppid = 1
+	if ok, why := shouldReap(r, info); !ok {
+		t.Fatalf("fora o pai, o registro não bate (%s)", why)
 	}
 
 	if got := ReapOrphans(runDir, nil); len(got) != 0 {
@@ -199,7 +252,7 @@ func TestRegistroNasceNoStartESomeNoStop(t *testing.T) {
 	runDir := t.TempDir()
 	sup := newTestSupervisor(t)
 	sup.SetRunDir(runDir)
-	spec := longRunningSpec("srv:registro")
+	spec := sleepSpec("srv:registro")
 	if err := sup.Add(spec); err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +270,7 @@ func TestRegistroNasceNoStartESomeNoStop(t *testing.T) {
 		t.Fatal(err)
 	}
 	info := readProcInfo(st.PID)
-	if r.ID != spec.ID || r.PID != st.PID || r.PGID != st.PID || r.Exe != "/bin/sh" || r.OwnerPID != os.Getpid() ||
+	if r.ID != spec.ID || r.PID != st.PID || r.PGID != st.PID || r.Exe != sleepExe || r.OwnerPID != os.Getpid() ||
 		r.StartSec != info.startSec || r.StartUsec != info.startUsec {
 		t.Fatalf("registro = %+v; processo pid=%d início=%d.%06d", r, st.PID, info.startSec, info.startUsec)
 	}
