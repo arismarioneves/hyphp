@@ -56,11 +56,15 @@ const dialogCancelledMsg = "cancelled by user"
 // PickRoot abre o diálogo nativo de seleção de pasta e devolve o caminho
 // escolhido. Devolve "" quando o usuário cancela.
 func (p *ProjectsService) PickRoot() (string, error) {
-	dir, err := p.app.Dialog.OpenFile().
+	dlg := p.app.Dialog.OpenFile().
 		SetTitle(i18n.T("dialog.pickRoot")).
 		CanChooseDirectories(true).
-		CanChooseFiles(false).
-		PromptForSingleSelection()
+		CanChooseFiles(false)
+	// Pasta inicial por plataforma; vazio mantém o comportamento padrão do SO.
+	if start := defaultRootDir(); start != "" {
+		dlg = dlg.SetDirectory(start)
+	}
+	dir, err := dlg.PromptForSingleSelection()
 	if err != nil {
 		if strings.Contains(err.Error(), dialogCancelledMsg) {
 			return "", nil
