@@ -28,9 +28,19 @@ func newSourceState() sourceState { return sourceState{locate: brew.Locate} }
 // <prefix>/opt e, em bin/, o que vem do catálogo (só o phpMyAdmin no Mac).
 func (r *RuntimesService) scan() ([]runtime.Installed, error) {
 	b, err := r.src.locate(r.ctx)
+	found := err == nil
 	r.mu.Lock()
-	r.src.b, r.src.found = b, err == nil
+	changed := found != r.src.found || b.Prefix != r.src.b.Prefix
+	r.src.b, r.src.found = b, found
 	r.mu.Unlock()
+	if changed {
+		// O watcher precisa passar a observar o <prefix>/opt novo; vale
+		// também para o Rescan da UI, que não passa pelo laço do watcher.
+		select {
+		case r.watchRefresh <- struct{}{}:
+		default:
+		}
+	}
 
 	var list []runtime.Installed
 	var errs []error
