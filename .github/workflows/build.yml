@@ -1,0 +1,45 @@
+# Build de distribuição do HyPHP. Só roda por disparo manual de quem tem
+# escrita no repositório, e cada execução espera a aprovação do dono no
+# environment `release`. Gera o .app como artefato do Actions; não publica
+# nada: a publicação e a assinatura do latest.json são locais (hyphp-release).
+name: build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    runs-on: macos-15
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # O wails3 da mesma versão do go.mod: o gerador de bindings precisa
+      # casar com o runtime embutido no app.
+      - name: wails3
+        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
+      - name: package
+        run: wails3 task darwin:package
+      - name: conferir
+        run: |
+          codesign --verify --deep --strict --verbose=2 bin/HyPHP.app
+          test -x bin/HyPHP.app/Contents/Helpers/hyphp
+          bin/HyPHP.app/Contents/Helpers/hyphp version
+          git diff --exit-code go.mod go.sum
+      - name: zip
+        run: ditto -c -k --keepParent bin/HyPHP.app HyPHP-darwin-arm64.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HyPHP-darwin-arm64-${{ github.sha }}
+          path: HyPHP-darwin-arm64.zip
+          retention-days: 7
