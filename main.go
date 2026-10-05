@@ -340,7 +340,7 @@ func main() {
 	app.RegisterService(application.NewService(dbSvc))
 	app.RegisterService(application.NewService(services.NewUpdateService(upd, app.Quit)))
 	// A CLI (cmd/hyphp) fala com o app pelo pipe do usuário e roda os mesmos
-	// serviços que a UI; o hyphp.exe dela mora em cli\ ao lado do app.
+	// serviços que a UI; cliExe diz onde o binário dela mora em cada sistema.
 	exe, _ := os.Executable()
 	app.RegisterService(application.NewService(services.NewCLIService(services.CLIDeps{
 		App: appSvc, Services: svcSvc, Projects: projSvc, Runtimes: rtSvc, Settings: setSvc, Database: dbSvc, Sup: sup,
@@ -353,7 +353,7 @@ func main() {
 		},
 		Emit:   emit,
 		Logger: logger,
-		Exe:    filepath.Join(filepath.Dir(exe), "cli", sysproc.ExeName("hyphp")),
+		Exe:    cliExe(exe),
 	})))
 	services.RegisterLogStreams(app, sup)
 	stopFwd = services.ForwardServiceEvents(app, sup)
