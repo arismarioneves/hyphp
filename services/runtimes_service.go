@@ -62,6 +62,10 @@ type RuntimesService struct {
 	builtinModules func(ctx context.Context, inst runtime.Installed) ([]string, error)
 
 	src sourceState // estado da fonte de runtimes por SO (Homebrew no Mac); sob mu
+	// watchRefresh avisa o watcher que as pastas extras mudaram (Homebrew
+	// achado ou prefixo trocado). Buffer 1 com envio não bloqueante: vários
+	// avisos seguidos viram uma releitura só. No Windows nunca recebe nada.
+	watchRefresh chan struct{}
 }
 
 func NewRuntimesService(d RuntimesDeps) *RuntimesService {
@@ -72,7 +76,7 @@ func NewRuntimesService(d RuntimesDeps) *RuntimesService {
 	return &RuntimesService{
 		d: d, installing: map[string]context.CancelFunc{}, ctx: context.Background(),
 		iniBuiltins: runtime.PHPIniBuiltins, iniKnows: runtime.PHPIniKnows, builtinModules: runtime.BuiltinModules,
-		src: newSourceState(),
+		src: newSourceState(), watchRefresh: make(chan struct{}, 1),
 	}
 }
 
@@ -498,14 +502,13 @@ func (r *RuntimesService) watchBin(ctx context.Context) {
 				return
 			}
 			r.d.Logger.Warn("runtimes: watcher", "err", err)
+		case <-r.watchRefresh:
+			addWatches()
 		case <-fire:
 			timer, fire = nil, nil
 			if err := r.Rescan(); err != nil {
 				r.d.Logger.Warn("runtimes: varredura após mudança em bin/", "err", err)
 			}
-			// O Rescan pode ter achado o Homebrew agora (instalado com o app
-			// aberto); Add é idempotente, então reaplicar é barato.
-			addWatches()
 		}
 	}
 }

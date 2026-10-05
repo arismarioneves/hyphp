@@ -70,3 +70,42 @@ func TestSemHomebrewInstallRecusaEStatusTrazComando(t *testing.T) {
 		t.Fatalf("Homebrew() = %+v; quer %+v", got, want)
 	}
 }
+
+// Homebrew instalado com o app aberto: o "Verificar de novo" (Rescan da UI)
+// precisa avisar o watcher para ele passar a observar <prefix>/opt. Sem
+// mudança no Homebrew, nenhum aviso.
+func TestRescanAvisaWatcherQuandoHomebrewAparece(t *testing.T) {
+	prefix := t.TempDir()
+	achado := false
+	r := servicoComBrew(t, func(context.Context) (brew.Brew, error) {
+		if !achado {
+			return brew.Brew{}, brew.ErrNotFound
+		}
+		return brew.Brew{Exe: filepath.Join(prefix, "bin", "brew"), Prefix: prefix}, nil
+	})
+	avisou := func() bool {
+		select {
+		case <-r.watchRefresh:
+			return true
+		default:
+			return false
+		}
+	}
+
+	_ = r.Rescan()
+	if avisou() {
+		t.Fatal("aviso ao watcher sem Homebrew")
+	}
+	achado = true
+	_ = r.Rescan()
+	if !avisou() {
+		t.Fatal("Homebrew apareceu e o watcher não foi avisado")
+	}
+	if got, want := r.extraWatchDirs(), []string{filepath.Join(prefix, "opt")}; len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("extraWatchDirs = %q; quer %q", got, want)
+	}
+	_ = r.Rescan()
+	if avisou() {
+		t.Fatal("aviso repetido sem mudança no Homebrew")
+	}
+}
