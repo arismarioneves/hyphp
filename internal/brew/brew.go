@@ -119,6 +119,13 @@ func (b Brew) Scan(ctx context.Context) ([]runtime.Installed, error) {
 				errs = append(errs, err)
 				continue
 			}
+			// opt/php é o keg do php "sem versão": hoje é a 8.5, mas segue a
+			// próxima série (do core ou do tap). Pasta que não é o nome curto só
+			// entra se a série detectada bate com a da fórmula; senão um 8.6
+			// ganharia Formula php@8.5 e remover desinstalaria outro keg.
+			if name != f.Short() && f.Series != "" && runtime.MajorOf(inst.Version) != f.Series {
+				continue
+			}
 			inst.Formula = f.Name
 			inst.Prefix = b.Prefix
 			list = append(list, inst)

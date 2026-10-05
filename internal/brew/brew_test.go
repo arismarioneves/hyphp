@@ -79,16 +79,47 @@ func symlinkOuPula(t *testing.T, alvo, link string) {
 	}
 }
 
-func TestScanNoPrefixoFalso(t *testing.T) {
-	prefix := t.TempDir()
-	keg := func(nome, versao string) string {
+// prefixoFalso monta um <prefix> do Homebrew em t.TempDir(): keg cria
+// Cellar/<nome>/<versao> e opt devolve o caminho opt/<nome>.
+func prefixoFalso(t *testing.T) (prefix string, keg func(nome, versao string) string, opt func(nome string) string) {
+	t.Helper()
+	prefix = t.TempDir()
+	keg = func(nome, versao string) string {
 		d := filepath.Join(prefix, "Cellar", nome, versao)
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		return d
 	}
-	opt := func(nome string) string { return filepath.Join(prefix, "opt", nome) }
+	opt = func(nome string) string { return filepath.Join(prefix, "opt", nome) }
+	return prefix, keg, opt
+}
+
+// trocaDetect substitui a detecção por versões fixas por pasta opt/. Major
+// segue o contrato real de runtime.Detect: série X.Y só no PHP; nos outros
+// kinds é a versão inteira (ver detect_apache.go). Devolve as pastas vistas.
+func trocaDetect(t *testing.T, versoes map[string]string) *[]string {
+	t.Helper()
+	orig := detect
+	t.Cleanup(func() { detect = orig })
+	vistos := &[]string{}
+	detect = func(kind runtime.Kind, dir string) (runtime.Installed, error) {
+		*vistos = append(*vistos, dir)
+		v, ok := versoes[filepath.Base(dir)]
+		if !ok {
+			return runtime.Installed{}, fmt.Errorf("runtime: %s não roda", dir)
+		}
+		major := v
+		if kind == runtime.PHP {
+			major = runtime.MajorOf(v)
+		}
+		return runtime.Installed{Kind: kind, Version: v, Major: major, Dir: dir}, nil
+	}
+	return vistos
+}
+
+func TestScanNoPrefixoFalso(t *testing.T) {
+	prefix, keg, opt := prefixoFalso(t)
 
 	symlinkOuPula(t, keg("php@8.3", "8.3.20"), opt("php@8.3"))
 	php := keg("php", "8.5.1")
@@ -100,32 +131,42 @@ func TestScanNoPrefixoFalso(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	versoes := map[string]string{"php@8.3": "8.3.20", "php@8.5": "8.5.1", "php": "8.5.1", "httpd": "2.4.65"}
-	orig := detect
-	t.Cleanup(func() { detect = orig })
-	var vistos []string
-	detect = func(kind runtime.Kind, dir string) (runtime.Installed, error) {
-		vistos = append(vistos, dir)
-		v, ok := versoes[filepath.Base(dir)]
-		if !ok {
-			return runtime.Installed{}, fmt.Errorf("runtime: %s não roda", dir)
-		}
-		return runtime.Installed{Kind: kind, Version: v, Major: runtime.MajorOf(v), Dir: dir}, nil
-	}
+	vistos := trocaDetect(t, map[string]string{"php@8.3": "8.3.20", "php@8.5": "8.5.1", "php": "8.5.1", "httpd": "2.4.65"})
 
 	got, err := Brew{Exe: filepath.Join(prefix, "bin", "brew"), Prefix: prefix}.Scan(context.Background())
 	if err == nil || !strings.Contains(err.Error(), "nginx") {
 		t.Errorf("erro = %v, quer a falha de detecção do nginx", err)
 	}
-	for _, d := range vistos {
+	for _, d := range *vistos {
 		if strings.Contains(d, "Cellar") {
 			t.Errorf("detect recebeu o caminho do Cellar %s; deve receber o opt/", d)
 		}
 	}
+
 	want := []runtime.Installed{
 		{Kind: runtime.PHP, Version: "8.5.1", Major: "8.5", Dir: opt("php@8.5"), Formula: "shivammathur/php/php@8.5", Prefix: prefix},
 		{Kind: runtime.PHP, Version: "8.3.20", Major: "8.3", Dir: opt("php@8.3"), Formula: "shivammathur/php/php@8.3", Prefix: prefix},
 		{Kind: runtime.Apache, Version: "2.4.65", Major: "2.4.65", Dir: opt("httpd"), Formula: "httpd", Prefix: prefix},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Scan =\n%+v\nquer\n%+v", got, want)
+	}
+}
+
+func TestScanIgnoraAliasDeOutraSerie(t *testing.T) {
+	prefix, keg, opt := prefixoFalso(t)
+
+	// O php "sem versão" já virou 8.6; a 8.5 continua no próprio keg.
+	symlinkOuPula(t, keg("php@8.5", "8.5.1"), opt("php@8.5"))
+	symlinkOuPula(t, keg("php", "8.6.0"), opt("php"))
+	trocaDetect(t, map[string]string{"php@8.5": "8.5.1", "php": "8.6.0"})
+
+	got, err := Brew{Exe: filepath.Join(prefix, "bin", "brew"), Prefix: prefix}.Scan(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []runtime.Installed{
+		{Kind: runtime.PHP, Version: "8.5.1", Major: "8.5", Dir: opt("php@8.5"), Formula: "shivammathur/php/php@8.5", Prefix: prefix},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Scan =\n%+v\nquer\n%+v", got, want)
