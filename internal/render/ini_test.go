@@ -150,8 +150,10 @@ func TestRenderPHPIniRecusaNomeInvalidoDoUsuario(t *testing.T) {
 	}
 }
 
+// Os sockets do MySQL só são gerenciados no macOS (phpini_darwin_test.go e
+// ini_windows_test.go); aqui fica o que vale nos dois SOs.
 func TestIsManagedIniDirective(t *testing.T) {
-	for _, n := range []string{"extension_dir", "extension", "zend_extension", "error_log", "sys_temp_dir", "upload_tmp_dir", "session.save_path", "SMTP", "smtp", "smtp_port", "sendmail_from", "sendmail_path", "mail.add_x_header", "cgi.fix_pathinfo", "cgi.force_redirect", "cgi.rfc2616_headers", "fastcgi.impersonate", "user_ini.filename", "mysqli.default_socket", "pdo_mysql.default_socket", "mysql.default_socket"} {
+	for _, n := range []string{"extension_dir", "extension", "zend_extension", "error_log", "sys_temp_dir", "upload_tmp_dir", "session.save_path", "SMTP", "smtp", "smtp_port", "sendmail_from", "sendmail_path", "mail.add_x_header", "cgi.fix_pathinfo", "cgi.force_redirect", "cgi.rfc2616_headers", "fastcgi.impersonate", "user_ini.filename"} {
 		if !IsManagedIniDirective(n) {
 			t.Errorf("%s devia ser gerenciada", n)
 		}
@@ -204,23 +206,10 @@ func TestPHPIniSendmailEMySQLSocket(t *testing.T) {
 	}
 }
 
-func TestRenderMyIniGolden(t *testing.T) {
-	got := RenderMyIni(3306, "C:/hyphp/bin/mysql/mysql-8.0.30-winx64", "C:/hyphp/var/mysql", "C:/hyphp/log", true, false)
-	checkGolden(t, "my.ini.golden", got)
-}
-
-// O MariaDB recusa opção desconhecida: com `mysqlx` no arquivo ele nem sobe.
-// O resto (skip-log-bin, bind-address com dois endereços) foi conferido num
-// MariaDB 10.11.19 e num 12.3.3 reais.
-func TestRenderMyIniMariaDBGolden(t *testing.T) {
-	got := RenderMyIni(3306, "C:/hyphp/bin/mariadb/mariadb-11.4.13-winx64", "C:/hyphp/var/mariadb-data", "C:/hyphp/log", true, true)
-	checkGolden(t, "my.ini.mariadb.golden", got)
-}
-
 // Sem ::1 na máquina o mysqld aborta ao não conseguir escutar num dos
 // endereços da lista; aí só o IPv4 pode ir para o bind-address.
 func TestRenderMyIniSemIPv6(t *testing.T) {
-	got := string(RenderMyIni(3306, "C:/m", "C:/d", "C:/l", false, false))
+	got := string(RenderMyIni(3306, "C:/m", "C:/d", "C:/l", "", false, false))
 	if !strings.Contains(got, "\nbind-address = 127.0.0.1\n") {
 		t.Fatalf("bind-address devia ser só 127.0.0.1:\n%s", got)
 	}

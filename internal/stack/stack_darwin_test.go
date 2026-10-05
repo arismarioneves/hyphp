@@ -1,6 +1,8 @@
 package stack
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -103,7 +105,72 @@ func TestSendmailNoMac(t *testing.T) {
 	if got := phpSendmail(nil, 1026); got != "/usr/bin/false" {
 		t.Fatalf("sem Mailpit sendmail = %q, want /usr/bin/false", got)
 	}
-	if got, want := phpMySQLSocket("/Users/dev/Library/Application Support/HyPHP/var"), "/Users/dev/Library/Application Support/HyPHP/var/run/mysql.sock"; got != want {
+	if got, want := mysqlSocket("/Users/dev/Library/Application Support/HyPHP/var"), "/Users/dev/Library/Application Support/HyPHP/var/run/mysql.sock"; got != want {
 		t.Fatalf("socket = %q, want %q", got, want)
+	}
+}
+
+// No Mac o --console (só do Windows) sai do servidor e do init do MySQL: sem
+// log-error no my.ini o mysqld escreve no stderr, que o supervisor grava no
+// log/mysql.log e o init grava no mysql-init.log. --defaults-file continua
+// primeiro para o /opt/homebrew/etc/my.cnf ficar de fora.
+func TestArgsDoMySQLNoMac(t *testing.T) {
+	dir := "/opt/homebrew/opt/mysql@8.4"
+	inst := runtime.Installed{Kind: runtime.MySQL, Version: "8.4.6", Major: "8.4.6", Dir: dir, Exe: dir + "/bin/mysqld"}
+	in := baseInput()
+	in.Runtimes = append(in.Runtimes, inst)
+	in.EtcDir = "/Users/dev/hy/etc"
+	sp, ok := mysqlSpec(in)
+	if !ok {
+		t.Fatal("esperava spec mysql")
+	}
+	ini := "/Users/dev/hy/etc/mysql/my.ini"
+	if want := []string{"--defaults-file=" + ini}; !reflect.DeepEqual(sp.Args, want) {
+		t.Fatalf("Args = %q, want %q", sp.Args, want)
+	}
+
+	exe, args := dbInits[runtime.MySQL].cmd(inst, "/Users/dev/hy/etc", "/Users/dev/hy/var/mysql-data")
+	if exe != dir+"/bin/mysqld" {
+		t.Fatalf("init exe = %q", exe)
+	}
+	if want := []string{"--defaults-file=" + ini, "--initialize-insecure"}; !reflect.DeepEqual(args, want) {
+		t.Fatalf("init args = %q, want %q", args, want)
+	}
+}
+
+// O mariadb-install-db do Unix é um script: --no-defaults para não ler o
+// my.cnf do Homebrew, --basedir no keg (como no teste do próprio Homebrew) e
+// autenticação normal para o root@localhost ter senha vazia em vez do
+// unix_socket — o HyPHP (mysqlcli, phpMyAdmin) entra como root por TCP.
+func TestInitDoMariaDBNoMac(t *testing.T) {
+	dir := "/opt/homebrew/opt/mariadb@11.4"
+	inst := runtime.Installed{Kind: runtime.MariaDB, Version: "11.4.8", Major: "11.4.8", Dir: dir, Exe: dir + "/bin/mariadbd"}
+	data := "/Users/dev/Library/Application Support/HyPHP/var/mariadb-data"
+	exe, args := dbInits[runtime.MariaDB].cmd(inst, "/Users/dev/hy/etc", data)
+	if exe != dir+"/bin/mariadb-install-db" {
+		t.Fatalf("init exe = %q", exe)
+	}
+	want := []string{"--no-defaults", "--basedir=" + dir, "--datadir=" + data, "--auth-root-authentication-method=normal", "--skip-test-db"}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("init args = %q, want %q", args, want)
+	}
+}
+
+// O my.ini e o php.ini apontam para o mesmo socket: se divergissem,
+// host=localhost no PHP cairia num socket que ninguém escuta.
+func TestMyIniUsaOSocketDoPHPIni(t *testing.T) {
+	root := t.TempDir()
+	etc, varDir, logDir := filepath.Join(root, "etc"), filepath.Join(root, "var"), filepath.Join(root, "log")
+	inst := runtime.Installed{Kind: runtime.MySQL, Version: "8.4.6", Major: "8.4.6", Dir: "/opt/homebrew/opt/mysql@8.4"}
+	if _, err := WriteMyIni(inst, 3306, etc, varDir, logDir); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(MyIniPath(etc))
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := "\nsocket = \"" + mysqlSocket(varDir) + "\"\n"
+	if n := strings.Count(string(b), line); n != 2 {
+		t.Fatalf("socket do php.ini saiu %d vezes no my.ini, want 2:\n%s", n, b)
 	}
 }

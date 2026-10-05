@@ -1,0 +1,20 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/render/myini.go — reescrito a cada Reconcile.
+
+[mysqld]
+port = 3306
+basedir = "/opt/homebrew/opt/mysql@8.4"
+datadir = "/Users/dev/Library/Application Support/HyPHP/var/mysql-data"
+socket = "/Users/dev/Library/Application Support/HyPHP/var/run/mysql.sock"
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+max_connections = 100
+open_files_limit = 4096
+innodb_buffer_pool_size = 128M
+skip-log-bin
+bind-address = 127.0.0.1,::1
+mysqlx = OFF
+
+[client]
+port = 3306
+socket = "/Users/dev/Library/Application Support/HyPHP/var/run/mysql.sock"
