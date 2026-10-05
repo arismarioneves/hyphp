@@ -23,7 +23,6 @@ import (
 	"hyphp/internal/stack"
 	"hyphp/internal/state"
 	"hyphp/internal/supervisor"
-	"hyphp/internal/sysproc"
 	"hyphp/internal/update"
 	"hyphp/internal/version"
 	"hyphp/internal/webserver"
@@ -226,7 +225,7 @@ func main() {
 			// não tinha efeito nenhum até reiniciar: o mapa continuava o do boot
 			// e o aviso "não encontrado" persistia com o runtime já instalado.
 			stk.SetWebServers(webServers(list))
-			stk.SetMkcert(newMkcert(logger))
+			stk.SetMkcert(newMkcert(logger, list))
 			reconcile("runtime:changed")
 		},
 		StopUsing: func(dir string) error {
@@ -243,7 +242,7 @@ func main() {
 
 	// hyphp: 06 — web servers e mkcert disponíveis (só os instalados em bin/)
 	web := webServers(rts)
-	mk := newMkcert(logger)
+	mk := newMkcert(logger, rts)
 
 	// hyphp: 06 — stack + projetos
 	stk = stack.New(stack.Deps{
@@ -521,10 +520,16 @@ func webServers(rts []runtime.Installed) map[state.WebServerName]webserver.WebSe
 	return web
 }
 
-// newMkcert resolve o mkcert em bin/. Ausente não é erro: os sites ficam só em
-// HTTP e o Reconcile emite tls-unavailable.
-func newMkcert(logger *slog.Logger) netcfg.Mkcert {
-	mk, err := netcfg.NewMkcert(filepath.Join(paths.Bin(), "mkcert", sysproc.ExeName("mkcert")), filepath.Join(paths.Var(), "certs"))
+// newMkcert usa o mkcert da varredura: bin/mkcert/mkcert.exe no Windows (o
+// mesmo caminho de antes) e o keg opt/mkcert do Homebrew no Mac. Ausente não
+// é erro: os sites ficam só em HTTP e o Reconcile emite tls-unavailable.
+func newMkcert(logger *slog.Logger, list []runtime.Installed) netcfg.Mkcert {
+	inst, ok := runtime.Newest(list, runtime.Mkcert)
+	if !ok {
+		logger.Warn("mkcert indisponível; sites sem TLS", "err", "mkcert não instalado")
+		return netcfg.Mkcert{}
+	}
+	mk, err := netcfg.NewMkcert(inst.Exe, filepath.Join(paths.Var(), "certs"))
 	if err != nil {
 		logger.Warn("mkcert indisponível; sites sem TLS", "err", err)
 		return netcfg.Mkcert{}

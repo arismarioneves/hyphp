@@ -17,7 +17,7 @@ import * as runtime$0 from "../internal/runtime/models.js";
 import * as $models from "./models.js";
 
 /**
- * Available devolve os pacotes do catálogo cuja (Kind, Version) não está instalada.
+ * Available devolve o que pode ser instalado e ainda não está (regra por SO).
  */
 export function Available(): $CancellablePromise<pkgmgr$0.Package[] | null> {
     return $Call.ByID(2942582160);
@@ -41,6 +41,14 @@ export function Extensions(major: string): $CancellablePromise<runtime$0.Extensi
 }
 
 /**
+ * Homebrew: no Windows não há Homebrew; Supported=false também serve de
+ * sinal de plataforma para a UI.
+ */
+export function Homebrew(): $CancellablePromise<$models.BrewStatus> {
+    return $Call.ByID(2204808798);
+}
+
+/**
  * ImportFrom copia para bin/ toda build reconhecível sob dir. Quem já tem PHP,
  * Apache ou MySQL na máquina não precisa rebaixar centenas de megabytes.
  */
@@ -58,7 +66,7 @@ export function IniSettings(major: string): $CancellablePromise<$models.IniSetti
 }
 
 /**
- * Install dispara o download em goroutine. Progresso vai por download:progress;
+ * Install dispara a instalação em goroutine. Progresso vai por download:progress;
  * ao terminar (com ou sem erro) faz Rescan, que emite runtime:changed.
  */
 export function Install(packageID: string): $CancellablePromise<void> {
@@ -91,7 +99,7 @@ export function Remove(kind: string, version: string): $CancellablePromise<void>
 }
 
 /**
- * Rescan varre bin/, atualiza o cache e notifica (runtime:changed + OnChange).
+ * Rescan varre as fontes do SO, atualiza o cache e notifica (runtime:changed + OnChange).
  * Falhas parciais de detecção voltam no erro, mas o cache é atualizado mesmo assim.
  */
 export function Rescan(): $CancellablePromise<void> {

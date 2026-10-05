@@ -23,6 +23,7 @@ export {
 };
 
 export type {
+    BrewStatus,
     CLIActivity,
     CLICommand,
     CLIInfo,

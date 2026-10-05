@@ -27,3 +27,12 @@ func TestArquiteturaDoPHPNoWindows(t *testing.T) {
 		t.Fatalf("phpArch(4) = %q", got)
 	}
 }
+
+// O zip do php.net sempre traz ext/: sem a pasta a build está quebrada, e o
+// painel precisa mostrar o erro em vez de uma lista só de embutidos.
+func TestListaSemPastaExtEhErro(t *testing.T) {
+	dir := t.TempDir()
+	if _, err := ListExtensions(Installed{Kind: PHP, Dir: dir, ExtDir: filepath.Join(dir, "ext")}, nil, []string{"core"}); err == nil {
+		t.Fatal("ListExtensions sem ext/ devolveu nil; quer erro")
+	}
+}

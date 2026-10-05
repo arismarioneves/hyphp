@@ -8,6 +8,15 @@ import (
 	"hyphp/internal/runtime"
 )
 
+// No Windows não há Homebrew: Supported=false é o que esconde o banner e os
+// rótulos de brew na UI.
+func TestHomebrewNaoSuportadoNoWindows(t *testing.T) {
+	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir()})
+	if got := r.Homebrew(); got != (BrewStatus{}) {
+		t.Fatalf("Homebrew() = %+v; quer Supported=false e o resto vazio", got)
+	}
+}
+
 // Importar aceita tanto a pasta da build quanto uma pasta que contém várias
 // builds — que é como o Laragon e o XAMPP guardam (bin/php/php-8.1.10/...).
 func TestImportFromCopiaBuildReconhecida(t *testing.T) {
