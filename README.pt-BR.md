@@ -177,10 +177,13 @@ desenvolvimento (sem `-tags production`) não participam.
 
 ### Publicar uma versão
 
-A versão vive em quatro lugares, que o `hyphp-release` confere antes de
+A versão vive em cinco lugares, que o `hyphp-release` confere antes de
 publicar: `internal/version/version.go`, `info.version` em `build/config.yml`,
-`build/windows/info.json` e `INFO_PRODUCTVERSION` em
-`build/windows/nsis/wails_tools.nsh`. Com a tag `v<versão>` já no GitHub:
+`build/windows/info.json`, `INFO_PRODUCTVERSION` em
+`build/windows/nsis/wails_tools.nsh` e `CFBundleShortVersionString`/`CFBundleVersion` em
+`build/darwin/Info.plist` (suba também o `build/darwin/Info.dev.plist`, que não é conferido).
+Os plists do macOS são editados à mão: não rode `wails3 task common:update:build-assets`.
+Com a tag `v<versão>` já no GitHub:
 
 ```powershell
 wails3 task windows:package

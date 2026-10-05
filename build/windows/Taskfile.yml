@@ -15,6 +15,14 @@ vars:
   CROSS_IMAGE: wails-cross
 
 tasks:
+  dev:deps:
+    summary: Builds what `wails3 dev` needs on Windows (helper + CLI)
+    cmds:
+      # O helper elevado e a CLI não saem do build do dev mode; precisam estar
+      # prontos antes do `wails3 dev`.
+      - task: build:helper
+      - task: build:cli
+
   build:
     summary: Builds the application for Windows
     cmds:

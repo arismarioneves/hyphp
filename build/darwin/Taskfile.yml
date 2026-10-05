@@ -11,6 +11,12 @@ vars:
   BUNDLE_NAME: HyPHP
 
 tasks:
+  dev:deps:
+    summary: Builds what `wails3 dev` needs on macOS (CLI)
+    cmds:
+      # No macOS não há helper elevado; só a CLI, que vai para o bundle de dev.
+      - task: build:cli
+
   build:
     summary: Builds the application
     cmds:
@@ -211,6 +217,9 @@ tasks:
   run:
     # Bundle de desenvolvimento com nome e bundle id próprios (Info.dev.plist),
     # para não colidir no Launch Services com o HyPHP.app instalado.
+    # O `wails3 dev` só roda `wails3 build DEV=true` + esta task, sem compilar a
+    # CLI; o deps garante bin/cli/hyphp antes do cp num checkout novo.
+    deps: [build:cli]
     cmds:
       - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/MacOS"
       - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Resources"
