@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 	<dict>
+		<key>CFBundleDevelopmentRegion</key>
+		<string>en</string>
 		<key>CFBundleExecutable</key>
 		<string>hyphp</string>
 		<key>CFBundleGetInfoString</key>
@@ -11,22 +13,28 @@
 		<key>CFBundleIconName</key>
 		<string>appicon</string>
 		<key>CFBundleIdentifier</key>
-		<string>com.hyphp</string>
+		<string>com.hyphp.dev</string>
 		<key>CFBundleName</key>
-		<string>HyPHP</string>
+		<string>HyPHP Dev</string>
 		<key>CFBundlePackageType</key>
 		<string>APPL</string>
 		<key>CFBundleShortVersionString</key>
-		<string>0.1.0</string>
+		<string>3.0.1</string>
 		<key>CFBundleVersion</key>
-		<string>0.1.0</string>
+		<string>3.0.1</string>
 		<key>LSMinimumSystemVersion</key>
-		<string>12.0.0</string>
+		<string>15.0</string>
 		<key>NSAppTransportSecurity</key>
 		<dict>
 			<key>NSAllowsLocalNetworking</key>
 			<true/>
 		</dict>
+		<key>NSDesktopFolderUsageDescription</key>
+		<string>HyPHP and its web server read the projects you keep in this folder.</string>
+		<key>NSDocumentsFolderUsageDescription</key>
+		<string>HyPHP and its web server read the projects you keep in this folder.</string>
+		<key>NSDownloadsFolderUsageDescription</key>
+		<string>HyPHP and its web server read the projects you keep in this folder.</string>
 		<key>NSHighResolutionCapable</key>
 		<string>true</string>
 		<key>NSHumanReadableCopyright</key>
