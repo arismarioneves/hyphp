@@ -1,5 +1,5 @@
 // Package apache implementa webserver.WebServer sobre o Apache HTTP Server
-// (build Apache Lounge para Windows), falando com os pools de php-cgi por
+// (Apache Lounge no Windows, Homebrew no Mac), falando com os pools PHP por
 // mod_proxy_fcgi + mod_proxy_balancer. Nunca mod_php, nunca mod_fcgid
 // (spec §6.1).
 package apache
@@ -42,10 +42,15 @@ func New(inst runtime.Installed) webserver.WebServer { return server{inst: inst}
 func (s server) Name() state.WebServerName { return state.Apache }
 
 type confData struct {
-	ServerRoot string
-	LogDir     string
-	Ports      webserver.Ports
-	Tool       *webserver.Tool // nil quando nenhuma ferramenta está instalada
+	ServerRoot  string
+	LogDir      string
+	Ports       webserver.Ports
+	Tool        *webserver.Tool // nil quando nenhuma ferramenta está instalada
+	ModulesDir  string
+	MPMModules  []string
+	TypesConfig string
+	DriveFix    bool
+	RuntimeDir  bool
 }
 
 type toolData struct {
@@ -69,7 +74,11 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 
 	files := make(map[string][]byte, len(sites)+3)
 
-	main, err := render("httpd.conf.tmpl", confData{ServerRoot: root, LogDir: log, Ports: ports, Tool: tool})
+	main, err := render("httpd.conf.tmpl", confData{
+		ServerRoot: root, LogDir: log, Ports: ports, Tool: tool,
+		ModulesDir: plat.ModulesDir, MPMModules: plat.MPMModules, TypesConfig: plat.TypesConfig(s.inst),
+		DriveFix: plat.DriveFix, RuntimeDir: plat.RuntimeDir,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -156,6 +165,11 @@ func (s server) command(etcDir string, test bool) (string, []string, string) {
 		"-d", hrender.SlashDir(s.inst.Dir),
 		"-C", "Define "+etcVar+" \""+etc+"\"",
 	)
+	if !test {
+		// Só o processo que fica no ar precisa de primeiro plano; o -t valida
+		// e sai, e assim mantém a mesma linha de comando nos dois SOs.
+		args = append(args, plat.ExtraArgs...)
+	}
 	return s.inst.Exe, args, s.inst.Dir
 }
 

@@ -1,0 +1,87 @@
+# Gerado pelo HyPHP — não editar à mão.
+# Fonte: internal/webserver/apache/templates/httpd.conf.tmpl
+#
+# RELOCÁVEL: o diretório de configuração NÃO aparece literalmente aqui. Ele
+# entra por -C "Define HYPHP_ETC <dir>" na linha de comando, o que permite ao
+# stack renderizar em etc/apache.next, validar lá e só então promover.
+
+ServerRoot "/opt/homebrew/opt/httpd"
+
+Listen 8080
+Listen 8443
+
+LoadModule mpm_event_module lib/httpd/modules/mod_mpm_event.so
+LoadModule unixd_module lib/httpd/modules/mod_unixd.so
+LoadModule authn_core_module lib/httpd/modules/mod_authn_core.so
+LoadModule authz_core_module lib/httpd/modules/mod_authz_core.so
+LoadModule authz_host_module lib/httpd/modules/mod_authz_host.so
+LoadModule access_compat_module lib/httpd/modules/mod_access_compat.so
+LoadModule alias_module lib/httpd/modules/mod_alias.so
+LoadModule dir_module lib/httpd/modules/mod_dir.so
+LoadModule mime_module lib/httpd/modules/mod_mime.so
+LoadModule log_config_module lib/httpd/modules/mod_log_config.so
+LoadModule rewrite_module lib/httpd/modules/mod_rewrite.so
+LoadModule headers_module lib/httpd/modules/mod_headers.so
+LoadModule setenvif_module lib/httpd/modules/mod_setenvif.so
+LoadModule env_module lib/httpd/modules/mod_env.so
+LoadModule proxy_module lib/httpd/modules/mod_proxy.so
+LoadModule proxy_fcgi_module lib/httpd/modules/mod_proxy_fcgi.so
+LoadModule proxy_balancer_module lib/httpd/modules/mod_proxy_balancer.so
+LoadModule slotmem_shm_module lib/httpd/modules/mod_slotmem_shm.so
+LoadModule lbmethod_bybusyness_module lib/httpd/modules/mod_lbmethod_bybusyness.so
+LoadModule socache_shmcb_module lib/httpd/modules/mod_socache_shmcb.so
+LoadModule ssl_module lib/httpd/modules/mod_ssl.so
+
+ServerName localhost
+ServerAdmin dev@localhost
+ServerSignature Off
+ServerTokens Prod
+
+# Fica em log/ e NÃO em ${HYPHP_ETC}: arquivo de runtime dentro do etcDir seria
+# apagado por render.WriteFiles no Reconcile seguinte — com o httpd vivo
+# segurando o handle, a remoção falharia e derrubaria o Reconcile inteiro.
+PidFile "/Users/joao/Library/Application Support/HyPHP/log/httpd.pid"
+# Mutexes e afins iriam para <prefix>/var/run do Homebrew, compartilhado com
+# o httpd do brew services. Aspas porque o log fica em "Application Support".
+DefaultRuntimeDir "/Users/joao/Library/Application Support/HyPHP/log"
+Mutex "file:/Users/joao/Library/Application Support/HyPHP/log" default
+
+TypesConfig "/opt/homebrew/etc/httpd/mime.types"
+DirectoryIndex index.php index.html
+
+<Directory />
+    AllowOverride None
+    Require all denied
+</Directory>
+
+LogFormat "%h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-Agent}i\"" combined
+LogFormat "%h %l %u %t \"%r\" %>s %b" common
+ErrorLog "/Users/joao/Library/Application Support/HyPHP/log/apache-error.log"
+CustomLog "/Users/joao/Library/Application Support/HyPHP/log/apache-access.log" combined
+LogLevel warn
+
+<IfModule ssl_module>
+    SSLRandomSeed startup builtin
+    SSLRandomSeed connect builtin
+    SSLSessionCache "shmcb:/Users/joao/Library/Application Support/HyPHP/log/apache-ssl-scache(512000)"
+</IfModule>
+
+Include "${HYPHP_ETC}/pools.conf"
+
+# Primeiro vhost da porta = host default do Apache. Responde por qualquer
+# domínio que não casa com nenhum projeto.
+<VirtualHost *:8080>
+    ServerName hyphp.default
+    DocumentRoot "${HYPHP_ETC}/default"
+    DirectoryIndex index.html
+    <Directory "${HYPHP_ETC}/default">
+        Require all granted
+        Options -Indexes
+        AllowOverride None
+    </Directory>
+    ErrorLog "/Users/joao/Library/Application Support/HyPHP/log/apache-default-error.log"
+    CustomLog "/Users/joao/Library/Application Support/HyPHP/log/apache-default-access.log" combined
+</VirtualHost>
+
+IncludeOptional "${HYPHP_ETC}/vhosts/*.conf"
+IncludeOptional "${HYPHP_ETC}/tools/*.conf"

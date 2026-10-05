@@ -1,5 +1,5 @@
-// Package nginx implementa webserver.WebServer sobre o nginx para Windows,
-// falando com os mesmos pools de php-cgi que o Apache usa (spec §6.7).
+// Package nginx implementa webserver.WebServer sobre o nginx (Windows e
+// Homebrew), falando com os mesmos pools PHP que o Apache usa (spec §6.7).
 package nginx
 
 import (
@@ -34,10 +34,12 @@ func New(inst runtime.Installed) webserver.WebServer { return server{inst: inst}
 func (s server) Name() state.WebServerName { return state.Nginx }
 
 type confData struct {
-	ServerRoot  string
-	LogDir      string
-	Ports       webserver.Ports
-	NamesBucket int
+	ConfDir      string
+	LogDir       string
+	Ports        webserver.Ports
+	NamesBucket  int
+	TempPaths    bool
+	RlimitNofile int
 }
 
 type upstreamsData struct {
@@ -45,25 +47,28 @@ type upstreamsData struct {
 }
 
 type toolData struct {
-	Tool       webserver.Tool
-	LogDir     string
-	ServerRoot string
+	Tool    webserver.Tool
+	LogDir  string
+	ConfDir string
 }
 
 type siteData struct {
-	Site       webserver.Site
-	Ports      webserver.Ports
-	LogDir     string
-	ServerRoot string
+	Site    webserver.Site
+	Ports   webserver.Ports
+	LogDir  string
+	ConfDir string
 }
 
 func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports webserver.Ports, logDir string, tool *webserver.Tool) (map[string][]byte, error) {
-	root := hrender.SlashDir(s.inst.Dir)
+	confDir := plat.ConfDir(s.inst)
 	log := hrender.SlashDir(logDir)
 
 	files := make(map[string][]byte, len(sites)+4)
 
-	main, err := render("nginx.conf.tmpl", confData{ServerRoot: root, LogDir: log, Ports: ports, NamesBucket: namesBucketSize(sites, tool)})
+	main, err := render("nginx.conf.tmpl", confData{
+		ConfDir: confDir, LogDir: log, Ports: ports, NamesBucket: namesBucketSize(sites, tool),
+		TempPaths: plat.TempPaths, RlimitNofile: plat.RlimitNofile,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +86,7 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 		if site.ID == "" {
 			return nil, fmt.Errorf("nginx: site %q sem ID", site.Domain)
 		}
-		conf, err := render("site.conf.tmpl", siteData{Site: site, Ports: ports, LogDir: log, ServerRoot: root})
+		conf, err := render("site.conf.tmpl", siteData{Site: site, Ports: ports, LogDir: log, ConfDir: confDir})
 		if err != nil {
 			return nil, fmt.Errorf("nginx: site %s: %w", site.ID, err)
 		}
@@ -93,7 +98,7 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 	}
 
 	if tool != nil {
-		conf, err := render("tool.conf.tmpl", toolData{Tool: *tool, LogDir: log, ServerRoot: root})
+		conf, err := render("tool.conf.tmpl", toolData{Tool: *tool, LogDir: log, ConfDir: confDir})
 		if err != nil {
 			return nil, fmt.Errorf("nginx: ferramenta %s: %w", tool.Name, err)
 		}
@@ -168,6 +173,9 @@ func (s server) command(etcDir string, test bool) (string, []string, string) {
 		args = append(args, "-t")
 	}
 	args = append(args, "-p", prefix(etcDir), "-c", "nginx.conf")
+	// Vai também no -t: o log de erro é aberto antes de ler a config, e o
+	// teste falharia/alertaria do mesmo jeito que a execução.
+	args = append(args, plat.ExtraArgs...)
 	if !test {
 		// Sem isto o nginx.exe faz fork e some, e o supervisor perderia o
 		// processo real.
