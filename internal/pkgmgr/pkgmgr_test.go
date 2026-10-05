@@ -323,8 +323,6 @@ func TestInstallDownloadParadoExpira(t *testing.T) {
 	}
 }
 
-// O watchdog mede tempo sem bytes, não duração: um download lento que leva
-// várias vezes o stallTimeout, mas nunca para, tem de terminar.
 // fakeResetter conta os rearmes e guarda os prazos pedidos.
 type fakeResetter struct{ prazos []time.Duration }
 
