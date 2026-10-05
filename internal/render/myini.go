@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 )
 
 // RenderMyIni gera o my.ini do MySQL ou do MariaDB embutido. Determinístico.
@@ -23,7 +24,12 @@ import (
 //
 // mariadb tira o que só o MySQL conhece: o MariaDB recusa opção desconhecida
 // e não sobe com `mysqlx`.
-func RenderMyIni(port int, baseDir, dataDir, logDir string, ipv6Loopback, mariadb bool) []byte {
+//
+// socket é o socket Unix do HyPHP (MySQLSocketPath), o mesmo que o php.ini
+// usa nos *.default_socket; "" não emite a linha (Windows). Vai também em
+// [client] para o mysql do keg achar o servidor sem --socket. log-error e
+// open_files_limit dependem do SO (myini_windows.go / myini_darwin.go).
+func RenderMyIni(port int, baseDir, dataDir, logDir, socket string, ipv6Loopback, mariadb bool) []byte {
 	logName := "mysql.log"
 	if mariadb {
 		logName = "mariadb.log"
@@ -36,10 +42,18 @@ func RenderMyIni(port int, baseDir, dataDir, logDir string, ipv6Loopback, mariad
 	fmt.Fprintf(&b, "port = %d\n", port)
 	fmt.Fprintf(&b, "basedir = %q\n", SlashDir(baseDir))
 	fmt.Fprintf(&b, "datadir = %q\n", SlashDir(dataDir))
-	fmt.Fprintf(&b, "log-error = %q\n", SlashDir(logDir)+"/"+logName)
+	if socket != "" {
+		fmt.Fprintf(&b, "socket = %q\n", filepath.ToSlash(socket))
+	}
+	if myIniLogError {
+		fmt.Fprintf(&b, "log-error = %q\n", SlashDir(logDir)+"/"+logName)
+	}
 	fmt.Fprintf(&b, "character-set-server = utf8mb4\n")
 	fmt.Fprintf(&b, "collation-server = utf8mb4_unicode_ci\n")
 	fmt.Fprintf(&b, "max_connections = 100\n")
+	if myIniOpenFilesLimit > 0 {
+		fmt.Fprintf(&b, "open_files_limit = %d\n", myIniOpenFilesLimit)
+	}
 	fmt.Fprintf(&b, "innodb_buffer_pool_size = 128M\n")
 	fmt.Fprintf(&b, "skip-log-bin\n")
 	bind := "127.0.0.1"
@@ -57,6 +71,9 @@ func RenderMyIni(port int, baseDir, dataDir, logDir string, ipv6Loopback, mariad
 
 	fmt.Fprintf(&b, "\n[client]\n")
 	fmt.Fprintf(&b, "port = %d\n", port)
+	if socket != "" {
+		fmt.Fprintf(&b, "socket = %q\n", filepath.ToSlash(socket))
+	}
 
 	return b.Bytes()
 }

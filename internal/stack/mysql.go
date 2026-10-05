@@ -80,7 +80,7 @@ func WriteMyIni(inst runtime.Installed, port int, etcDir, varDir, logDir string)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", dir, err)
 	}
-	content := render.RenderMyIni(port, inst.Dir, DataDir(varDir, inst.Kind), logDir, netcfg.IPv6Loopback(), inst.Kind == runtime.MariaDB)
+	content := render.RenderMyIni(port, inst.Dir, DataDir(varDir, inst.Kind), logDir, mysqlSocket(varDir), netcfg.IPv6Loopback(), inst.Kind == runtime.MariaDB)
 	changed, err := render.WriteFiles(dir, map[string][]byte{"my.ini": content})
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar my.ini: %w", err)
@@ -101,19 +101,19 @@ var dbInits = map[runtime.Kind]dbInit{
 	runtime.MySQL: {
 		system: "mysql.ibd",
 		// Lê o mesmo --defaults-file do start normal: o datadir sai do my.ini.
+		// O mysqld só aceita --defaults-file como primeira opção, e é ele que
+		// deixa o my.cnf do sistema (/opt/homebrew/etc no Mac) de fora.
 		cmd: func(inst runtime.Installed, etcDir, _ string) (string, []string) {
-			return filepath.Join(inst.Dir, "bin", sysproc.ExeName("mysqld")),
-				[]string{"--defaults-file=" + MyIniPath(etcDir), "--initialize-insecure", "--console"}
+			args := append([]string{"--defaults-file=" + MyIniPath(etcDir), "--initialize-insecure"}, mysqldExtraArgs...)
+			return filepath.Join(inst.Dir, "bin", sysproc.ExeName("mysqld")), args
 		},
 		log: "mysql-init.log",
 	},
 	runtime.MariaDB: {
 		system: filepath.Join("mysql", "global_priv.frm"),
-		// O mariadb-install-db cria o datadir com root sem senha, como o
-		// --initialize-insecure do MySQL. Ele grava um my.ini próprio dentro
-		// do datadir, que fica sem uso: o servidor sobe com --defaults-file.
+		// O instalador e os argumentos são por SO (db_windows.go/db_darwin.go).
 		cmd: func(inst runtime.Installed, _, data string) (string, []string) {
-			return filepath.Join(inst.Dir, "bin", sysproc.ExeName("mariadb-install-db")), []string{"--datadir=" + data}
+			return mariadbInitCmd(inst, data)
 		},
 		log: "mariadb-init.log",
 	},

@@ -31,6 +31,3 @@ func phpSendmail(rts []runtime.Installed, smtpPort int) string {
 	}
 	return `"` + mp.Exe + `" sendmail -S ` + net.JoinHostPort("127.0.0.1", strconv.Itoa(smtpPort))
 }
-
-// phpMySQLSocket é o socket do mysqld do HyPHP, o mesmo do my.ini.
-func phpMySQLSocket(varDir string) string { return render.MySQLSocketPath(varDir) }

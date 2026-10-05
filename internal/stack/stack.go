@@ -524,7 +524,7 @@ func (s *Stack) renderPHPIni(inst runtime.Installed, pool webserver.PHPPool, poo
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", tmpDir, err)
 	}
-	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, sendmail, phpMySQLSocket(paths.Var()), userIni)
+	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, sendmail, mysqlSocket(paths.Var()), userIni)
 	changed, err := render.WriteFiles(dir, phpConfFiles(content, pool, poolSize, paths.Log()))
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar php.ini %s: %w", major, err)

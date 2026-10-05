@@ -476,7 +476,7 @@ const (
 // DBRuntime —, ou ok=false quando não há o que subir. O ID continua "mysql"
 // nos dois motores: é o serviço de banco da stack, e a UI, o Banco e o
 // phpMyAdmin o procuram por esse nome. inst.Exe já é o servidor do motor
-// (mysqld.exe ou mariadbd.exe).
+// (mysqld ou mariadbd).
 func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 	inst, ok := DBRuntime(in.Runtimes, in.State)
 	if !ok {
@@ -492,10 +492,9 @@ func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 		Name:  DBName(inst.Kind) + " " + inst.Version,
 		Group: "db",
 		Exe:   inst.Exe,
-		Args: []string{
-			"--defaults-file=" + MyIniPath(in.EtcDir),
-			"--console",
-		},
+		// --defaults-file primeiro (o mysqld só o aceita assim); o resto é
+		// por SO (mysqldExtraArgs em db_windows.go/db_darwin.go).
+		Args:         append([]string{"--defaults-file=" + MyIniPath(in.EtcDir)}, mysqldExtraArgs...),
 		Dir:          inst.Dir,
 		Port:         in.State.MySQLPort,
 		Probe:        &supervisor.MySQLProbe{Addr: addr, Version: inst.Version},

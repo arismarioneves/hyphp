@@ -275,9 +275,10 @@ func TestDesiredMySQLSpec(t *testing.T) {
 	if sp.Exe != osPath("C:/rt/bin/mysql/mysql-8.0.30-winx64/bin/mysqld.exe") {
 		t.Fatalf("Exe = %q", sp.Exe)
 	}
-	wantArgs := []string{"--defaults-file=" + osPath("C:/rt/etc/mysql/my.ini"), "--console"}
-	if !reflect.DeepEqual(sp.Args, wantArgs) {
-		t.Fatalf("Args = %q, want %q", sp.Args, wantArgs)
+	// --defaults-file tem de ser o primeiro argumento: é ele que impede o
+	// servidor de ler o my.cnf do sistema. O resto dos args é por SO.
+	if len(sp.Args) == 0 || sp.Args[0] != "--defaults-file="+osPath("C:/rt/etc/mysql/my.ini") {
+		t.Fatalf("Args = %q, want --defaults-file primeiro", sp.Args)
 	}
 	p, ok := sp.Probe.(*supervisor.MySQLProbe)
 	if !ok || p.Addr != "127.0.0.1:3307" {

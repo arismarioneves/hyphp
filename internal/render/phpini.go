@@ -50,18 +50,17 @@ func PHPIniDefaults() []IniDirective {
 	return slices.Concat(errorDefaults, limitDefaults, opcacheDefaults)
 }
 
-// managedDirectives são as diretivas que o HyPHP controla: caminhos que o stack
-// cria por série (ext, log, tmp), o redirecionamento de mail() para o Mailpit,
-// o socket do MySQL do HyPHP e o que o php-cgi/php-fpm precisa para atender o
+// managedDirectives são as diretivas que o HyPHP controla nos dois SOs:
+// caminhos que o stack cria por série (ext, log, tmp), o redirecionamento de
+// mail() para o Mailpit e o que o php-cgi/php-fpm precisa para atender o
 // Apache/nginx. Trocar qualquer uma quebra o stack de um jeito que o usuário
-// não liga ao php.ini. sendmail_path e os sockets só saem no macOS, mas ficam
-// gerenciados nos dois SOs: no Windows não têm efeito no stack e uma lista só
-// mantém a regra do painel igual.
+// não liga ao php.ini. sendmail_path só sai no macOS, mas fica gerenciada nos
+// dois: no Windows não tem efeito no stack e bloqueá-la não tira nada de quem
+// usa SMTP. O que só um SO controla fica em osManagedDirectives.
 var managedDirectives = []string{
 	"extension_dir", "extension", "zend_extension", "error_log",
 	"sys_temp_dir", "upload_tmp_dir", "session.save_path",
 	"smtp", "smtp_port", "sendmail_from", "sendmail_path", "mail.add_x_header",
-	"mysqli.default_socket", "pdo_mysql.default_socket", "mysql.default_socket",
 	"fastcgi.impersonate", "user_ini.filename",
 }
 
@@ -71,7 +70,7 @@ var managedDirectives = []string{
 // execução de arquivo arbitrário via PATH_INFO).
 func IsManagedIniDirective(name string) bool {
 	n := strings.ToLower(strings.TrimSpace(name))
-	return strings.HasPrefix(n, "cgi.") || slices.Contains(managedDirectives, n)
+	return strings.HasPrefix(n, "cgi.") || slices.Contains(managedDirectives, n) || slices.Contains(osManagedDirectives, n)
 }
 
 // RenderPHPIni gera o php.ini de uma série de PHP. Determinístico: mesma

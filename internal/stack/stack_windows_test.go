@@ -124,7 +124,40 @@ func TestPHPConfNoWindowsSoPHPIni(t *testing.T) {
 	if got := phpSendmail([]runtime.Installed{mailpitInstalled()}, 1025); got != "" {
 		t.Fatalf("sendmail = %q, want vazio", got)
 	}
-	if got := phpMySQLSocket(osPath("C:/rt/var")); got != "" {
+	if got := mysqlSocket(osPath("C:/rt/var")); got != "" {
 		t.Fatalf("socket = %q, want vazio", got)
+	}
+}
+
+// No Windows o servidor e o --initialize-insecure seguem com --console (o log
+// sai no stdout que o supervisor e o init capturam), e o mariadb-install-db.exe
+// só recebe o datadir: é a ferramenta do Windows, não o script do Unix.
+func TestArgsDoBancoNoWindows(t *testing.T) {
+	in := baseInput()
+	in.Runtimes = append(in.Runtimes, mysqlInstalled())
+	sp, ok := mysqlSpec(in)
+	if !ok {
+		t.Fatal("esperava spec mysql")
+	}
+	ini := osPath("C:/rt/etc/mysql/my.ini")
+	if want := []string{"--defaults-file=" + ini, "--console"}; !reflect.DeepEqual(sp.Args, want) {
+		t.Fatalf("Args = %q, want %q", sp.Args, want)
+	}
+
+	exe, args := dbInits[runtime.MySQL].cmd(mysqlInstalled(), osPath("C:/rt/etc"), osPath("C:/rt/var/mysql-data"))
+	if exe != osPath("C:/rt/bin/mysql/mysql-8.0.30-winx64/bin/mysqld.exe") {
+		t.Fatalf("init MySQL exe = %q", exe)
+	}
+	if want := []string{"--defaults-file=" + ini, "--initialize-insecure", "--console"}; !reflect.DeepEqual(args, want) {
+		t.Fatalf("init MySQL args = %q, want %q", args, want)
+	}
+
+	data := osPath("C:/rt/var/mariadb-data")
+	exe, args = dbInits[runtime.MariaDB].cmd(mariadbInstalled("11.4.13"), osPath("C:/rt/etc"), data)
+	if exe != osPath("C:/rt/bin/mariadb/mariadb-11.4.13-winx64/bin/mariadb-install-db.exe") {
+		t.Fatalf("init MariaDB exe = %q", exe)
+	}
+	if want := []string{"--datadir=" + data}; !reflect.DeepEqual(args, want) {
+		t.Fatalf("init MariaDB args = %q, want %q", args, want)
 	}
 }
