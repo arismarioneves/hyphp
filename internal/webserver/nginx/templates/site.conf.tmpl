@@ -25,7 +25,7 @@ server {
         set $path_info $fastcgi_path_info;
         fastcgi_pass {{.Site.PoolName}};
         fastcgi_index index.php;
-        include "{{.ServerRoot}}/conf/fastcgi_params";
+        include "{{.ConfDir}}/fastcgi_params";
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param PATH_INFO $path_info;
         fastcgi_read_timeout 300;
@@ -59,7 +59,7 @@ server {
         set $path_info $fastcgi_path_info;
         fastcgi_pass {{.Site.PoolName}};
         fastcgi_index index.php;
-        include "{{.ServerRoot}}/conf/fastcgi_params";
+        include "{{.ConfDir}}/fastcgi_params";
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param PATH_INFO $path_info;
         fastcgi_param HTTPS on;

@@ -6,23 +6,20 @@
 # validado) e para etc/nginx (onde é executado), sem reescrita.
 
 worker_processes 2;
-pid "{{.LogDir}}/nginx.pid";
-error_log "{{.LogDir}}/nginx-error.log";
-{{- if .RlimitNofile}}
-worker_rlimit_nofile {{.RlimitNofile}};
-{{- end}}
+pid "/Users/joao/Library/Application Support/HyPHP/log/nginx.pid";
+error_log "/Users/joao/Library/Application Support/HyPHP/log/nginx-error.log";
+worker_rlimit_nofile 4096;
 
 events {
     worker_connections 1024;
 }
 
 http {
-    include "{{.ConfDir}}/mime.types";
+    include "/opt/homebrew/etc/nginx/mime.types";
     default_type application/octet-stream;
     sendfile on;
     client_max_body_size 64m;
-    access_log "{{.LogDir}}/nginx-access.log";
-{{- if .TempPaths}}
+    access_log "/Users/joao/Library/Application Support/HyPHP/log/nginx-access.log";
 
     # Relativos a -p: os padrões compilados do Homebrew ficam em var/run/nginx,
     # compartilhados com o nginx do brew services.
@@ -31,11 +28,10 @@ http {
     proxy_temp_path temp/proxy;
     scgi_temp_path temp/scgi;
     uwsgi_temp_path temp/uwsgi;
-{{- end}}
 
     # Calculado a partir do nome mais longo (nginx.go, namesBucketSize): com o
     # padrão de 32 do Windows, um domínio comprido derruba o nginx -t.
-    server_names_hash_bucket_size {{.NamesBucket}};
+    server_names_hash_bucket_size 64;
 
     # Zona compartilhada declarada UMA vez: repetir o mesmo nome em cada site
     # faria o nginx abortar com "shared memory zone already declared".
@@ -48,7 +44,7 @@ http {
     # Host default: responde por qualquer domínio que não casa com projeto.
     # root relativo é resolvido contra -p, ou seja <etcDir>/html.
     server {
-        listen {{.Ports.HTTP}} default_server;
+        listen 8080 default_server;
         server_name _;
         root html;
         index index.html;

@@ -1,20 +1,18 @@
 # Gerado pelo HyPHP — não editar à mão.
-# Fonte: internal/webserver/nginx/templates/tool.conf.tmpl
-# Ferramenta: {{.Tool.Name}} → upstream {{.Tool.PoolName}}
+# Fonte: internal/webserver/nginx/templates/site.conf.tmpl
+# Projeto: app81 (app81.test) → upstream php81
 
 server {
-    # 127.0.0.1 explícito, nunca a porta solta: a ferramenta fala com o banco
-    # sem senha, e escutar em todas as interfaces entregaria isso à rede local.
-    listen 127.0.0.1:{{.Tool.Port}};
-    server_name {{.Tool.Name}}.local;
-    root "{{.Tool.Docroot}}";
-    index index.php;
+    listen 8080;
+    server_name app81.test;
+    root "/Users/joao/Sites/app81/public";
+    index index.php index.html;
 
-    access_log "{{.LogDir}}/{{.Tool.Name}}-access.log";
-    error_log "{{.LogDir}}/{{.Tool.Name}}-error.log";
+    access_log "/Users/joao/Library/Application Support/HyPHP/log/app81-access.log";
+    error_log "/Users/joao/Library/Application Support/HyPHP/log/app81-error.log";
 
     location / {
-        try_files $uri $uri/ =404;
+        try_files $uri $uri/ /index.php?$query_string;
     }
 
     # O split + try_files recusa "/uploads/foto.jpg/x.php": com cgi.fix_pathinfo=1
@@ -25,9 +23,9 @@ server {
         fastcgi_split_path_info ^(.+?\.php)(/.*)$;
         try_files $fastcgi_script_name =404;
         set $path_info $fastcgi_path_info;
-        fastcgi_pass {{.Tool.PoolName}};
+        fastcgi_pass php81;
         fastcgi_index index.php;
-        include "{{.ConfDir}}/fastcgi_params";
+        include "/opt/homebrew/etc/nginx/fastcgi_params";
         fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
         fastcgi_param PATH_INFO $path_info;
         fastcgi_read_timeout 300;
