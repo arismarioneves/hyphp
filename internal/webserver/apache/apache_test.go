@@ -68,10 +68,6 @@ func renderFixture(t *testing.T) map[string][]byte {
 	return files
 }
 
-func goldenName(key string) string {
-	return strings.ReplaceAll(key, "/", "_") + ".golden"
-}
-
 func TestName(t *testing.T) {
 	if got := New(testInstalled()).Name(); got != state.Apache {
 		t.Fatalf("Name() = %q, quero %q", got, state.Apache)
