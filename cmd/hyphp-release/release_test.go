@@ -202,31 +202,39 @@ func TestPublishExigeNotasNosDoisIdiomas(t *testing.T) {
 
 func TestVersoesConsistentes(t *testing.T) {
 	root := t.TempDir()
-	escrever := func(cfg, info, nsh string) {
+	escrever := func(cfg, info, nsh, plist string) {
 		t.Helper()
-		if err := os.MkdirAll(filepath.Join(root, "build", "windows", "nsis"), 0o755); err != nil {
-			t.Fatal(err)
+		for _, dir := range []string{filepath.Join(root, "build", "windows", "nsis"), filepath.Join(root, "build", "darwin")} {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
 		}
 		_ = os.WriteFile(filepath.Join(root, "build", "config.yml"), []byte("version: '3'\ninfo:\n  productName: \"HyPHP\"\n  version: \""+cfg+"\"\n"), 0o644)
 		_ = os.WriteFile(filepath.Join(root, "build", "windows", "info.json"), []byte(`{"fixed":{"file_version":"`+info+`"},"info":{"0000":{"ProductVersion":"`+info+`"}}}`), 0o644)
 		_ = os.WriteFile(filepath.Join(root, "build", "windows", "nsis", "wails_tools.nsh"), []byte("!ifndef INFO_PRODUCTVERSION\n    !define INFO_PRODUCTVERSION \""+nsh+"\"\n!endif\n"), 0o644)
+		_ = os.WriteFile(filepath.Join(root, "build", "darwin", "Info.plist"), []byte("<plist version=\"1.0\">\n\t<dict>\n\t\t<key>CFBundleShortVersionString</key>\n\t\t<string>"+plist+"</string>\n\t\t<key>CFBundleVersion</key>\n\t\t<string>"+plist+"</string>\n\t</dict>\n</plist>\n"), 0o644)
 	}
-	escrever("1.0.0", "1.0.0", "1.0.0")
+	escrever("1.0.0", "1.0.0", "1.0.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err != nil {
 		t.Errorf("versões iguais recusadas: %v", err)
 	}
-	escrever("1.0.0", "0.1.0", "1.0.0")
+	escrever("1.0.0", "0.1.0", "1.0.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("info.json divergente aceito")
 	}
-	escrever("1.0.1", "1.0.0", "1.0.0")
+	escrever("1.0.1", "1.0.0", "1.0.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("config.yml divergente aceito")
 	}
 	// O instalador sai com a versão do .nsh em "Aplicativos instalados".
-	escrever("1.0.0", "1.0.0", "0.1.0")
+	escrever("1.0.0", "1.0.0", "0.1.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("wails_tools.nsh divergente aceito")
+	}
+	// Info.plist com versão velha: o macOS mostra em "Sobre" e o update compara com ela.
+	escrever("1.0.0", "1.0.0", "1.0.0", "0.1.0")
+	if err := checkVersions(root, "1.0.0"); err == nil || !strings.Contains(err.Error(), "build/darwin/Info.plist") {
+		t.Errorf("Info.plist divergente: erro = %v, quer citar build/darwin/Info.plist", err)
 	}
 }
 

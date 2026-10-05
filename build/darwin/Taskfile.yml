@@ -6,6 +6,9 @@ includes:
 vars:
   # Docker image for cross-compilation (used when building on non-macOS)
   CROSS_IMAGE: wails-cross
+  # Nome do bundle que o usuário vê (HyPHP.app); o executável dentro dele
+  # continua com o APP_NAME (hyphp), que é o CFBundleExecutable do Info.plist.
+  BUNDLE_NAME: HyPHP
 
 tasks:
   build:
@@ -50,9 +53,10 @@ tasks:
       GOOS: darwin
       CGO_ENABLED: 1
       GOARCH: '{{.ARCH | default ARCH}}'
-      CGO_CFLAGS: "-mmacosx-version-min=12.0"
-      CGO_LDFLAGS: "-mmacosx-version-min=12.0"
-      MACOSX_DEPLOYMENT_TARGET: "12.0"
+      # Alvo mínimo macOS 15, o mesmo LSMinimumSystemVersion do Info.plist.
+      CGO_CFLAGS: "-mmacosx-version-min=15.0"
+      CGO_LDFLAGS: "-mmacosx-version-min=15.0"
+      MACOSX_DEPLOYMENT_TARGET: "15.0"
 
   build:docker:
     summary: Cross-compiles for macOS using Docker (for Linux/Windows hosts)
@@ -113,10 +117,22 @@ tasks:
       - wails3 tool lipo -output "{{.BIN_DIR}}/{{.APP_NAME}}" -input "{{.BIN_DIR}}/{{.APP_NAME}}-amd64" -input "{{.BIN_DIR}}/{{.APP_NAME}}-arm64"
       - rm -f "{{.BIN_DIR}}/{{.APP_NAME}}-amd64" "{{.BIN_DIR}}/{{.APP_NAME}}-arm64"
 
+  build:cli:
+    summary: Builds the CLI (bin/cli/hyphp)
+    cmds:
+      # A CLI é um binário de terminal à parte, sem Wails nem cgo; vai para
+      # HyPHP.app/Contents/Helpers no create:app:bundle.
+      - go build -trimpath -buildvcs=false -ldflags="-w -s" -o "{{.BIN_DIR}}/cli/hyphp" ./cmd/hyphp
+    env:
+      GOOS: darwin
+      CGO_ENABLED: 0
+      GOARCH: '{{.ARCH | default ARCH}}'
+
   package:
     summary: Packages the application into a `.app` bundle
     deps:
       - task: build
+      - task: build:cli
     cmds:
       - task: create:app:bundle
 
@@ -124,6 +140,7 @@ tasks:
     summary: Packages darwin universal binary (arm64 + amd64)
     deps:
       - task: build:universal
+      - task: build:cli
     cmds:
       - task: create:app:bundle
 
@@ -139,7 +156,7 @@ tasks:
     platforms: [darwin]
     cmds:
       - >-
-        wails3 tool package --format dmg --name "{{.APP_NAME}}" --out "{{.BIN_DIR}}"
+        wails3 tool package --format dmg --name "{{.BUNDLE_NAME}}" --out "{{.BIN_DIR}}"
         --background "{{.DMG_BACKGROUND}}"
         --volume-icon "{{.DMG_VOLUME_ICON}}"
         --file-icon "{{.DMG_FILE_ICON}}"
@@ -158,22 +175,32 @@ tasks:
   create:app:bundle:
     summary: Creates an `.app` bundle
     cmds:
-      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
-      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources"
-      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources"
+      - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/MacOS"
+      - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Resources"
+      # A CLI fica em Contents/Helpers: é onde o app a procura para o comando
+      # "hyphp" no terminal.
+      - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Helpers"
+      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Resources"
       - |
         if [ -f build/darwin/Assets.car ]; then
-          cp build/darwin/Assets.car "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/Resources"
+          cp build/darwin/Assets.car "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Resources"
         fi
-      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents/MacOS"
-      - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.APP_NAME}}.app/Contents"
+      # Textos de permissão de pastas em português.
+      - cp -R build/darwin/pt-BR.lproj "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Resources/"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/MacOS/{{.APP_NAME}}"
+      - cp "{{.BIN_DIR}}/cli/hyphp" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Helpers/hyphp"
+      - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents"
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
 
   codesign:adhoc:
     summary: Ad-hoc signs the app bundle (macOS only)
     internal: true
+    # Assina de dentro para fora: primeiro a CLI, depois o bundle (--deep está
+    # obsoleto para assinar; só serve para conferir).
     cmds:
-      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.app"
+      - codesign --force --sign - --identifier com.hyphp.cli "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Helpers/hyphp"
+      - codesign --force --sign - "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app"
+      - codesign --verify --deep --strict --verbose=2 "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app"
 
   codesign:skip:
     summary: Skips codesigning when cross-compiling
@@ -182,18 +209,24 @@ tasks:
       - 'echo "Skipping codesign (not available on {{OS}}). Sign the .app on macOS before distribution."'
 
   run:
+    # Bundle de desenvolvimento com nome e bundle id próprios (Info.dev.plist),
+    # para não colidir no Launch Services com o HyPHP.app instalado.
     cmds:
-      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
-      - mkdir -p "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
-      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
+      - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/MacOS"
+      - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Resources"
+      - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Helpers"
+      - cp build/darwin/icons.icns "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Resources"
       - |
         if [ -f build/darwin/Assets.car ]; then
-          cp build/darwin/Assets.car "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Resources"
+          cp build/darwin/Assets.car "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Resources"
         fi
-      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS"
-      - cp "build/darwin/Info.dev.plist" "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/Info.plist"
-      - codesign --force --deep --sign - "{{.BIN_DIR}}/{{.APP_NAME}}.dev.app"
-      - '"{{.BIN_DIR}}/{{.APP_NAME}}.dev.app/Contents/MacOS/{{.APP_NAME}}"'
+      - cp -R build/darwin/pt-BR.lproj "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Resources/"
+      - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/MacOS/{{.APP_NAME}}"
+      - cp "{{.BIN_DIR}}/cli/hyphp" "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Helpers/hyphp"
+      - cp "build/darwin/Info.dev.plist" "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Info.plist"
+      - codesign --force --sign - --identifier com.hyphp.cli "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Helpers/hyphp"
+      - codesign --force --sign - "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app"
+      - '"{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/MacOS/{{.APP_NAME}}"'
 
   sign:
     summary: Signs the application bundle with Developer ID
@@ -204,7 +237,7 @@ tasks:
     deps:
       - task: package
     cmds:
-      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}.app" {{.CLI_ARGS}}
+      - wails3 tool sign --input "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app" {{.CLI_ARGS}}
 
   sign:notarize:
     summary: Signs and notarizes the application bundle
@@ -217,4 +250,4 @@ tasks:
     deps:
       - task: package
     cmds:
-      - wails3 tool sign --input "{{.BIN_DIR}}/{{.APP_NAME}}.app" --notarize {{.CLI_ARGS}}
+      - wails3 tool sign --input "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app" --notarize {{.CLI_ARGS}}

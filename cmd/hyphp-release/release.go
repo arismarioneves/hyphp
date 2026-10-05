@@ -284,12 +284,23 @@ func copyFile(src, dst string) error {
 
 var nshVersionRe = regexp.MustCompile(`!define INFO_PRODUCTVERSION "([^"]*)"`)
 
+// plistString extrai o <string> que segue uma <key> do Info.plist; o arquivo
+// é escrito à mão e tem só strings nessas chaves, então regex basta.
+func plistString(plist []byte, chave string) string {
+	re := regexp.MustCompile(`<key>` + regexp.QuoteMeta(chave) + `</key>\s*<string>([^<]*)</string>`)
+	if m := re.FindSubmatch(plist); m != nil {
+		return string(m[1])
+	}
+	return ""
+}
+
 // checkVersions recusa publicar quando a versão compilada (version.Current)
 // diverge da que vai no recurso do exe e no instalador. Um binário que se
 // declara mais velho do que é acha sempre uma versão "nova" no manifesto e
 // entra em loop de update. O wails_tools.nsh entra na conta porque é dele que
 // sai a versão do instalador e o "DisplayVersion" em Aplicativos instalados,
-// e nenhuma task o regenera no empacotamento.
+// e nenhuma task o regenera no empacotamento. O build/darwin/Info.plist também:
+// o macOS mostra essa versão em "Sobre" e o update da M3 compara com ela.
 func checkVersions(repo, current string) error {
 	raw, err := os.ReadFile(filepath.Join(repo, "build", "config.yml"))
 	if err != nil {
@@ -326,11 +337,17 @@ func checkVersions(repo, current string) error {
 	if m := nshVersionRe.FindSubmatch(nsh); m != nil {
 		nshVersion = string(m[1])
 	}
+	plist, err := os.ReadFile(filepath.Join(repo, "build", "darwin", "Info.plist"))
+	if err != nil {
+		return err
+	}
 	fontes := map[string]string{
 		"build/config.yml info.version":                          cfg.Info.Version,
 		"build/windows/info.json fixed.file_version":             info.Fixed.FileVersion,
 		"build/windows/info.json ProductVersion":                 info.Info["0000"].ProductVersion,
 		"build/windows/nsis/wails_tools.nsh INFO_PRODUCTVERSION": nshVersion,
+		"build/darwin/Info.plist CFBundleShortVersionString":     plistString(plist, "CFBundleShortVersionString"),
+		"build/darwin/Info.plist CFBundleVersion":                plistString(plist, "CFBundleVersion"),
 	}
 	for onde, v := range fontes {
 		if v != current {

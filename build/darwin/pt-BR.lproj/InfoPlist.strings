@@ -1,0 +1,3 @@
+NSDesktopFolderUsageDescription = "O HyPHP e o servidor web leem os projetos que você guarda nesta pasta.";
+NSDocumentsFolderUsageDescription = "O HyPHP e o servidor web leem os projetos que você guarda nesta pasta.";
+NSDownloadsFolderUsageDescription = "O HyPHP e o servidor web leem os projetos que você guarda nesta pasta.";
