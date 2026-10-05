@@ -51,13 +51,17 @@ func PHPIniDefaults() []IniDirective {
 }
 
 // managedDirectives são as diretivas que o HyPHP controla: caminhos que o stack
-// cria por série (ext, log, tmp), o redirecionamento de mail() para o Mailpit e
-// o que o php-cgi precisa para atender o Apache/nginx. Trocar qualquer uma quebra
-// o stack de um jeito que o usuário não liga ao php.ini.
+// cria por série (ext, log, tmp), o redirecionamento de mail() para o Mailpit,
+// o socket do MySQL do HyPHP e o que o php-cgi/php-fpm precisa para atender o
+// Apache/nginx. Trocar qualquer uma quebra o stack de um jeito que o usuário
+// não liga ao php.ini. sendmail_path e os sockets só saem no macOS, mas ficam
+// gerenciados nos dois SOs: no Windows não têm efeito no stack e uma lista só
+// mantém a regra do painel igual.
 var managedDirectives = []string{
 	"extension_dir", "extension", "zend_extension", "error_log",
 	"sys_temp_dir", "upload_tmp_dir", "session.save_path",
-	"smtp", "smtp_port", "sendmail_from", "mail.add_x_header",
+	"smtp", "smtp_port", "sendmail_from", "sendmail_path", "mail.add_x_header",
+	"mysqli.default_socket", "pdo_mysql.default_socket", "mysql.default_socket",
 	"fastcgi.impersonate", "user_ini.filename",
 }
 
@@ -89,7 +93,12 @@ func IsManagedIniDirective(name string) bool {
 // Saem num bloco no FIM do arquivo porque no php.ini a última ocorrência
 // vence: assim sobrescrevem os padrões acima sem que o renderer precise
 // removê-los. O chamador já recusou as gerenciadas (IsManagedIniDirective).
-func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int, userIni map[string]string) []byte {
+//
+// sendmail e mysqlSocket vazios não emitem linha: o Windows passa "" e o
+// arquivo sai igual ao de antes. No macOS o SMTP/smtp_port acima não vale
+// (mail() usa sendmail_path), e o PHP do Homebrew tem /tmp/mysql.sock
+// compilado como socket padrão, que não é o do mysqld do HyPHP.
+func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int, sendmail, mysqlSocket string, userIni map[string]string) []byte {
 	extDir := filepath.ToSlash(inst.ExtDir)
 	tmp := SlashDir(tmpDir)
 	log := SlashDir(logDir)
@@ -145,6 +154,21 @@ func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir st
 	fmt.Fprintf(&b, "smtp_port = %d\n", smtpPort)
 	fmt.Fprintf(&b, "sendmail_from = hyphp@localhost\n")
 	fmt.Fprintf(&b, "mail.add_x_header = On\n")
+	// %q escapa as aspas internas como \", que o php.ini desfaz: o valor
+	// chega ao /bin/sh com o caminho do Mailpit entre aspas.
+	if sendmail != "" {
+		fmt.Fprintf(&b, "sendmail_path = %q\n", sendmail)
+	}
+
+	// host=localhost no mysqli/PDO conecta pelo socket Unix; sem estas linhas
+	// iria ao /tmp/mysql.sock, que pode ser de um MySQL do `brew services`.
+	if mysqlSocket != "" {
+		sock := filepath.ToSlash(mysqlSocket)
+		fmt.Fprintf(&b, "\n[MySQL]\n")
+		fmt.Fprintf(&b, "mysqli.default_socket = %q\n", sock)
+		fmt.Fprintf(&b, "pdo_mysql.default_socket = %q\n", sock)
+		fmt.Fprintf(&b, "mysql.default_socket = %q\n", sock)
+	}
 
 	fmt.Fprintf(&b, "\n[opcache]\n")
 	writeDirectives(&b, opcacheDefaults)
