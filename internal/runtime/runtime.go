@@ -40,6 +40,13 @@ type Installed struct {
 	Compiler   string `json:"compiler"`   // "vs16", "VC15", "VS17" ou ""
 	Arch       string `json:"arch"`       // "x64" | "x86" | ""
 	ThreadSafe *bool  `json:"threadSafe"` // só PHP
+	// Formula é o nome de instalação no Homebrew ("shivammathur/php/php@8.3",
+	// "httpd"); vazio no Windows e no que veio do catálogo. A remoção no Mac
+	// usa este campo para decidir entre `brew uninstall` e apagar a pasta.
+	Formula string `json:"formula,omitempty"`
+	// Prefix é o prefixo do Homebrew que tem o keg (/opt/homebrew); vazio no
+	// Windows. As configs do Mac leem dele o etc/ e o lib/ compartilhados.
+	Prefix string `json:"prefix,omitempty"`
 }
 
 // detectTimeout limita cada execução de binário durante a detecção.

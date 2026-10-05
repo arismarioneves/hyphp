@@ -35,6 +35,10 @@ type Progress struct {
 	Total     int64  `json:"total"` // -1 se desconhecido
 	Phase     string `json:"phase"` // uma das constantes Phase* acima
 	Error     string `json:"error"`
+	// Message é a linha de saída do `brew install` no macOS, para a UI mostrar
+	// o que está acontecendo (o brew não informa bytes). Vazio nos downloads
+	// do catálogo.
+	Message string `json:"message"`
 }
 
 type Manager struct {

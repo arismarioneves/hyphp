@@ -56,6 +56,19 @@ export interface Installed {
      * só PHP
      */
     "threadSafe": boolean | null;
+
+    /**
+     * Formula é o nome de instalação no Homebrew ("shivammathur/php/php@8.3",
+     * "httpd"); vazio no Windows e no que veio do catálogo. A remoção no Mac
+     * usa este campo para decidir entre `brew uninstall` e apagar a pasta.
+     */
+    "formula"?: string;
+
+    /**
+     * Prefix é o prefixo do Homebrew que tem o keg (/opt/homebrew); vazio no
+     * Windows. As configs do Mac leem dele o etc/ e o lib/ compartilhados.
+     */
+    "prefix"?: string;
 }
 
 export enum Kind {
