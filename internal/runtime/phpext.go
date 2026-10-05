@@ -29,14 +29,15 @@ type Extension struct {
 }
 
 // ListExtensions junta os módulos embutidos (builtin, de BuiltinModules) com
-// os arquivos de inst.ExtDir (regra de extName), em ordem de nome. Embutido sai
-// Enabled e Builtin; arquivo sai Enabled se o nome está em enabled. Um nome que
-// é embutido e também tem arquivo fica só como embutido: carregar o arquivo de
-// novo daria o warning "already loaded". Pasta inexistente não é erro: o PHP
-// do Homebrew pode não ter módulo carregável algum.
+// os arquivos de inst.ExtDir (regra de extName): primeiro os com arquivo,
+// depois os embutidos, cada grupo por nome — os alternáveis ficam no topo do
+// painel. Embutido sai Enabled e Builtin; arquivo sai Enabled se o nome está
+// em enabled. Um nome que é embutido e também tem arquivo fica só como
+// embutido: carregar o arquivo de novo daria o warning "already loaded".
+// Pasta inexistente só é tolerada onde extDirOptional (ver names_*.go).
 func ListExtensions(inst Installed, enabled, builtin []string) ([]Extension, error) {
 	entries, err := os.ReadDir(inst.ExtDir)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err != nil && !(extDirOptional && errors.Is(err, os.ErrNotExist)) {
 		return nil, fmt.Errorf("runtime: ler %s: %w", inst.ExtDir, err)
 	}
 	out := make([]Extension, 0, len(builtin)+len(entries))
@@ -51,7 +52,15 @@ func ListExtensions(inst Installed, enabled, builtin []string) ([]Extension, err
 		}
 		out = append(out, Extension{Name: ext, File: name, Enabled: slices.Contains(enabled, ext)})
 	}
-	slices.SortStableFunc(out, func(a, b Extension) int { return cmp.Compare(a.Name, b.Name) })
+	slices.SortStableFunc(out, func(a, b Extension) int {
+		if a.Builtin != b.Builtin {
+			if b.Builtin {
+				return -1
+			}
+			return 1
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return out, nil
 }
 

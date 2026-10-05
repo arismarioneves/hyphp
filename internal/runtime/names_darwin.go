@@ -30,6 +30,10 @@ var binKinds = []Kind{PhpMyAdmin}
 // mantém o caminho válido depois de um `brew upgrade`.
 func phpExtDir(dir, apiBase string) string { return filepath.Join(dir, "lib", "php", apiBase) }
 
+// extDirOptional true: o PHP do Homebrew pode não ter módulo carregável
+// algum (tudo estático, como o opcache a partir do 8.5), e então não há pasta.
+const extDirOptional = true
+
 // phpArch é arm64: o tap shivammathur/php só publica builds Apple Silicon.
 func phpArch(int) string { return "arm64" }
 

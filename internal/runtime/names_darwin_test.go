@@ -35,3 +35,16 @@ func TestArquiteturaDoPHPNoMac(t *testing.T) {
 		t.Fatalf("phpArch(8) = %q", got)
 	}
 }
+
+// O PHP do Homebrew pode não ter pasta de módulos (tudo estático, como o
+// opcache a partir do 8.5): a lista mostra só os embutidos, sem erro.
+func TestListaSemPastaDeModulos(t *testing.T) {
+	dir := t.TempDir()
+	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir, ExtDir: filepath.Join(dir, "lib", "php", "20250925")}, nil, []string{"opcache"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != (Extension{Name: "opcache", Enabled: true, Builtin: true}) {
+		t.Fatalf("ListExtensions = %+v; quer só o opcache embutido", got)
+	}
+}

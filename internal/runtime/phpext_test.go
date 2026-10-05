@@ -48,29 +48,15 @@ func TestListaMarcaBuiltins(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []Extension{
-		{Name: "core", Enabled: true, Builtin: true},
 		{Name: "curl", File: ExtFile("curl")},
+		{Name: "pdo_mysql", File: ExtFile("pdo_mysql"), Enabled: true},
+		{Name: "core", Enabled: true, Builtin: true},
 		{Name: "date", Enabled: true, Builtin: true},
 		{Name: "opcache", Enabled: true, Builtin: true},
-		{Name: "pdo_mysql", File: ExtFile("pdo_mysql"), Enabled: true},
 		{Name: "zip", Enabled: true, Builtin: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("ListExtensions =\n%+v\nwant\n%+v", got, want)
-	}
-}
-
-// O PHP do Homebrew pode não ter pasta de módulos (tudo estático, como o
-// opcache a partir do 8.5): a lista mostra só os embutidos, sem erro.
-func TestListaSemPastaDeModulos(t *testing.T) {
-	dir := t.TempDir()
-	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir, ExtDir: filepath.Join(dir, "ext")}, nil, []string{"opcache"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := []Extension{{Name: "opcache", Enabled: true, Builtin: true}}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("ListExtensions = %+v, want %+v", got, want)
 	}
 }
 

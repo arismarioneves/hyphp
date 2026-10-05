@@ -30,6 +30,10 @@ var binKinds = []Kind{PHP, Apache, Nginx, MySQL, MariaDB, Mailpit, Mkcert, PhpMy
 // apiBase não serve aqui.
 func phpExtDir(dir, _ string) string { return filepath.Join(dir, "ext") }
 
+// extDirOptional false: o zip do php.net sempre traz ext/; faltar a pasta é
+// instalação quebrada e deve aparecer como erro.
+const extDirOptional = false
+
 // phpArch é a arquitetura quando o nome da pasta não traz x64/x86.
 func phpArch(intSize int) string {
 	if intSize == 8 {
