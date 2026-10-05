@@ -33,9 +33,13 @@ var ErrStalled = errors.New("o servidor parou de enviar dados")
 // demoram e estão vivos.
 type idleReader struct {
 	r     io.Reader
-	timer *time.Timer
+	timer resetter
 	d     time.Duration
 }
+
+// resetter é o pedaço do *time.Timer que o idleReader usa; a interface deixa o
+// teste conferir o rearme sem depender do relógio.
+type resetter interface{ Reset(time.Duration) bool }
 
 func (ir *idleReader) Read(p []byte) (int, error) {
 	n, err := ir.r.Read(p)

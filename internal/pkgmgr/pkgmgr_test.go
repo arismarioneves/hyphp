@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -324,28 +325,48 @@ func TestInstallDownloadParadoExpira(t *testing.T) {
 
 // O watchdog mede tempo sem bytes, não duração: um download lento que leva
 // várias vezes o stallTimeout, mas nunca para, tem de terminar.
-func TestDownloadLentoMasContinuoTermina(t *testing.T) {
-	// Folga para runner de CI lento: com 40 ms/200 ms um soluço do agendador
-	// passava do stallTimeout entre duas leituras. Cada intervalo fica em ~1/7
-	// do prazo e a duração total (≈ 1,8 s) segue bem acima dele.
-	const passo = 150 * time.Millisecond
-	encurtarStall(t, time.Second)
-	const pedacos = 12 // 12 × 150 ms ≈ 1,8 × stallTimeout
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/zip")
-		for range pedacos {
-			_, _ = w.Write([]byte("0123456789"))
-			w.(http.Flusher).Flush()
-			time.Sleep(passo)
-		}
-	}))
-	defer srv.Close()
+// fakeResetter conta os rearmes e guarda os prazos pedidos.
+type fakeResetter struct{ prazos []time.Duration }
 
-	dst := filepath.Join(t.TempDir(), "x.part")
-	if _, err := Download(context.Background(), srv.Client(), srv.URL+"/x.zip", dst, func(int64, int64) {}); err != nil {
-		t.Fatalf("download lento mas contínuo abortado: %v", err)
+func (f *fakeResetter) Reset(d time.Duration) bool {
+	f.prazos = append(f.prazos, d)
+	return true
+}
+
+// leiturasFixas devolve uma sequência pré-definida de (n, err) por Read.
+type leiturasFixas struct {
+	ns   []int
+	errs []error
+}
+
+func (l *leiturasFixas) Read(p []byte) (int, error) {
+	n, err := l.ns[0], l.errs[0]
+	l.ns, l.errs = l.ns[1:], l.errs[1:]
+	return n, err
+}
+
+// TestIdleReaderRearmaSoComBytes pega um vigia que mede a duração total em vez
+// da ociosidade: ele abortaria downloads grandes em conexão lenta mas viva.
+// Toda leitura com bytes rearma com o prazo d; leitura sem bytes não rearma.
+func TestIdleReaderRearmaSoComBytes(t *testing.T) {
+	const d = 7 * time.Second
+	fr := &fakeResetter{}
+	src := &leiturasFixas{
+		ns:   []int{3, 0, 5, 0},
+		errs: []error{nil, nil, nil, io.EOF},
 	}
-	if st, err := os.Stat(dst); err != nil || st.Size() != pedacos*10 {
-		t.Fatalf("arquivo destino: %v %v", st, err)
+	ir := &idleReader{r: src, timer: fr, d: d}
+	buf := make([]byte, 16)
+	for range 4 {
+		_, _ = ir.Read(buf)
+	}
+	if len(fr.prazos) != 2 {
+		t.Fatalf("rearmes = %d, quer 2 (só as leituras com bytes)", len(fr.prazos))
+	}
+	for _, p := range fr.prazos {
+		if p != d {
+			t.Fatalf("rearme com %v, quer %v", p, d)
+		}
 	}
 }
+
