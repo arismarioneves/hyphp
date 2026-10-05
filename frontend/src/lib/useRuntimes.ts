@@ -41,6 +41,10 @@ export function useRuntimes() {
     setInstalled(list ?? [])
     // o brew pode ter sido instalado/removido entre varreduras: relê o status.
     void RuntimesService.Homebrew().then(setHomebrew)
+    // No Mac a fórmula disponível tem a série ("8.5") e o keg instalado a versão
+    // completa ("8.5.1"): o filtro por versão da tela não a esconde. Quem exclui
+    // os kegs instalados é o Available() do Go, então relê a cada mudança.
+    void RuntimesService.Available().then((avail) => setAvailable(avail ?? []))
     // instalação concluída já refletiu em `installed`; limpa barras "done"
     setProgress((prev) => {
       const next: Record<string, Progress> = {}
