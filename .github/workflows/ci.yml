@@ -6,8 +6,7 @@ name: ci
 
 on:
   push:
-    # TEMPORÁRIO (M1, PR 1): valida a branch antes do merge. Sai antes do PR.
-    branches: [main, macos-m1-pacote]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
