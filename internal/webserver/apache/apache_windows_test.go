@@ -9,6 +9,10 @@ import (
 	"testing"
 )
 
+func goldenName(key string) string {
+	return strings.ReplaceAll(key, "/", "_") + ".golden"
+}
+
 func TestRenderGolden(t *testing.T) {
 	files := renderFixture(t)
 
