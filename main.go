@@ -67,6 +67,9 @@ func main() {
 	}
 	logger := slog.New(slog.NewTextHandler(logOut, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	logger.Info("hyphp iniciando", "root", paths.Root())
+	if err := supervisor.RaiseFileLimit(); err != nil {
+		logger.Warn("elevar limite de arquivos abertos", "err", err)
+	}
 	statePath := filepath.Join(paths.Var(), "state.json")
 	st, recovered, err := state.LoadOrRecover(statePath)
 	if err != nil {

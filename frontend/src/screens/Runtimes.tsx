@@ -274,7 +274,10 @@ function AvailableCard({ pkg, progress, brewMissing, onError }: AvailableCardPro
     <Card>
       <div className="flex items-start gap-4">
         <div className="flex flex-col gap-1">
-          <span className="selectable font-mono text-lg text-fg">{pkg.version}</span>
+          {/* fórmula sem série (httpd, nginx...) tem versão vazia: usa o nome curto */}
+          <span className="selectable font-mono text-lg text-fg">
+            {pkg.version || (pkg.formula ?? '').split('/').pop()}
+          </span>
           <div className="flex items-center gap-1">
             {pkg.compiler && <Badge mono>{pkg.compiler}</Badge>}
             {pkg.arch && <Badge mono>{pkg.arch}</Badge>}
