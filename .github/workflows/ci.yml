@@ -67,21 +67,23 @@ jobs:
       # O main precisa do cgo do Wails (Cocoa/WebKit): só compila num Mac.
       - run: go build $PKGS
       - run: go vet $PKGS
-      # O stub darwin de update (M3) sempre retorna erro até a M3 implementá-lo,
-      # então o `if err != nil` no chamador é sempre verdadeiro no Mac. O SA4023
-      # volta ao job do Mac quando esse stub sumir.
+      # O RemoveWildcardDNS do Mac sempre devolve erro (lá a regra de DNS sai
+      # pelo "Remover do sistema"), então o `if err != nil` do SettingsService
+      # é sempre verdadeiro no Mac.
       - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks inherit,-SA4023 $PKGS
       - run: go test -count=1 ./cmd/... ./services/... ./internal/...
 
-  # O roteiro manual da M1 e da M2 de ponta a ponta num Mac Apple Silicon de
-  # verdade: o .app empacotado, runtimes do Homebrew, projeto servido, banco,
-  # e-mail, phpMyAdmin, a regra de DNS, a CA e o PATH pelo helper (o sudo do
-  # runner faz o papel da janela de senha), HTTPS, a limpeza de órfãos depois
-  # de um kill -9 e a remoção do sistema. O runner tem sessão gráfica, então o
-  # app abre como no Mac do usuário. O .app não sai do job.
+  # O roteiro manual da M1, da M2 e da M3 de ponta a ponta num Mac Apple
+  # Silicon de verdade: o dmg instalado pelo install.sh, runtimes do Homebrew,
+  # projeto servido, banco, e-mail, phpMyAdmin, a regra de DNS, a CA e o PATH
+  # pelo helper (o sudo do runner faz o papel da janela de senha), HTTPS, a
+  # limpeza de órfãos depois de um kill -9, um update aplicado pelo
+  # atualizador, a remoção do sistema e a desinstalação pelo uninstall.sh. O
+  # runner tem sessão gráfica, então o app abre como no Mac do usuário. O dmg
+  # não sai do job.
   macos-e2e:
     runs-on: macos-15
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -96,6 +98,6 @@ jobs:
       - name: wails3
         run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
       - name: package
-        run: wails3 task darwin:package
+        run: wails3 task darwin:package:dmg
       - name: e2e
-        run: bash .github/scripts/e2e-macos.sh bin/HyPHP.app
+        run: bash .github/scripts/e2e-macos.sh bin/HyPHP.dmg
