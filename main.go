@@ -217,7 +217,8 @@ func main() {
 	// O executável do app: no Mac a CLI e o helper ficam no mesmo bundle.
 	exe, _ := os.Executable()
 	// refreshPathLinks refaz os atalhos da pasta cli (só no Mac) quando os
-	// runtimes ou a série padrão mudam; atribuída depois do AppService.
+	// runtimes ou a série padrão mudam; atribuída antes do AppService, junto
+	// do defaultPHP.
 	var refreshPathLinks func()
 	rtSvc := services.NewRuntimesService(services.RuntimesDeps{
 		App:    app,
@@ -352,7 +353,7 @@ func main() {
 		DefaultPHP: defaultPHP,
 	})
 	svcSvc := services.NewServicesService(services.ServicesDeps{Sup: sup, Stack: stk, Logger: logger})
-	setSvc := services.NewSettingsService(stk, emit, func() { relabelTray() })
+	setSvc := services.NewSettingsService(stk, emit, func() { relabelTray() }, refreshPathLinks)
 	logsSvc := services.NewLogsService(services.LogsDeps{Sup: sup, Logger: logger})
 	dbSvc := services.NewDatabaseService(services.DatabaseDeps{
 		Sup:      sup,
