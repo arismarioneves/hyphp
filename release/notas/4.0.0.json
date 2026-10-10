@@ -4,7 +4,7 @@
     "http://localhost lista os projetos desta máquina e diz quais ainda não abrem e por quê.",
     "Um subdomínio de projeto sem wildcard: true, ou um domínio fora de .test que aponta para esta máquina, agora mostra o motivo em vez da página genérica.",
     "PHP no Windows com certificados de CA: o HTTPS de saída (curl, file_get_contents, Composer) deixa de falhar com \"curl error 60\". O pacote vem da curl.se e inclui a CA local dos sites .test.",
-    "Catálogo de pacotes assinado, atualizado pelo site a cada 6 horas: um link de runtime que mudou é corrigido sem versão nova do app, e um download que falha tenta um endereço alternativo.",
+    "Catálogo de pacotes assinado, que o app busca no site a cada 6 horas: um link de runtime que mudou é corrigido sem versão nova do app, e um download que falha tenta um endereço alternativo.",
     "Apache 2.4.69 no lugar do 2.4.68, cujo arquivo saiu do Apache Lounge."
   ],
   "en": [
@@ -12,7 +12,7 @@
     "http://localhost lists the projects on this machine and tells which ones don't open yet and why.",
     "A project subdomain without wildcard: true, or a non-.test domain that points to this machine, now shows the reason instead of the generic page.",
     "PHP on Windows with CA certificates: outgoing HTTPS (curl, file_get_contents, Composer) no longer fails with \"curl error 60\". The bundle comes from curl.se and includes the local CA of the .test sites.",
-    "Signed package catalog, refreshed from the website every 6 hours: a runtime link that moved is fixed without a new app version, and a failed download tries an alternative address.",
+    "Signed package catalog that the app fetches from the website every 6 hours: a runtime link that moved is fixed without a new app version, and a failed download tries an alternative address.",
     "Apache 2.4.69 replaces 2.4.68, whose file was removed from Apache Lounge."
   ]
 }
