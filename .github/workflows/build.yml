@@ -1,21 +1,113 @@
-# Build de distribuição do HyPHP. Só roda por disparo manual de quem tem
-# escrita no repositório, e cada execução espera a aprovação do dono no
-# environment `release`. Gera o .app como artefato do Actions; não publica
-# nada: a publicação e a assinatura do latest.json são locais (hyphp-release).
+# Build de distribuição e publicação do HyPHP.
+#
+# Dispara no push de uma tag v<versão> e por disparo manual:
+#   - modo publicar, com a tag: o mesmo que o push dela, para refazer uma
+#     publicação que parou antes de a release ficar pública (um draft que
+#     sobrou tem de ser apagado antes; o hyphp-release recusa enquanto existir);
+#   - modo ensaio: compila os dois instaladores e assina o latest.json em
+#     memória, sem publicar nada.
+# Há duas aprovações: no job verificar, antes de compilar, e no job publicar,
+# com os dois instaladores prontos. Só o publicar usa segredos e só ele
+# escreve no GitHub. Sem gatilho de pull request.
+#
+# verificar e publicar rodam no Windows: o hyphp-release importa o
+# internal/update, que só compila no Windows e no Mac.
 name: build
 
 on:
+  push:
+    tags: ['v*.*.*']
   workflow_dispatch:
+    inputs:
+      modo:
+        description: 'ensaio (não publica) ou publicar (exige a tag)'
+        type: choice
+        options: [ensaio, publicar]
+        default: ensaio
+      tag:
+        description: 'tag v<versão>, só no modo publicar'
+        type: string
+        required: false
 
 permissions:
   contents: read
 
+# Uma publicação por vez; a segunda espera em vez de cortar a primeira no meio.
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  macos:
-    runs-on: macos-15
+  verificar:
+    runs-on: windows-latest
     environment: release
+    outputs:
+      modo: ${{ steps.modo.outputs.modo }}
+      tag: ${{ steps.modo.outputs.tag }}
+      ref: ${{ steps.modo.outputs.ref }}
+      versao: ${{ steps.conferir.outputs.versao }}
+    steps:
+      # Os inputs entram pelo ambiente, nunca interpolados no script.
+      - name: modo
+        id: modo
+        env:
+          EVENTO: ${{ github.event_name }}
+          MODO: ${{ inputs.modo }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if [ "$EVENTO" = push ]; then
+            MODO=publicar
+            TAG=$GITHUB_REF_NAME
+          fi
+          case $MODO in
+            publicar)
+              if ! [[ $TAG =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+                echo "::error::tag inválida: '$TAG'"
+                exit 1
+              fi
+              ref=refs/tags/$TAG
+              ;;
+            ensaio)
+              TAG=
+              ref=$GITHUB_SHA
+              ;;
+            *)
+              echo "::error::modo desconhecido: '$MODO'"
+              exit 1
+              ;;
+          esac
+          { echo "modo=$MODO"; echo "tag=$TAG"; echo "ref=$ref"; } >>"$GITHUB_OUTPUT"
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.modo.outputs.ref }}
+          fetch-depth: 0
+      # Só um commit que passou por PR e está na main vira release.
+      - name: tag na main
+        if: steps.modo.outputs.modo == 'publicar'
+        env:
+          TAG: ${{ steps.modo.outputs.tag }}
+        run: git merge-base --is-ancestor "$TAG^{commit}" origin/main
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: conferir
+        id: conferir
+        env:
+          TAG: ${{ steps.modo.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+        run: go run ./cmd/hyphp-release -verificar -tag "$TAG" >>"$GITHUB_OUTPUT"
+
+  windows:
+    needs: verificar
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verificar.outputs.ref }}
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -28,19 +120,131 @@ jobs:
       # casar com o runtime embutido no app.
       - name: wails3
         run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
-      - name: package
-        run: wails3 task darwin:package
-      - name: conferir
+      # A imagem windows-2025 não traz o NSIS. A versão é a mesma das
+      # máquinas que geravam o instalador até a 3.0.1.
+      - name: NSIS
         run: |
-          codesign --verify --deep --strict --verbose=2 bin/HyPHP.app
-          test -x bin/HyPHP.app/Contents/Helpers/hyphp
-          test -x bin/HyPHP.app/Contents/Helpers/hyphp-helper
-          bin/HyPHP.app/Contents/Helpers/hyphp version
-          git diff --exit-code go.mod go.sum
-      - name: zip
-        run: ditto -c -k --keepParent bin/HyPHP.app HyPHP-darwin-arm64.zip
+          if ! command -v makensis >/dev/null; then
+            if [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
+              choco install nsis --version=3.12.0 -y --no-progress
+            fi
+            echo 'C:\Program Files (x86)\NSIS' >>"$GITHUB_PATH"
+          fi
+      - name: package
+        run: wails3 task windows:package
+      - name: conferir
+        run: go run ./cmd/hyphp-release -conferir-instalador bin/hyphp-amd64-installer.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: HyPHP-darwin-arm64-${{ github.sha }}
-          path: HyPHP-darwin-arm64.zip
+          name: windows
+          path: bin/hyphp-amd64-installer.exe
+          if-no-files-found: error
           retention-days: 7
+
+  macos:
+    needs: verificar
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verificar.outputs.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: wails3
+        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
+      - name: package
+        run: wails3 task darwin:package:dmg
+      # O dmg é o que o site, o install.sh e o update entregam: confere o app
+      # de dentro dele, não o bin/HyPHP.app que o gerou.
+      - name: conferir
+        env:
+          VERSAO: ${{ needs.verificar.outputs.versao }}
+        run: |
+          vol=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$vol" bin/HyPHP.dmg
+          app="$vol/HyPHP.app"
+          v=$(plutil -extract CFBundleShortVersionString raw -o - "$app/Contents/Info.plist")
+          if [ "$v" != "$VERSAO" ]; then
+            echo "::error::o dmg traz a versão $v, não a $VERSAO"
+            exit 1
+          fi
+          codesign --verify --deep --strict --verbose=2 "$app"
+          test -x "$app/Contents/Helpers/hyphp"
+          test -x "$app/Contents/Helpers/hyphp-helper"
+          "$app/Contents/Helpers/hyphp" version
+          hdiutil detach "$vol"
+          git diff --exit-code go.mod go.sum
+      # Vários caminhos: o artefato guarda bin/HyPHP.dmg e build/darwin/*.sh
+      # a partir da raiz do repositório.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: |
+            bin/HyPHP.dmg
+            build/darwin/install.sh
+            build/darwin/uninstall.sh
+          if-no-files-found: error
+          retention-days: 7
+
+  publicar:
+    needs: [verificar, windows, macos]
+    runs-on: windows-latest
+    environment: release
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.verificar.outputs.tag }}
+      VERSAO: ${{ needs.verificar.outputs.versao }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verificar.outputs.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Sem nome: cada artefato numa pasta, dist/windows e dist/macos.
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.WEB }}
+          ssh-key: ${{ secrets.HYPHP_WEB_DEPLOY_KEY }}
+          path: web
+      # Confere a escrita no repositório do histórico de versões antes da
+      # release: depois de ela ficar pública, uma falha no push não tem volta
+      # pelo workflow (o -verificar recusa a reexecução). Assim o ensaio também
+      # confere a escrita.
+      - name: escrita no historico
+        working-directory: web
+        run: git push --dry-run origin HEAD:main
+      - name: ensaio
+        if: needs.verificar.outputs.modo == 'ensaio'
+        env:
+          HYPHP_RELEASE_KEY: ${{ secrets.HYPHP_RELEASE_KEY }}
+        run: go run ./cmd/hyphp-release -ensaio -instalador dist/windows/hyphp-amd64-installer.exe -dmg dist/macos/bin/HyPHP.dmg
+      - name: publicar
+        if: needs.verificar.outputs.modo == 'publicar'
+        env:
+          HYPHP_RELEASE_KEY: ${{ secrets.HYPHP_RELEASE_KEY }}
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          go run ./cmd/hyphp-release -publicar -tag "$TAG"
+          -instalador dist/windows/hyphp-amd64-installer.exe
+          -dmg dist/macos/bin/HyPHP.dmg
+          -install dist/macos/build/darwin/install.sh
+          -uninstall dist/macos/build/darwin/uninstall.sh
+          -web web
+      - name: historico
+        if: needs.verificar.outputs.modo == 'publicar'
+        working-directory: web
+        run: |
+          git add releases/index.json releases/releases.js
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "release: $VERSAO"
+          git push origin HEAD:main
