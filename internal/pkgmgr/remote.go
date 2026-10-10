@@ -231,6 +231,10 @@ func (s *Source) Run(ctx context.Context, c RemoteConfig) {
 			case <-t.C:
 			}
 			trocou, err := s.Fetch(ctx, c.Client, c.URL)
+			// App fechando no meio da busca: o erro é o cancelamento, não vale Warn.
+			if ctx.Err() != nil {
+				return
+			}
 			switch {
 			case err != nil:
 				c.Logger.Warn("catálogo remoto", "err", err)
