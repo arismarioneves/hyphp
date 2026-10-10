@@ -15,7 +15,7 @@ export interface Package {
     "url": string;
 
     /**
-     * hex minúsculo; "" = não verificar (evitar)
+     * hex minúsculo, obrigatório
      */
     "sha256": string;
     "compiler": string;
@@ -23,10 +23,17 @@ export interface Package {
     "notes": string;
 
     /**
+     * Mirrors são URLs tentadas em ordem quando URL falha (arquivo removido na
+     * origem, HTML no lugar do arquivo, sha256 diferente, conexão caída). O
+     * sha256 é o mesmo: um mirror nunca entrega outro arquivo.
+     */
+    "mirrors"?: string[] | null;
+
+    /**
      * Formula é o nome de instalação no Homebrew ("shivammathur/php/php@8.3");
-     * vazio no catálogo embutido. Os pacotes do Mac montados a partir de
-     * brew.Formulas usam este campo em vez de URL, e a UI mostra
-     * `brew install <formula>` no lugar do link.
+     * vazio no catálogo. Os pacotes do Mac montados a partir de brew.Formulas
+     * usam este campo em vez de URL, e a UI mostra `brew install <formula>` no
+     * lugar do link.
      */
     "formula"?: string;
 }
