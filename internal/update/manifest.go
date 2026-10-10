@@ -8,9 +8,7 @@
 package update
 
 import (
-	"bytes"
 	"crypto/ed25519"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"hyphp/internal/pkgmgr"
 	"hyphp/internal/runtime"
 )
 
@@ -69,12 +68,8 @@ var (
 // manifesto. Espaços ao redor da assinatura são ignorados: o .sig publicado
 // termina em quebra de linha, e FTP/editores costumam mexer nisso.
 func Verify(pub ed25519.PublicKey, body, sig []byte) error {
-	raw, err := base64.StdEncoding.DecodeString(string(bytes.TrimSpace(sig)))
-	if err != nil {
-		return fmt.Errorf("update: assinatura ilegível: %w", err)
-	}
-	if !ed25519.Verify(pub, body, raw) {
-		return errors.New("update: assinatura do manifesto inválida")
+	if err := pkgmgr.VerifySignature(pub, body, sig); err != nil {
+		return fmt.Errorf("update: %w", err)
 	}
 	return nil
 }
