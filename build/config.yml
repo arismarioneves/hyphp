@@ -14,7 +14,7 @@ info:
   description: "Ambiente de desenvolvimento PHP"
   copyright: "(c) 2026 Arismário Neves"
   comments: "Multi-versão de PHP, Apache ou nginx, workers supervisionados"
-  version: "3.0.1"
+  version: "4.0.0"
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension
   #                               # If not set and Assets.car exists, defaults to "appicon"
