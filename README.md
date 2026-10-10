@@ -4,7 +4,7 @@
 
 <h1 align="center">HyPHP</h1>
 
-<p align="center">PHP development environment for Windows.<br>Multiple PHP versions side by side, each project declares its own. No Docker.</p>
+<p align="center">PHP development environment for Windows and macOS.<br>Multiple PHP versions side by side, each project declares its own. No Docker.</p>
 
 <p align="center"><b>English</b> | <a href="README.pt-BR.md">Português</a></p>
 
@@ -13,7 +13,8 @@ different domains **at the same time**, local HTTPS, supervised workers and a re
 environment per project.
 
 Download the installer from the [Releases](https://github.com/arismarioneves/hyphp/releases/latest)
-page (Windows 10/11 x64). It is not digitally signed yet: if Windows warns you, choose
+page (Windows 10/11 x64; macOS 15+ on Apple Silicon from 3.1.0, see [Installation](#installation)).
+The Windows installer is not digitally signed yet: if Windows warns you, choose
 **More info → Run anyway**.
 
 ## Why it exists
@@ -54,10 +55,12 @@ itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised workers.
 
 ## Platforms
 
-The target is **Windows 10/11 x64** — deliberately the hardest case, since `php-fpm` does
-not exist on this platform. The architecture isolates OS-specific code in files with build
-tags; porting to macOS and Linux is simpler, because `php-fpm` exists there and removes the
-most complex piece of the design.
+- **Windows 10/11 x64** — the original target, and deliberately the hardest case, since
+  `php-fpm` does not exist on this platform.
+- **macOS 15+ on Apple Silicon**, from version 3.1.0. PHP, Apache, nginx, MySQL, MariaDB,
+  Mailpit and mkcert come from Homebrew. The app is signed ad hoc, not notarized by Apple.
+
+The architecture isolates OS-specific code in files with build tags.
 
 ## `hyphp.yaml`
 
@@ -140,6 +143,10 @@ $env:PATH = 'C:\Program Files (x86)\NSIS;' + $env:PATH
 wails3 task windows:package   # bin/hyphp-amd64-installer.exe
 ```
 
+On a Mac, `wails3 task darwin:package` builds `bin/HyPHP.app` (ad hoc signed, with the CLI
+and `hyphp-helper` in `Contents/Helpers`) and `wails3 task darwin:package:dmg` also builds
+`bin/HyPHP.dmg`.
+
 The installer ships `hyphp.exe` and `hyphp-helper.exe`. The helper is the binary with a
 `requireAdministrator` manifest that performs the elevated network actions (writing to
 `hosts`, installing the local root certificate, the wildcard DNS rule); without it next to
@@ -166,6 +173,30 @@ applied to the system: the `hosts` block, the `.test` DNS rule and the autostart
 removed through the interface itself (the **Permissões** card in **Configurações**, the
 Settings screen, and the autostart toggle), before uninstalling.
 
+On macOS (from 3.1.0), this Terminal command installs or updates `/Applications/HyPHP.app`:
+
+```bash
+curl -fsSL https://github.com/arismarioneves/hyphp/releases/latest/download/install.sh | sh
+```
+
+It checks the dmg's SHA-256 against the release manifest, closes HyPHP if it is open and
+only asks for the password when `/Applications` is not writable. The dmg from the Releases
+page works too, but macOS blocks the first launch of an app downloaded by the browser that
+Apple has not notarized: allow it once in **System Settings › Privacy & Security › Open
+Anyway**. The data root is `~/Library/Application Support/HyPHP` (`HYPHP_ROOT` overrides it).
+
+To uninstall on macOS:
+
+```bash
+curl -fsSL https://github.com/arismarioneves/hyphp/releases/latest/download/uninstall.sh | sh
+```
+
+The script closes the app, removes the `.test` DNS rule, `/etc/paths.d/hyphp` and the trust in
+the mkcert CA (asking for the administrator password), then the autostart entry, the `cli`
+folder and the app. The data (databases, settings, logs) stays unless you confirm in the
+Terminal, or run `curl -fsSL …/uninstall.sh | sh -s -- --apagar-dados`. Homebrew, its formulae
+and the mkcert CA files are left alone.
+
 ### Updates
 
 The app checks for the newest release at
@@ -175,28 +206,31 @@ Atualizações**), and downloads the new installer in the background. The manife
 with ed25519 (public key in `internal/update/key.go`) and carries the installer's SHA-256;
 the app rejects a manifest or an installer that does not match. Installation only happens
 when you click **Atualizar e reiniciar** (update and restart): the services stop, Windows
-asks for permission once, and the app comes back on its own in the new version. Development
-builds (without `-tags production`) do not take part.
+asks for permission once, and the app comes back on its own in the new version.
+
+On macOS the app swaps its own bundle for the one in the new dmg, without a password when the
+app's folder is writable (an administrator account in `/Applications`); otherwise it shows the
+Terminal command above.
+
+Development builds (without `-tags production`) do not take part.
 
 ### Publishing a version
 
-The version lives in five places, which `hyphp-release` checks before publishing:
+The version lives in five places:
 `internal/version/version.go`, `info.version` in `build/config.yml`,
 `build/windows/info.json`, `INFO_PRODUCTVERSION` in
 `build/windows/nsis/wails_tools.nsh` and `CFBundleShortVersionString`/`CFBundleVersion` in
 `build/darwin/Info.plist` (bump `build/darwin/Info.dev.plist` too; it is not checked).
 The darwin plists are edited by hand: don't run `wails3 task common:update:build-assets`.
-With the `v<version>` tag already on GitHub:
+The release notes go in `release/notas/<version>.json`, in both languages, same items in the
+same order (the site shows the ones for the selected language):
 
-```powershell
-wails3 task windows:package
-go run ./cmd/hyphp-release -note "What changed" -nota "O que mudou" -note "Another change" -nota "Outra mudança"
+```json
+{ "pt": ["O que mudou"], "en": ["What changed"] }
 ```
 
-The command signs `latest.json` with the release key and creates the release with the
-installer, the manifest and the signature (via `gh`). Notes go in both languages: each
-`-note` (English) needs its `-nota` (Portuguese), in the same order, and the site shows the
-ones for the selected language. The release is immutable: the notes must be right before
+Releases are built and published by the `build` workflow (`.github/workflows/build.yml`)
+from a `v<version>` tag on `main`. The release is immutable: the notes must be right before
 publishing.
 
 ## Support the project

@@ -4,7 +4,7 @@
 
 <h1 align="center">HyPHP</h1>
 
-<p align="center">Ambiente de desenvolvimento PHP para Windows.<br>Várias versões de PHP ao mesmo tempo, cada projeto declara a sua. Sem Docker.</p>
+<p align="center">Ambiente de desenvolvimento PHP para Windows e macOS.<br>Várias versões de PHP ao mesmo tempo, cada projeto declara a sua. Sem Docker.</p>
 
 <p align="center"><a href="README.md">English</a> | <b>Português</b></p>
 
@@ -13,7 +13,8 @@ domínios diferentes **ao mesmo tempo**, HTTPS local, workers supervisionados e 
 reproduzível por projeto.
 
 Baixe o instalador na página de [Releases](https://github.com/arismarioneves/hyphp/releases/latest)
-(Windows 10/11 x64). Ele ainda não tem assinatura digital: se o Windows avisar, use
+(Windows 10/11 x64; macOS 15+ em Apple Silicon a partir da 3.1.0, veja [Instalação](#instalação)).
+O instalador do Windows ainda não tem assinatura digital: se o Windows avisar, use
 **Mais informações → Executar assim mesmo**.
 
 ## Por que existe
@@ -52,10 +53,13 @@ commitável), Apache ou nginx, e workers supervisionados.
 
 ## Plataformas
 
-O alvo é **Windows 10/11 x64** — deliberadamente o caso mais difícil, já que `php-fpm`
-não existe nessa plataforma. A arquitetura isola o que é específico de sistema
-operacional em arquivos com build tag; portar para macOS e Linux é mais simples, porque lá
-`php-fpm` existe e elimina a peça mais complexa do design.
+- **Windows 10/11 x64** — o alvo original, e de propósito o caso mais difícil, já que
+  `php-fpm` não existe nessa plataforma.
+- **macOS 15+ em Apple Silicon**, a partir da versão 3.1.0. PHP, Apache, nginx, MySQL,
+  MariaDB, Mailpit e mkcert vêm do Homebrew. O app tem assinatura ad hoc, sem notarização da
+  Apple.
+
+A arquitetura isola o que é específico de sistema operacional em arquivos com build tag.
 
 ## `hyphp.yaml`
 
@@ -137,6 +141,10 @@ $env:PATH = 'C:\Program Files (x86)\NSIS;' + $env:PATH
 wails3 task windows:package   # bin/hyphp-amd64-installer.exe
 ```
 
+No Mac, `wails3 task darwin:package` gera o `bin/HyPHP.app` (assinado ad hoc, com a CLI e o
+`hyphp-helper` em `Contents/Helpers`) e `wails3 task darwin:package:dmg` gera também o
+`bin/HyPHP.dmg`.
+
 O instalador leva `hyphp.exe` e `hyphp-helper.exe`. O helper é o binário com
 manifesto `requireAdministrator` que executa as ações elevadas de rede
 (escrever no `hosts`, instalar o certificado raiz local, a regra de DNS
@@ -163,6 +171,32 @@ usuário aplicou no sistema: o bloco do `hosts`, a regra de DNS `.test` e a
 entrada de autostart saem pela própria interface (card **Permissões** em
 Configurações e o toggle de início automático), antes de desinstalar.
 
+No macOS (a partir da 3.1.0), este comando no Terminal instala ou atualiza o
+`/Applications/HyPHP.app`:
+
+```bash
+curl -fsSL https://github.com/arismarioneves/hyphp/releases/latest/download/install.sh | sh
+```
+
+Ele confere o SHA-256 do dmg contra o manifesto da release, fecha o HyPHP se estiver aberto e
+só pede a senha quando `/Applications` não aceita gravação. O dmg da página de Releases também
+serve, mas o macOS bloqueia a primeira abertura de um app baixado pelo navegador sem
+notarização da Apple: libere uma vez em **Ajustes do Sistema › Privacidade e Segurança ›
+Abrir Mesmo Assim**. A raiz de dados é `~/Library/Application Support/HyPHP` (`HYPHP_ROOT`
+sobrepõe).
+
+Para desinstalar no macOS:
+
+```bash
+curl -fsSL https://github.com/arismarioneves/hyphp/releases/latest/download/uninstall.sh | sh
+```
+
+O script fecha o app, remove a regra de DNS `.test`, o `/etc/paths.d/hyphp` e a confiança na
+CA do mkcert (pedindo a senha de administrador), depois a entrada de início automático, a
+pasta `cli` e o app. Os dados (bancos, configurações, logs) ficam, a menos que você confirme
+no Terminal ou rode `curl -fsSL …/uninstall.sh | sh -s -- --apagar-dados`. O Homebrew, as
+fórmulas e os arquivos da CA do mkcert não são tocados.
+
 ### Atualizações
 
 O app verifica a release mais nova em
@@ -172,28 +206,32 @@ Atualizações) e baixa o instalador novo em segundo plano. O manifesto é assin
 com ed25519 (chave pública em `internal/update/key.go`) e traz o SHA-256 do
 instalador; o app recusa manifesto ou instalador que não batam. A instalação só
 acontece no clique em **Atualizar e reiniciar**: os serviços param, o Windows
-pede permissão uma vez e o app volta sozinho na versão nova. Builds de
-desenvolvimento (sem `-tags production`) não participam.
+pede permissão uma vez e o app volta sozinho na versão nova.
+
+No macOS o app troca o próprio bundle pelo do dmg novo, sem senha quando a pasta do app aceita
+gravação (conta de administrador em `/Applications`); senão, mostra o comando do Terminal
+acima.
+
+Builds de desenvolvimento (sem `-tags production`) não participam.
 
 ### Publicar uma versão
 
-A versão vive em cinco lugares, que o `hyphp-release` confere antes de
-publicar: `internal/version/version.go`, `info.version` em `build/config.yml`,
+A versão vive em cinco lugares:
+`internal/version/version.go`, `info.version` em `build/config.yml`,
 `build/windows/info.json`, `INFO_PRODUCTVERSION` em
 `build/windows/nsis/wails_tools.nsh` e `CFBundleShortVersionString`/`CFBundleVersion` em
 `build/darwin/Info.plist` (suba também o `build/darwin/Info.dev.plist`, que não é conferido).
 Os plists do macOS são editados à mão: não rode `wails3 task common:update:build-assets`.
-Com a tag `v<versão>` já no GitHub:
+As notas vão em `release/notas/<versão>.json`, nos dois idiomas, os mesmos itens na mesma
+ordem (o site mostra as do idioma escolhido):
 
-```powershell
-wails3 task windows:package
-go run ./cmd/hyphp-release -nota "O que mudou" -note "What changed" -nota "Outra mudança" -note "Another change"
+```json
+{ "pt": ["O que mudou"], "en": ["What changed"] }
 ```
 
-O comando assina o `latest.json` com a chave de release e cria a release com o
-instalador, o manifesto e a assinatura (via `gh`). As notas vão nos dois idiomas: cada
-`-nota` (português) precisa do seu `-note` (inglês), na mesma ordem, e o site mostra as do
-idioma escolhido. A release é imutável: as notas precisam estar certas antes de publicar.
+As releases são geradas e publicadas pelo workflow `build` (`.github/workflows/build.yml`) a
+partir de uma tag `v<versão>` na `main`. A release é imutável: as notas precisam estar certas
+antes de publicar.
 
 ## Apoie o projeto
 
