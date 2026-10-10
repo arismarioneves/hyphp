@@ -72,3 +72,28 @@ jobs:
       # verdadeiro no Mac. O SA4023 volta ao job do Mac quando esses stubs sumirem.
       - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks inherit,-SA4023 $PKGS
       - run: go test -count=1 ./cmd/... ./services/... ./internal/...
+
+  # O roteiro manual da M1 de ponta a ponta num Mac Apple Silicon de verdade:
+  # o .app empacotado, runtimes do Homebrew, projeto servido, banco, e-mail,
+  # phpMyAdmin e a limpeza de órfãos depois de um kill -9. O runner tem sessão
+  # gráfica, então o app abre como no Mac do usuário. O .app não sai do job.
+  macos-e2e:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # O wails3 da mesma versão do go.mod, como no build.yml.
+      - name: wails3
+        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
+      - name: package
+        run: wails3 task darwin:package
+      - name: e2e
+        run: bash .github/scripts/e2e-macos.sh bin/HyPHP.app
