@@ -48,6 +48,7 @@ var messagesEN = map[string]string{
 	"err.stack.mkcertMissing":     "mkcert not found in bin/mkcert/mkcert.exe",
 	"err.stack.caCheck":           "check mkcert CA: %w",
 	"err.mac.unavailable":         "not available on macOS yet",
+	"elevate.prompt":              "HyPHP needs administrator permission to change the system configuration.",
 	"err.stack.helperUnavailable": "elevated helper unavailable: %w",
 	"err.stack.caCancelled":       "root certificate installation cancelled; sites stay HTTP-only",
 	"err.stack.caInstallFailed":   "mkcert -install failed: %w",

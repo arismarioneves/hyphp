@@ -52,6 +52,7 @@ var messagesPT = map[string]string{
 	"err.stack.mkcertMissing":     "mkcert não encontrado em bin/mkcert/mkcert.exe",
 	"err.stack.caCheck":           "verificar CA do mkcert: %w",
 	"err.mac.unavailable":         "ainda não disponível no macOS",
+	"elevate.prompt":              "O HyPHP precisa de permissão de administrador para alterar a configuração do sistema.",
 	"err.stack.helperUnavailable": "helper elevado indisponível: %w",
 	"err.stack.caCancelled":       "instalação do certificado raiz cancelada; sites seguem só em HTTP",
 	"err.stack.caInstallFailed":   "mkcert -install falhou: %w",
