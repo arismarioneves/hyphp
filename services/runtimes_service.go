@@ -324,7 +324,10 @@ func (r *RuntimesService) IniSettings(major string) ([]IniSetting, error) {
 	names := slices.Clone(curatedIni)
 	var extras []string
 	for name := range user {
-		if !slices.Contains(names, name) {
+		// Gerenciadas (curl.cainfo/openssl.cafile no Windows) ficam de fora: o
+		// RenderPHPIni as ignora, então um valor antigo salvo na 3.x apareceria
+		// como "user" sem valer no php.ini.
+		if !slices.Contains(names, name) && !render.IsManagedIniDirective(name) {
 			extras = append(extras, name)
 		}
 	}
