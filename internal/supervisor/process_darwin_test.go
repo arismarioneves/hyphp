@@ -71,7 +71,11 @@ func TestStopProcess_MataGrupoInteiro(t *testing.T) {
 	if processAlive(parentPid) {
 		t.Fatalf("processo pai %d continua vivo após stopProcess", parentPid)
 	}
-	if processAlive(childPid) {
+	// O Wait voltou, então o sleep já fechou a ponta do pipe: está saindo.
+	// Mas no XNU os descritores fecham antes do processo virar zumbi, e no CI
+	// essa janela chegou a pegar a checagem imediata. Órfão é o que continua
+	// rodando, não o que termina de sair: o prazo curto separa os dois.
+	if !waitExit(childPid, 2*time.Second) {
 		t.Fatalf("processo filho %d continua vivo após stopProcess (órfão)", childPid)
 	}
 }

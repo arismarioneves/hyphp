@@ -157,6 +157,8 @@ open "$APP"
 esperar_pronto 300
 "$CLI" status
 "$CLI" services
+# Os avisos não reprovam: no Mac, hosts e certificado ficam pendentes até a M2.
+"$CLI" warnings
 "$CLI" status --json | jq -e '.failed == 0 and .ready == .total' >/dev/null ||
 	falha "status com serviço em falha"
 
