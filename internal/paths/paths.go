@@ -71,6 +71,10 @@ func Log() string { return filepath.Join(Root(), "log") }
 // Run é Root()/var/run — pids e sockets efêmeros.
 func Run() string { return filepath.Join(Var(), "run") }
 
+// Cli é Root()/cli. No Mac guarda os atalhos que o /etc/paths.d põe no PATH
+// (hyphp e php-bin); no Windows não é usada, a CLI fica ao lado do hyphp.exe.
+func Cli() string { return filepath.Join(Root(), "cli") }
+
 // EnsureLayout cria bin/, etc/, var/, var/run/ e log/ (0755). Idempotente.
 func EnsureLayout() error {
 	for _, dir := range []string{Bin(), Etc(), Var(), Run(), Log()} {
