@@ -13,6 +13,7 @@ import (
 
 	"golang.org/x/sys/windows/registry"
 
+	"hyphp/internal/runtime"
 	"hyphp/internal/sysproc"
 )
 
@@ -168,6 +169,22 @@ func addToUserPath(dir string) error {
 	broadcastEnvironment()
 	return nil
 }
+
+// cliPathDir: no Windows a pasta da CLI (cli\ ao lado do hyphp.exe) é a que
+// entra no PATH.
+func cliPathDir(exe string) string { return filepath.Dir(exe) }
+
+func addCLIToUserPath(exe string) error { return addToUserPath(filepath.Dir(exe)) }
+
+func addPHPToUserPath(inst runtime.Installed) error { return addToUserPath(inst.Dir) }
+
+// RefreshPathLinks: no Windows o PATH aponta direto para as pastas; não há
+// atalhos a refazer.
+func RefreshPathLinks(string, func() (runtime.Installed, bool)) error { return nil }
+
+// shadowingPHP: no Windows o botão grava a pasta da série no PATH do usuário;
+// a conferência do php que o shell acha é só do Mac.
+func shadowingPHP() (string, error) { return "", nil }
 
 var procSendMessageTimeout = windows.NewLazySystemDLL("user32.dll").NewProc("SendMessageTimeoutW")
 

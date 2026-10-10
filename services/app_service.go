@@ -101,8 +101,14 @@ func (a *AppService) AddDefaultPHPToUserPath() error {
 	if !ok {
 		return errors.New(i18n.T("err.app.noPHP"))
 	}
-	return addToUserPath(inst.Dir)
+	return addPHPToUserPath(inst)
 }
+
+// ShadowingPHP devolve o php que o Terminal acha antes do PHP do HyPHP, ou ""
+// quando o do HyPHP vence. No Mac, o php do Homebrew em /opt/homebrew/bin vem
+// antes do /etc/paths.d no PATH, e sem o aviso o botão pareceria não funcionar.
+func (a *AppService) ShadowingPHP() (string, error) { return shadowingPHP() }
+
 func mustDir(path string) error {
 	info, err := os.Stat(path)
 	if err != nil {

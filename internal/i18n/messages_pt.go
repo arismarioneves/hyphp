@@ -149,6 +149,7 @@ var messagesPT = map[string]string{
 	"err.cli.missing":        "%s precisa de: %s",
 	"err.cli.unknownService": "o serviço %q não existe; veja `hyphp services`",
 	"err.cli.exeMissing":     "a CLI não está nesta instalação (%s não existe)",
+	"err.path.cancelled":     "PATH não alterado (cancelado)",
 	"err.cli.noWindow":       "a janela do HyPHP não está disponível",
 
 	// CLI: texto do próprio hyphp.exe da CLI.

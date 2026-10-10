@@ -104,6 +104,24 @@ func (s *SettingsService) RemoveWildcardDNS() error {
 	return nil
 }
 
+// SystemChanges diz o que o HyPHP gravou no sistema (só no Mac), para o card
+// Permissões oferecer o "Remover do sistema".
+func (s *SettingsService) SystemChanges() stack.SystemChanges {
+	return s.stk.SystemChanges()
+}
+
+// RemoveSystemChanges desfaz a regra de DNS, o PATH e a confiança na CA com
+// uma senha. Ação explícita, como as outras que pedem senha.
+func (s *SettingsService) RemoveSystemChanges() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := s.stk.RemoveSystemChanges(ctx); err != nil {
+		return err
+	}
+	s.emit("stack:warnings", s.stk.Warnings())
+	return nil
+}
+
 // Set aplica os campos da tela Configurações. SchemaVersion e PortAlloc
 // pertencem ao Stack e são ignorados. Roots (ProjectsService),
 // PHPExtensions (RuntimesService), WebServer (SwitchWebServer, chamado

@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -169,7 +168,7 @@ func (c *CLIService) Info() CLIInfo {
 		info.ExeExists = true
 	}
 	if p, err := readUserPath(); err == nil {
-		_, mudou := pathComDir(p, filepath.Dir(c.d.Exe))
+		_, mudou := pathComDir(p, cliPathDir(c.d.Exe))
 		info.OnPath = !mudou
 	}
 	return info
@@ -202,7 +201,7 @@ func (c *CLIService) AddToPath() error {
 	if _, err := os.Stat(c.d.Exe); err != nil {
 		return i18n.Errorf("err.cli.exeMissing", c.d.Exe)
 	}
-	return addToUserPath(filepath.Dir(c.d.Exe))
+	return addCLIToUserPath(c.d.Exe)
 }
 
 func (c *CLIService) record(a CLIActivity) {

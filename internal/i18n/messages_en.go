@@ -140,6 +140,7 @@ var messagesEN = map[string]string{
 	"err.cli.missing":        "%s needs: %s",
 	"err.cli.unknownService": "service %q does not exist; see `hyphp services`",
 	"err.cli.exeMissing":     "the CLI is not in this installation (%s does not exist)",
+	"err.path.cancelled":     "PATH not changed (cancelled)",
 	"err.cli.noWindow":       "the HyPHP window is not available",
 
 	// CLI: text of the CLI's own hyphp.exe.

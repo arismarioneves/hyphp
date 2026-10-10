@@ -214,6 +214,11 @@ func main() {
 			logger.Error("reconcile", "reason", reason, "err", err)
 		}
 	}
+	// O executável do app: no Mac a CLI e o helper ficam no mesmo bundle.
+	exe, _ := os.Executable()
+	// refreshPathLinks refaz os atalhos da pasta cli (só no Mac) quando os
+	// runtimes ou a série padrão mudam; atribuída depois do AppService.
+	var refreshPathLinks func()
 	rtSvc := services.NewRuntimesService(services.RuntimesDeps{
 		App:    app,
 		BinDir: paths.Bin(),
@@ -241,6 +246,9 @@ func main() {
 			// e o aviso "não encontrado" persistia com o runtime já instalado.
 			stk.SetWebServers(webServers(list))
 			stk.SetMkcert(newMkcert(logger, list))
+			if refreshPathLinks != nil {
+				refreshPathLinks()
+			}
 			reconcile("runtime:changed")
 		},
 		StopUsing: func(dir string) error {
@@ -322,19 +330,26 @@ func main() {
 	})
 
 	// hyphp: services
+	// Mesma regra do Reconcile (stack/desired.go): state.DefaultPHP manda e,
+	// vazio, vale a maior série instalada. O PATH do usuário precisa apontar
+	// para o PHP que a stack de fato serve.
+	defaultPHP := func() (runtime.Installed, bool) {
+		phps := runtime.ByKind(rtSvc.Installed(), runtime.PHP)
+		major := stk.State().DefaultPHP
+		if major == "" {
+			major = stack.HighestPHPMajor(phps)
+		}
+		return runtime.PHPByMajor(phps, major)
+	}
+	refreshPathLinks = func() {
+		if err := services.RefreshPathLinks(cliExe(exe), defaultPHP); err != nil {
+			logger.Warn("refazer atalhos do PATH", "err", err)
+		}
+	}
+	refreshPathLinks()
 	appSvc := services.NewAppService(services.AppDeps{
 		Quit: app.Quit, State: stk.State, Logger: logger,
-		// Mesma regra do Reconcile (stack/desired.go): state.DefaultPHP manda e,
-		// vazio, vale a maior série instalada. O PATH do usuário precisa apontar
-		// para o PHP que a stack de fato serve.
-		DefaultPHP: func() (runtime.Installed, bool) {
-			phps := runtime.ByKind(rtSvc.Installed(), runtime.PHP)
-			major := stk.State().DefaultPHP
-			if major == "" {
-				major = stack.HighestPHPMajor(phps)
-			}
-			return runtime.PHPByMajor(phps, major)
-		},
+		DefaultPHP: defaultPHP,
 	})
 	svcSvc := services.NewServicesService(services.ServicesDeps{Sup: sup, Stack: stk, Logger: logger})
 	setSvc := services.NewSettingsService(stk, emit, func() { relabelTray() })
@@ -355,7 +370,6 @@ func main() {
 	app.RegisterService(application.NewService(services.NewUpdateService(upd, app.Quit)))
 	// A CLI (cmd/hyphp) fala com o app pelo pipe do usuário e roda os mesmos
 	// serviços que a UI; cliExe diz onde o binário dela mora em cada sistema.
-	exe, _ := os.Executable()
 	app.RegisterService(application.NewService(services.NewCLIService(services.CLIDeps{
 		App: appSvc, Services: svcSvc, Projects: projSvc, Runtimes: rtSvc, Settings: setSvc, Database: dbSvc, Sup: sup,
 		ShowWindow: func() {
