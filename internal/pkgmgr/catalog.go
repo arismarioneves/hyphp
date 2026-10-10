@@ -108,6 +108,11 @@ func (c Catalog) Validate() error {
 		}
 		ids[p.ID] = true
 	}
+	// O stack usa só o primeiro pacote de CAs; com dois, um catálogo futuro
+	// faria o app ficar com o mais antigo sem aviso.
+	if n := len(c.ByKind(KindCACert)); n > 1 {
+		return fmt.Errorf("pkgmgr: catálogo com %d pacotes de CAs; o app usa um só", n)
+	}
 	return nil
 }
 

@@ -63,6 +63,7 @@ func TestCatalogoRecusado(t *testing.T) {
 		{"mirror sem https", catalogoJSON(1, `{"id":"php-8.3.35","kind":"php","version":"8.3.35","url":"https://x/php.zip","mirrors":["http://y/php.zip"],"sha256":"`+sha+`"}`)},
 		{"id repetido", catalogoJSON(1, pacotePHP+","+pacotePHP)},
 		{"id sem a versão", catalogoJSON(1, `{"id":"php-atual","kind":"php","version":"8.3.35","url":"https://x/php.zip","sha256":"`+sha+`"}`)},
+		{"dois pacotes de CAs", catalogoJSON(1, pacotePHP+`,{"id":"cacert-2026-09-25","kind":"cacert","version":"2026-09-25","url":"https://x/c.pem","sha256":"`+sha+`"},{"id":"cacert-2026-10-01","kind":"cacert","version":"2026-10-01","url":"https://x/c2.pem","sha256":"`+sha+`"}`)},
 		{"JSON quebrado", `{"schema":1,`},
 	} {
 		t.Run(c.nome, func(t *testing.T) {
