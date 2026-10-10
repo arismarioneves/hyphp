@@ -13,7 +13,7 @@ different domains **at the same time**, local HTTPS, supervised workers and a re
 environment per project.
 
 Download the installer from the [Releases](https://github.com/arismarioneves/hyphp/releases/latest)
-page (Windows 10/11 x64; macOS 15+ on Apple Silicon from 3.1.0, see [Installation](#installation)).
+page (Windows 10/11 x64; macOS 15+ on Apple Silicon from 4.0.0, see [Installation](#installation)).
 The Windows installer is not digitally signed yet: if Windows warns you, choose
 **More info → Run anyway**.
 
@@ -57,7 +57,7 @@ itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised workers.
 
 - **Windows 10/11 x64** — the original target, and deliberately the hardest case, since
   `php-fpm` does not exist on this platform.
-- **macOS 15+ on Apple Silicon**, from version 3.1.0. PHP, Apache, nginx, MySQL, MariaDB,
+- **macOS 15+ on Apple Silicon**, from version 4.0.0. PHP, Apache, nginx, MySQL, MariaDB,
   Mailpit and mkcert come from Homebrew. The app is signed ad hoc, not notarized by Apple.
 
 The architecture isolates OS-specific code in files with build tags.
@@ -173,7 +173,7 @@ applied to the system: the `hosts` block, the `.test` DNS rule and the autostart
 removed through the interface itself (the **Permissões** card in **Configurações**, the
 Settings screen, and the autostart toggle), before uninstalling.
 
-On macOS (from 3.1.0), this Terminal command installs or updates `/Applications/HyPHP.app`:
+On macOS (from 4.0.0), this Terminal command installs or updates `/Applications/HyPHP.app`:
 
 ```bash
 curl -fsSL https://github.com/arismarioneves/hyphp/releases/latest/download/install.sh | sh
