@@ -123,12 +123,18 @@ tentar() {
 	done
 }
 
+# instalar roda o `brew install` como o app (internal/brew/exec_darwin.go): uma
+# fórmula por vez, o PHP pelo nome completo do tap, sem tap/trust, e a saída 1
+# com o keg no opt/ conta como sucesso, porque só o link em bin/ falhou (por
+# exemplo, mariadb@11.8 ao lado do mysql@8.4).
+instalar() {
+	brew install "$1" || [ -d "$(brew --prefix)/opt/${1##*/}" ] || falha "brew install $1"
+}
+
 passo "runtimes pelo Homebrew"
-# O mesmo comando e o mesmo ambiente que o app usa (internal/brew/exec_darwin.go):
-# um `brew install` por fórmula, o PHP pelo nome completo do tap, sem tap/trust.
 export HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_COLOR=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
 for f in shivammathur/php/php@8.3 httpd mysql@8.4 mailpit; do
-	brew install "$f"
+	instalar "$f"
 done
 ls -ld "$(brew --prefix)"/opt/{php*,httpd,mysql*,mariadb*,mailpit,nginx} 2>/dev/null || true
 
@@ -257,7 +263,7 @@ passo "nginx e MariaDB instalados com o app aberto"
 # Como depois de uma instalação pela tela Runtimes: o app tem de enxergar as
 # fórmulas novas sozinho, pelo watcher do opt/, sem reabrir.
 for f in nginx mariadb@11.8; do
-	brew install "$f"
+	instalar "$f"
 done
 tentar 90 web nginx
 tentar 90 db engine mariadb

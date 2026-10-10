@@ -87,6 +87,7 @@ func (b Brew) Install(ctx context.Context, f Formula, on func(pkgmgr.Progress)) 
 	}
 	defer busy.Unlock()
 
+	hadKeg := b.kegInOpt(f)
 	// stdout e stderr no mesmo pipe preservam a ordem das linhas.
 	pr, pw, err := os.Pipe()
 	if err != nil {
@@ -149,9 +150,24 @@ func (b Brew) Install(ctx context.Context, f Formula, on func(pkgmgr.Progress)) 
 		return ctx.Err()
 	}
 	if err != nil {
+		// O brew sai com 1 quando só o link em <prefix>/bin falha por conflito
+		// (mariadb@11.8 e mysql@8.4 trazem os dois bin/mysql). O keg já está
+		// instalado e o opt/ já aponta para ele, porque o link do opt vem
+		// antes. O HyPHP usa só o opt/, com as próprias configs, e nunca roda
+		// brew link: o que falhou depois disso (link, post_install) não o
+		// atinge, e o keg que apareceu no opt/ com esta instalação é sucesso.
+		if !hadKeg && b.kegInOpt(f) {
+			return nil
+		}
 		return fmt.Errorf("brew install %s: %w\n%s", f.Name, err, strings.Join(tail, "\n"))
 	}
 	return nil
+}
+
+// kegInOpt diz se <prefix>/opt/<nome curto> aponta para uma pasta de keg.
+func (b Brew) kegInOpt(f Formula) bool {
+	st, err := os.Stat(filepath.Join(b.Prefix, "opt", f.Short()))
+	return err == nil && st.IsDir()
 }
 
 // Uninstall roda `brew uninstall <nome curto>`. O texto do brew vai no erro
