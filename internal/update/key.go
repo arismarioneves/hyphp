@@ -7,11 +7,11 @@ import (
 
 // publicKeyHex é a chave pública que valida latest.json.sig.
 //
-// A privada correspondente fica em %USERPROFILE%\.hyphp\release-ed25519.key,
-// fora dos repositórios, e é gerada uma única vez por
-// `go run ./cmd/hyphp-release -gerar-chave`. Trocar esta constante deixa todo
-// app já instalado sem aceitar nenhum manifesto novo: a saída passa a ser o
-// usuário reinstalar à mão.
+// A privada correspondente fica fora dos repositórios e assina o latest.json
+// na publicação (cmd/hyphp-release); foi gerada uma única vez por
+// `go run ./cmd/hyphp-release -gerar-chave`. Trocar esta
+// constante deixa todo app já instalado sem aceitar nenhum manifesto novo: a
+// saída passa a ser o usuário reinstalar à mão.
 const publicKeyHex = "ca9f906be2fcd20120291290e72cc114e2bdd2e724d663e0dc25dc8fc4961d79"
 
 // PublicKey é publicKeyHex decodificada.
