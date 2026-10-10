@@ -22,6 +22,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"hyphp/internal/pkgmgr"
 	"hyphp/internal/update"
 )
 
@@ -387,19 +388,69 @@ func verify(repo, current, tag, ghRepo string, gh func(args ...string) ([]byte, 
 // releaseKeyEnv guarda a seed ed25519 em hex que assina o latest.json.
 const releaseKeyEnv = "HYPHP_RELEASE_KEY"
 
-// releaseKey decodifica a seed e exige que ela corresponda a pub. Assinar com
-// uma chave que o binário não conhece publicaria um manifesto que todo app
-// instalado recusa — em silêncio, do lado do usuário.
-func releaseKey(seedHex string, pub ed25519.PublicKey) (ed25519.PrivateKey, error) {
+// catalogKeyEnv é a seed ed25519 em hex que assina o catalog.json publicado no
+// site. É separada da do update: vazar uma não entrega a outra.
+const catalogKeyEnv = "HYPHP_CATALOG_KEY"
+
+// signingKey decodifica a seed do segredo env e exige que ela corresponda a
+// pub. Assinar com uma chave que o binário não conhece publicaria algo que
+// todo app instalado recusa — em silêncio, do lado do usuário.
+func signingKey(env, seedHex string, pub ed25519.PublicKey) (ed25519.PrivateKey, error) {
 	seed, err := hex.DecodeString(strings.TrimSpace(seedHex))
 	if err != nil || len(seed) != ed25519.SeedSize {
-		return nil, fmt.Errorf("%s ausente ou sem uma seed ed25519 em hex", releaseKeyEnv)
+		return nil, fmt.Errorf("%s ausente ou sem uma seed ed25519 em hex", env)
 	}
 	priv := ed25519.NewKeyFromSeed(seed)
 	if !priv.Public().(ed25519.PublicKey).Equal(pub) {
-		return nil, fmt.Errorf("a chave de %s não corresponde a update.PublicKey embutida no app", releaseKeyEnv)
+		return nil, fmt.Errorf("a chave de %s não corresponde à chave pública embutida no app", env)
 	}
 	return priv, nil
+}
+
+// publishCatalog é o modo -catalogo, rodado pelo workflow catalogo.yml:
+// confere o catalog.json do repositório com a mesma validação do app, exige
+// serial maior que o já publicado e grava em <web>/catalogo/ os bytes exatos
+// do arquivo e a assinatura deles.
+func publishCatalog(raw []byte, web string, key ed25519.PrivateKey) (pkgmgr.Catalog, error) {
+	c, err := pkgmgr.ParseCatalog(raw)
+	if err != nil {
+		return pkgmgr.Catalog{}, err
+	}
+	// O ParseCatalog descarta tipos desconhecidos (compatibilidade dos apps
+	// antigos); aqui um pacote a menos é um typo no catalog.json.
+	var todos struct {
+		Packages []json.RawMessage `json:"packages"`
+	}
+	if err := json.Unmarshal(raw, &todos); err != nil {
+		return pkgmgr.Catalog{}, err
+	}
+	if len(todos.Packages) != len(c.Packages) {
+		return pkgmgr.Catalog{}, fmt.Errorf("catalog.json tem %d pacotes, e só %d são de tipo conhecido", len(todos.Packages), len(c.Packages))
+	}
+	dir := filepath.Join(web, "catalogo")
+	switch old, err := os.ReadFile(filepath.Join(dir, "catalog.json")); {
+	case err == nil:
+		prev, err := pkgmgr.ParseCatalog(old)
+		if err != nil {
+			return pkgmgr.Catalog{}, fmt.Errorf("catálogo publicado no site ilegível: %w", err)
+		}
+		if c.Serial <= prev.Serial {
+			return pkgmgr.Catalog{}, fmt.Errorf("serial %d não é maior que o publicado (%d): suba o serial do catalog.json", c.Serial, prev.Serial)
+		}
+	case !errors.Is(err, os.ErrNotExist):
+		return pkgmgr.Catalog{}, err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return pkgmgr.Catalog{}, err
+	}
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(key, raw)) + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "catalog.json"), raw, 0o644); err != nil {
+		return pkgmgr.Catalog{}, err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "catalog.json.sig"), []byte(sig), 0o644); err != nil {
+		return pkgmgr.Catalog{}, err
+	}
+	return c, nil
 }
 
 // rehearse é o modo -ensaio: monta e assina o latest.json da versão em

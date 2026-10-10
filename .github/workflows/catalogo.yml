@@ -1,0 +1,52 @@
+# Publica o catálogo de pacotes assinado, que as versões instaladas (4.0.0 em
+# diante) leem a cada 6 h: um link novo de runtime chega sem versão nova do
+# app. Disparo manual, na main, com aprovação. Sem gatilho de pull request.
+#
+# Roda no Windows: o hyphp-release importa o internal/update, que só compila
+# no Windows e no Mac.
+name: catalogo
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: catalogo
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  publicar:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # O repositório vem de um segredo, não de uma variável: o log do Actions
+      # é público e só valores de segredo saem mascarados.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.WEB }}
+          ssh-key: ${{ secrets.HYPHP_WEB_DEPLOY_KEY }}
+          path: web
+      - name: assinar
+        id: assinar
+        env:
+          HYPHP_CATALOG_KEY: ${{ secrets.HYPHP_CATALOG_KEY }}
+        run: go run ./cmd/hyphp-release -catalogo -web web >>"$GITHUB_OUTPUT"
+      - name: publicar
+        working-directory: web
+        env:
+          SERIAL: ${{ steps.assinar.outputs.serial }}
+        run: |
+          git add catalogo/catalog.json catalogo/catalog.json.sig
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "catalogo: $SERIAL"
+          git push origin HEAD:main
