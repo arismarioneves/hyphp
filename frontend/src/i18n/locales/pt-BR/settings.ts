@@ -26,10 +26,18 @@ export const settings = {
   permissions: 'PERMISSÕES',
   permissionsHint:
     'Estas ações exigem permissão de administrador e pedem confirmação do Windows. Nenhuma outra parte do HyPHP eleva privilégio.',
+  permissionsHintMac:
+    'Estas ações pedem a senha de administrador do Mac. Nenhuma outra parte do HyPHP eleva privilégio.',
+  removeSystem: 'Remover do sistema',
+  removeSystemHint: 'Desfaz a regra de DNS, o PATH e a confiança no certificado gravados pelo HyPHP.',
+  removeSystemConfirm: 'Remover? Os dados do HyPHP ficam; os sites deixam de abrir pelo nome até registrar de novo.',
+  cancel: 'Cancelar',
   applyHosts: 'Aplicar domínios',
   installCA: 'Instalar certificado',
   applyWildcardDNS: 'Registrar regra de DNS',
   pathAdded: 'PHP adicionado ao PATH do usuário. Abra um terminal novo para valer.',
+  pathAddedMac: 'PHP no PATH. Abra um Terminal novo para valer.',
+  phpShadowed: 'O Terminal acha {path} antes do PHP do HyPHP.',
   webServer: 'WEB SERVER',
   switchingWebServer: 'Trocando web server: validando config e subindo o novo…',
   webServerHint:

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { ArrowSquareOut, FolderPlus, Trash } from '@phosphor-icons/react'
 import { AppService, ProjectsService, SettingsService } from '../../bindings/hyphp/services'
 // O enum gerado `state.WebServerName` é nominal: o literal 'apache' não é
@@ -14,7 +14,7 @@ import { Select } from '../components/Select'
 import { Skeleton } from '../components/Skeleton'
 import { Toggle } from '../components/Toggle'
 import type { ScreenProps } from '../lib/screens'
-import type { State, Warning } from '../lib/types'
+import type { State, SystemChanges, Warning } from '../lib/types'
 import { useRuntimes } from '../lib/useRuntimes'
 import { useSettings } from '../lib/useSettings'
 import { useUpdate } from '../lib/useUpdate'
@@ -221,26 +221,88 @@ function ElevatedAction({ warning, label, run }: ElevatedActionProps) {
 }
 
 /**
- * Único ponto do produto que dispara UAC. O Reconcile nunca eleva — só reporta
- * as pendências —, então sem pendência não há o que aplicar e o card some
- * inteiro: botão que não faz nada é pior que botão nenhum.
+ * Único ponto do produto que pede privilégio (UAC no Windows, senha no Mac).
+ * O Reconcile nunca eleva — só reporta as pendências —, então o card aparece
+ * com pendência ou, no Mac, com algo gravado no sistema para remover; sem
+ * nenhum dos dois, some inteiro: botão que não faz nada é pior que nenhum.
  */
-function PermissionsCard() {
+function PermissionsCard({ changes, onChanged }: { changes: SystemChanges | null; onChanged: () => void }) {
   const t = useT('settings')
   const { warnings } = useWarnings()
   const hosts = warnings.find((w) => w.code === HOSTS_PENDING)
   const ca = warnings.find((w) => w.code === CA_PENDING)
   const wildcard = warnings.find((w) => w.code === WILDCARD_PENDING)
-  if (!hosts && !ca && !wildcard) return null
+  const mac = changes?.supported === true
+  const removable = changes !== null && changes.supported && (changes.dns || changes.path || changes.ca)
+  if (!hosts && !ca && !wildcard && !removable) return null
   return (
     <Section label={t('permissions')}>
-      <p className="text-xs text-fg-faint">{t('permissionsHint')}</p>
+      <p className="text-xs text-fg-faint">{mac ? t('permissionsHintMac') : t('permissionsHint')}</p>
       {hosts && <ElevatedAction warning={hosts} label={t('applyHosts')} run={SettingsService.ApplyHosts} />}
-      {ca && <ElevatedAction warning={ca} label={t('installCA')} run={SettingsService.InstallCA} />}
-      {wildcard && (
-        <ElevatedAction warning={wildcard} label={t('applyWildcardDNS')} run={SettingsService.ApplyWildcardDNS} />
+      {ca && (
+        <ElevatedAction
+          warning={ca}
+          label={t('installCA')}
+          run={() => SettingsService.InstallCA().then(onChanged)}
+        />
       )}
+      {wildcard && (
+        <ElevatedAction
+          warning={wildcard}
+          label={t('applyWildcardDNS')}
+          run={() => SettingsService.ApplyWildcardDNS().then(onChanged)}
+        />
+      )}
+      {removable && <RemoveSystemAction onDone={onChanged} />}
     </Section>
+  )
+}
+
+/**
+ * "Remover do sistema" (só no Mac): uma senha desfaz a regra de DNS, o PATH e
+ * a confiança no certificado. Pede confirmação porque os sites deixam de abrir
+ * pelo nome até registrar de novo.
+ */
+function RemoveSystemAction({ onDone }: { onDone: () => void }) {
+  const t = useT('settings')
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const remove = () => {
+    setBusy(true)
+    setError('')
+    SettingsService.RemoveSystemChanges()
+      .then(() => {
+        setConfirming(false)
+        onDone()
+      })
+      .catch((e: unknown) => setError(errorText(e)))
+      .finally(() => setBusy(false))
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-fg-muted">{t('removeSystemHint')}</p>
+      {error !== '' && <p className="selectable text-sm text-err">{error}</p>}
+      <div className="flex items-center gap-2">
+        {confirming ? (
+          <>
+            <span className="text-xs text-fg-muted">{t('removeSystemConfirm')}</span>
+            <Button variant="danger" size="sm" loading={busy} disabled={busy} onClick={remove}>
+              {t('removeSystem')}
+            </Button>
+            <Button variant="ghost" size="sm" disabled={busy} onClick={() => setConfirming(false)}>
+              {t('cancel')}
+            </Button>
+          </>
+        ) : (
+          <Button variant="secondary" size="sm" onClick={() => setConfirming(true)}>
+            {t('removeSystem')}
+          </Button>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -266,6 +328,17 @@ export function Settings({ onNavigate }: ScreenProps) {
   const [pathMsg, setPathMsg] = useState('')
   const [pathError, setPathError] = useState<string | null>(null)
   const [aboutError, setAboutError] = useState<string | null>(null)
+  const [changes, setChanges] = useState<SystemChanges | null>(null)
+  const [pathShadow, setPathShadow] = useState('')
+  const { warnings } = useWarnings()
+  // Relido a cada mudança de avisos: registrar a regra ou a CA (aqui ou pelo
+  // Dashboard) muda o que há para remover.
+  const loadChanges = useCallback(() => {
+    void SettingsService.SystemChanges().then(setChanges)
+  }, [])
+  useEffect(() => {
+    loadChanges()
+  }, [loadChanges, warnings])
 
   // settings:changed chega com o state inteiro a cada gravação do backend
   // (troca de web server/banco, recolher a sidebar, comandos da CLI). Só os
@@ -366,9 +439,12 @@ export function Settings({ onNavigate }: ScreenProps) {
     setPathBusy(true)
     setPathMsg('')
     setPathError(null)
+    setPathShadow('')
     try {
       await AppService.AddDefaultPHPToUserPath()
-      setPathMsg(t('pathAdded'))
+      setPathMsg(changes?.supported ? t('pathAddedMac') : t('pathAdded'))
+      setPathShadow(await AppService.ShadowingPHP())
+      loadChanges()
     } catch (e) {
       setPathError(errorText(e))
     } finally {
@@ -474,7 +550,7 @@ export function Settings({ onNavigate }: ScreenProps) {
         <PortInput label="Mailpit UI" value={draft.mailpitHttpPort} onChange={(n) => set('mailpitHttpPort', n)} />
       </Section>
 
-      <PermissionsCard />
+      <PermissionsCard changes={changes} onChanged={loadChanges} />
 
       <Section label={t('directories')}>
         {roots.length === 0 ? (
@@ -529,6 +605,9 @@ export function Settings({ onNavigate }: ScreenProps) {
             </Button>
             {pathMsg && <span className="text-sm text-fg-muted">{pathMsg}</span>}
             {pathError && <span className="selectable text-sm text-err">{pathError}</span>}
+            {pathShadow && (
+              <span className="selectable text-sm text-warn">{t('phpShadowed', { path: pathShadow })}</span>
+            )}
           </div>
         </Row>
       </Section>

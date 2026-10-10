@@ -28,10 +28,18 @@ export const settings: typeof base = {
   permissions: 'PERMISSIONS',
   permissionsHint:
     'These actions require administrator rights and ask for Windows confirmation. No other part of HyPHP elevates privileges.',
+  permissionsHintMac:
+    'These actions ask for the Mac administrator password. No other part of HyPHP elevates privileges.',
+  removeSystem: 'Remove from system',
+  removeSystemHint: 'Undoes the DNS rule, the PATH and the certificate trust written by HyPHP.',
+  removeSystemConfirm: 'Remove? HyPHP data stays; sites stop opening by name until you register again.',
+  cancel: 'Cancel',
   applyHosts: 'Apply domains',
   installCA: 'Install certificate',
   applyWildcardDNS: 'Register DNS rule',
   pathAdded: "PHP added to the user PATH. Open a new terminal for it to take effect.",
+  pathAddedMac: 'PHP on PATH. Open a new Terminal for it to take effect.',
+  phpShadowed: 'Terminal finds {path} before HyPHP’s PHP.',
   webServer: 'WEB SERVER',
   switchingWebServer: 'Switching web server: validating config and starting the new one…',
   webServerHint:
