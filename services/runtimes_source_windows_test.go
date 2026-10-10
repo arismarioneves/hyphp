@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"hyphp/internal/pkgmgr"
 	"hyphp/internal/runtime"
 )
 
@@ -83,5 +84,22 @@ func TestDestinoImportNomeiaPelaVersaoQuandoPastaTemNomeDoKind(t *testing.T) {
 				t.Errorf("destinoImport = %q, quero %q", got, c.quero)
 			}
 		})
+	}
+}
+
+// O pacote de CAs vem no catálogo, mas não é runtime: não aparece para
+// instalar nem pode ser pedido pela tela.
+func TestCACertForaDaTelaRuntimes(t *testing.T) {
+	cat := pkgmgr.Catalog{Packages: []pkgmgr.Package{
+		{ID: "php-8.3.35-nts-vs16-x64", Kind: runtime.PHP, Version: "8.3.35"},
+		{ID: "cacert-2026-09-25", Kind: pkgmgr.KindCACert, Version: "2026-09-25"},
+	}}
+	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir(), Catalog: cat})
+	got := r.available(nil)
+	if len(got) != 1 || got[0].Kind != runtime.PHP {
+		t.Errorf("available = %+v, quer só o PHP", got)
+	}
+	if _, err := r.installer("cacert-2026-09-25"); err == nil {
+		t.Error("o pacote de CAs foi aceito como instalação")
 	}
 }

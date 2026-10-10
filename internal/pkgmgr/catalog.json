@@ -1,5 +1,7 @@
 {
-  "updatedAt": "2026-09-30",
+  "schema": 1,
+  "serial": 2026101100,
+  "updatedAt": "2026-10-11",
   "packages": [
     {
       "id": "php-7.2.34-nts-vc15-x64",
@@ -82,14 +84,14 @@
       "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
     },
     {
-      "id": "apache-2.4.68-vs18-x64",
+      "id": "apache-2.4.69-vs18-x64",
       "kind": "apache",
-      "version": "2.4.68",
-      "url": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.68-260920-Win64-VS18.zip",
-      "sha256": "f6dcf17d08aa32721ae418cd818c157e4c521c9e889b758646fb64287f1d56e3",
+      "version": "2.4.69",
+      "url": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.69-261002-Win64-VS18.zip",
+      "sha256": "ca272e0b75abad78b1e4029a0753b20ff2232d2d857e8eebeea5d469c5776977",
       "compiler": "VS18",
       "arch": "x64",
-      "notes": "Apache Lounge build 260920. SHA-256 de https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.68-260920-Win64-VS18.zip.txt (publicado em maiusculas; comparacao case-insensitive). Zip tem raiz Apache24/ + ReadMe.txt/Security.txt soltos -> instalado em bin/apache/apache-2.4.68-vs18-x64/. Requer VC++ Redistributable 14.51+ (https://aka.ms/vc14/vc_redist.x64.exe). Apache Lounge SOBRESCREVE builds: se a URL responder HTML 'Oops', reler a pagina de download e atualizar url+sha256."
+      "notes": "Apache Lounge build 261002. SHA-256 de https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.69-261002-Win64-VS18.zip.txt (publicado em maiusculas; comparacao case-insensitive). Zip tem raiz Apache24/ + ReadMe.txt/Security.txt soltos -> instalado em bin/apache/apache-2.4.69-vs18-x64/. Requer VC++ Redistributable 14.51+ (https://aka.ms/vc14/vc_redist.x64.exe). Apache Lounge SOBRESCREVE builds: quando a URL responder HTML, atualizar url+sha256, subir o serial e publicar o catalogo."
     },
     {
       "id": "nginx-1.30.5",
@@ -190,6 +192,16 @@
       "compiler": "",
       "arch": "",
       "notes": "Nao e runtime: e codigo PHP servido pelo proprio web server. SHA-256 publicado pelo projeto em https://files.phpmyadmin.net/phpMyAdmin/5.2.3/phpMyAdmin-5.2.3-all-languages.zip.sha256 e conferido no download de 2026-09-25 (16 MB). Versao corrente em https://www.phpmyadmin.net/home_page/version.json. Raiz unica phpMyAdmin-5.2.3-all-languages/ -> bin/phpmyadmin/phpMyAdmin-5.2.3-all-languages/ (a raiz contem a versao, entao place() usa o nome da raiz, nao o id)."
+    },
+    {
+      "id": "cacert-2026-09-25",
+      "kind": "cacert",
+      "version": "2026-09-25",
+      "url": "https://curl.se/ca/cacert-2026-09-25.pem",
+      "sha256": "a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505",
+      "compiler": "",
+      "arch": "",
+      "notes": "Certificados de CA da Mozilla extraidos pela curl.se. SHA-256 de https://curl.se/ca/cacert-2026-09-25.pem.sha256. Arquivo datado: a URL nao muda nem some quando sai um pacote novo."
     }
   ]
 }
