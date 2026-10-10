@@ -27,7 +27,7 @@ func TestSetPreservaCamposDeOutrasTelas(t *testing.T) {
 	velho.WebServer = state.Apache
 
 	vivo := atual
-	s := NewSettingsService(stack.New(stack.Deps{State: &vivo, StatePath: path}), func(string, any) {}, nil)
+	s := NewSettingsService(stack.New(stack.Deps{State: &vivo, StatePath: path}), func(string, any) {}, nil, nil)
 	s.applyAutostart = func(bool) error { return nil }
 	if err := s.Set(velho); err != nil {
 		t.Fatal(err)

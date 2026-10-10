@@ -20,13 +20,18 @@ type SettingsService struct {
 	// onLanguage roda depois que o idioma muda, para o que o Go desenha fora
 	// da UI (o menu do tray) trocar de texto. Nil em testes.
 	onLanguage func()
+	// onDefaultPHP roda depois que a série padrão muda. O Set não passa pelo
+	// RuntimesService.notify, e sem isso o atalho php-bin (Mac) seguiria na
+	// série antiga: o php do Terminal ficaria atrás do que a stack serve.
+	// Nil em testes.
+	onDefaultPHP func()
 	// applyAutostart é autostart.Apply; teste troca para não mexer na chave
 	// Run real do usuário (Set com Autostart=false apagaria a entrada HyPHP).
 	applyAutostart func(enabled bool) error
 }
 
-func NewSettingsService(stk *stack.Stack, emit func(name string, data any), onLanguage func()) *SettingsService {
-	return &SettingsService{stk: stk, emit: emit, onLanguage: onLanguage, applyAutostart: autostart.Apply}
+func NewSettingsService(stk *stack.Stack, emit func(name string, data any), onLanguage, onDefaultPHP func()) *SettingsService {
+	return &SettingsService{stk: stk, emit: emit, onLanguage: onLanguage, onDefaultPHP: onDefaultPHP, applyAutostart: autostart.Apply}
 }
 
 // SystemLanguage devolve o idioma que vale quando state.Language está vazio.
@@ -180,6 +185,9 @@ func (s *SettingsService) Set(in state.State) error {
 		if s.onLanguage != nil {
 			s.onLanguage()
 		}
+	}
+	if cur.DefaultPHP != in.DefaultPHP && s.onDefaultPHP != nil {
+		s.onDefaultPHP()
 	}
 
 	if relevant {
