@@ -109,6 +109,7 @@ var messagesEN = map[string]string{
 
 	"update.done":              "HyPHP updated to version %s.",
 	"update.installerMismatch": "the %s installer finished, but the running HyPHP is still %s",
+	"update.semEscrita":        "no permission to replace the app in %s; update from Terminal: %s",
 
 	"page.title": "HyPHP — no project for this host",
 	"page.sub":   "host without project",

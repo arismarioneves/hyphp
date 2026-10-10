@@ -95,7 +95,6 @@ const (
 	sigLimit      = 4 << 10
 	fetchTimeout  = 30 * time.Second
 	resultFile    = "resultado.json"
-	updaterExe    = "hyphp-updater.exe"
 )
 
 // DefaultURL devolve EnvURL ou ManifestURL. Fora do loopback exige HTTPS.
@@ -215,8 +214,8 @@ func (u *Updater) Check(ctx context.Context) error {
 	if err != nil {
 		return u.fail(err)
 	}
-	// Sem artefato para esta plataforma (hoje: Mac, até o release publicar
-	// darwin_arm64) não há o que instalar, então é o mesmo que estar em dia.
+	// Sem artefato para esta plataforma (o Mac diante de uma release até a
+	// 3.0.1) não há o que instalar, então é o mesmo que estar em dia.
 	if c <= 0 || platformArtifact(l) == nil {
 		u.clean("")
 		u.mu.Lock()

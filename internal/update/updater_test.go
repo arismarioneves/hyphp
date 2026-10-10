@@ -95,7 +95,7 @@ func TestCheckBaixaVersaoNovaEFicaPronto(t *testing.T) {
 	}
 }
 
-// Manifesto só com instalador Windows (é o que o hyphp-release publica na M0):
+// Manifesto só com instalador Windows (o das releases até a 3.0.1):
 // no Mac não há o que baixar, então Check responde em dia em vez de falhar ou
 // oferecer uma versão que não instala; no Windows a versão nova é oferecida.
 func TestCheckSemArtefatoDaPlataformaNaoOfereceUpdate(t *testing.T) {

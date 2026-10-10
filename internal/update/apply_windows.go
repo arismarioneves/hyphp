@@ -1,15 +1,11 @@
 package update
 
 import (
-	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"time"
 
@@ -18,19 +14,8 @@ import (
 	"hyphp/internal/elevate"
 )
 
-func (r ApplyRequest) args() []string {
-	return []string{
-		"--pid", strconv.Itoa(r.PID),
-		"--instalador", r.Installer,
-		"--sha256", r.SHA256,
-		"--tamanho", strconv.FormatInt(r.Size, 10),
-		"--dir", r.Dir,
-		"--exe", r.Exe,
-		"--resultado", r.Result,
-		"--de", r.From,
-		"--para", r.To,
-	}
-}
+// updaterExe é a cópia do executável do app que aplica o update.
+const updaterExe = "hyphp-updater.exe"
 
 const (
 	// createBreakawayFromJob tira o atualizador do Job Object kill-on-close do
@@ -39,11 +24,8 @@ const (
 	createBreakawayFromJob = 0x01000000
 	createNewProcessGroup  = 0x00000200
 
-	appExitTimeout   = 60 * time.Second
 	installerTimeout = 10 * time.Minute
 )
-
-var errAppAlive = errors.New("o HyPHP não fechou a tempo; a atualização não foi aplicada")
 
 // Launch copia o executável em curso para updaterPath e o inicia em modo
 // ApplyFlag, fora do Job Object. Quem chama só encerra o app depois que isto
@@ -67,69 +49,6 @@ func Launch(req ApplyRequest, updaterPath string) error {
 		return fmt.Errorf("update: iniciar o atualizador fora do job do app: %w", err)
 	}
 	return cmd.Process.Release()
-}
-
-func parseApplyArgs(args []string) (ApplyRequest, error) {
-	var req ApplyRequest
-	fs := flag.NewFlagSet(ApplyFlag, flag.ContinueOnError)
-	fs.IntVar(&req.PID, "pid", 0, "")
-	fs.StringVar(&req.Installer, "instalador", "", "")
-	fs.StringVar(&req.SHA256, "sha256", "", "")
-	fs.Int64Var(&req.Size, "tamanho", 0, "")
-	fs.StringVar(&req.Dir, "dir", "", "")
-	fs.StringVar(&req.Exe, "exe", "", "")
-	fs.StringVar(&req.Result, "resultado", "", "")
-	fs.StringVar(&req.From, "de", "", "")
-	fs.StringVar(&req.To, "para", "", "")
-	fs.SetOutput(io.Discard)
-	if err := fs.Parse(args); err != nil {
-		return ApplyRequest{}, err
-	}
-	// Sem hash e tamanho não há como reconferir o instalador antes do UAC.
-	if req.Result == "" || req.Dir == "" || req.Exe == "" || req.Installer == "" || req.SHA256 == "" || req.Size <= 0 {
-		return ApplyRequest{}, errors.New("argumentos do atualizador incompletos")
-	}
-	return req, nil
-}
-
-// RunApply é o modo ApplyFlag: espera o app sair, roda o instalador e relança
-// o app. Devolve o exit code do processo.
-func RunApply(args []string) int {
-	req, err := parseApplyArgs(args)
-	if err != nil {
-		return 2
-	}
-	logf := openApplyLog(filepath.Join(filepath.Dir(req.Result), "aplicar.log"))
-
-	res := Result{From: req.From, To: req.To}
-	err = apply(req, logf)
-	if err != nil {
-		res.Error = err.Error()
-	} else {
-		res.OK = true
-	}
-	logf("resultado: ok=%v erro=%q", res.OK, res.Error)
-	if werr := writeResult(req.Result, res); werr != nil {
-		logf("gravar resultado: %v", werr)
-	}
-	// Com o app antigo ainda aberto não há o que relançar — e abrir outro
-	// cairia no single-instance dele.
-	if errors.Is(err, errAppAlive) {
-		return 1
-	}
-	exe := filepath.Join(req.Dir, req.Exe)
-	cmd := exec.Command(exe)
-	cmd.Dir = req.Dir
-	if serr := cmd.Start(); serr != nil {
-		logf("relançar %s: %v", exe, serr)
-		return 1
-	}
-	_ = cmd.Process.Release()
-	logf("relançado %s", exe)
-	if err != nil {
-		return 1
-	}
-	return 0
 }
 
 func apply(req ApplyRequest, logf func(string, ...any)) error {
@@ -158,6 +77,19 @@ func apply(req ApplyRequest, logf func(string, ...any)) error {
 	return nil
 }
 
+// relaunch abre de novo o exe de req.Dir: o novo, se o instalador rodou, ou
+// o que ficou, se ele falhou.
+func relaunch(req ApplyRequest) (string, error) {
+	exe := filepath.Join(req.Dir, req.Exe)
+	cmd := exec.Command(exe)
+	cmd.Dir = req.Dir
+	if err := cmd.Start(); err != nil {
+		return exe, err
+	}
+	_ = cmd.Process.Release()
+	return exe, nil
+}
+
 // waitExit espera o processo pid terminar. Processo que já não existe conta
 // como terminado: o app pode ter saído antes de o atualizador chegar aqui.
 func waitExit(pid int, timeout time.Duration) error {
@@ -174,48 +106,4 @@ func waitExit(pid int, timeout time.Duration) error {
 		return errAppAlive
 	}
 	return nil
-}
-
-func writeResult(path string, r Result) error {
-	raw, err := json.Marshal(r)
-	if err != nil {
-		return err
-	}
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, raw, 0o644); err != nil {
-		return err
-	}
-	return os.Rename(tmp, path)
-}
-
-// openApplyLog abre um log próprio: o atualizador não tem o logger do app, e
-// sem ele uma falha entre "app fechou" e "app voltou" seria invisível.
-func openApplyLog(path string) func(string, ...any) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
-	if err != nil {
-		return func(string, ...any) {}
-	}
-	return func(format string, a ...any) {
-		fmt.Fprintf(f, "%s %s\n", time.Now().Format(time.RFC3339), fmt.Sprintf(format, a...))
-	}
-}
-
-func copyExe(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	return out.Close()
 }

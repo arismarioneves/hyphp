@@ -116,6 +116,7 @@ var messagesPT = map[string]string{
 	// Atualização automática.
 	"update.done":              "HyPHP atualizado para a versão %s.",
 	"update.installerMismatch": "o instalador da %s terminou, mas o HyPHP em execução ainda é a %s",
+	"update.semEscrita":        "sem permissão para trocar o app em %s; atualize pelo Terminal: %s",
 
 	// Página do host default (default-index.html). Os textos são HTML confiável.
 	"page.title": "HyPHP — nenhum projeto para este host",

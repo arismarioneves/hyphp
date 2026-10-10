@@ -126,8 +126,3 @@ func helperPathFor(appExe string) (string, error) {
 	}
 	return p, nil
 }
-
-// RunInstaller ainda não existe no macOS: a aplicação de update é da M3.
-func RunInstaller(exe, params string, timeout time.Duration) (uint32, error) {
-	return 0, i18n.Errorf("err.mac.unavailable")
-}
