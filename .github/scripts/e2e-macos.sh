@@ -2,13 +2,16 @@
 # Teste de ponta a ponta do HyPHP no macOS, rodado pelo job macos-e2e do ci.yml
 # num runner macos-15 (Apple Silicon, sessão gráfica, Homebrew instalado).
 #
-# Repete sem ninguém na tela o roteiro manual da M1:
+# Repete sem ninguém na tela o roteiro manual da M1 e da M2:
 #   - runtimes instalados pelo Homebrew fora do app;
 #   - um projeto em ~/Code;
 #   - o .app aberto pelo `open`;
 #   - checagens pelo curl e pela CLI do bundle;
+#   - a regra de DNS, a confiança na CA e o PATH registrados pelo helper, com o
+#     sudo do runner no lugar da janela de senha;
+#   - o projeto em HTTPS, confiado pelo sistema;
 #   - o app morto por kill -9 e reaberto, que é o caminho da limpeza de órfãos;
-#   - por fim, o app fechado normalmente.
+#   - o app fechado normalmente e as mudanças removidas do sistema.
 #
 # Escrito para o bash 3.2 do macOS: sem arrays vazios sob `set -u`.
 #
@@ -310,7 +313,7 @@ grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu em HTTPS"
 # O sistema confia no certificado do site: a cadeia fecha no keychain, não no --cacert.
 openssl s_client -connect 127.0.0.1:443 -servername teste.test </dev/null 2>/dev/null | openssl x509 >"$CORPO.leaf"
 security verify-cert -c "$CORPO.leaf" -p ssl -s teste.test || falha "o sistema não confia no certificado de teste.test"
-achado=$(zsh -lc 'command -v hyphp' | tail -n 1)
+achado=$(zsh -lc 'command -v hyphp' | tail -n 1) || true
 [ "$achado" = "$ROOT/cli/hyphp" ] || falha "o Terminal acha $achado, não o hyphp da pasta cli"
 zsh -lc 'hyphp version'
 
@@ -350,6 +353,13 @@ passo "remover do sistema pelo helper"
 helper uninstall --cert "$CAROOT_DIR/rootCA.pem"
 [ ! -e /etc/resolver/test ] || falha "a regra de DNS ficou"
 [ ! -e /etc/paths.d/hyphp ] || falha "o /etc/paths.d/hyphp ficou"
+# A CA tem de sumir do keychain do sistema, conferida pelo SHA-1 como o
+# CAInstalled do app faz: o verify-cert na raiz seguiu dando 0 depois da
+# remoção no spike, então só a folha serve para conferir a confiança.
+sha1=$(openssl x509 -in "$CAROOT_DIR/rootCA.pem" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d :)
+if security find-certificate -a -Z /Library/Keychains/System.keychain | grep -q "SHA-1 hash: $sha1"; then
+	falha "a CA continua no keychain do sistema"
+fi
 if security verify-cert -c "$CORPO.leaf" -p ssl -s teste.test; then
 	falha "o sistema ainda confia no certificado do site"
 fi
