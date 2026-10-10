@@ -12,6 +12,10 @@ import (
 	"hyphp/internal/sysproc"
 )
 
+// bindOccupied: no Windows qualquer falha do bind de teste conta como porta
+// ocupada, como sempre foi; o servidor também não conseguiria escutar ali.
+func bindOccupied(error) bool { return true }
+
 // listeningPorts executa `netstat.exe -ano` e devolve porta → PID de todo listener TCP (v4 e v6).
 func listeningPorts() (map[int]int, error) {
 	cmd := exec.Command("netstat.exe", "-ano")

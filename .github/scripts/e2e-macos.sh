@@ -157,8 +157,11 @@ open "$APP"
 esperar_pronto 300
 "$CLI" status
 "$CLI" services
-# Os avisos não reprovam: no Mac, hosts e certificado ficam pendentes até a M2.
+# Os outros avisos não reprovam: no Mac, hosts e certificado ficam pendentes
+# até a M2. Porta em uso reprova, porque nada escutava antes de abrir o app.
 "$CLI" warnings
+"$CLI" warnings --json | jq -e 'all(.[]; .code != "port-conflict")' >/dev/null ||
+	falha "aviso de porta em uso com as portas livres antes de abrir o app"
 "$CLI" status --json | jq -e '.failed == 0 and .ready == .total' >/dev/null ||
 	falha "status com serviço em falha"
 
