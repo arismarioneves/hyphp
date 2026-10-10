@@ -86,14 +86,7 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 	tmp := filepath.Join(m.tmpDir, pkg.ID+".part")
 	defer os.Remove(tmp)
 
-	report(PhaseDownload, 0, -1)
-	sum, err := Download(ctx, m.client, pkg.URL, tmp, func(done, total int64) { report(PhaseDownload, done, total) })
-	if err != nil {
-		return fail(fmt.Errorf("pkgmgr: %w", err))
-	}
-
-	report(PhaseVerify, 0, 0)
-	if err := verifySHA256(sum, pkg.SHA256); err != nil {
+	if err := m.fetch(ctx, pkg, tmp, report); err != nil {
 		return fail(fmt.Errorf("pkgmgr: %s: %w", pkg.ID, err))
 	}
 
@@ -114,6 +107,51 @@ func (m *Manager) Install(ctx context.Context, pkg Package, onProgress func(Prog
 	}
 	report(PhaseDone, 0, 0)
 	return inst, nil
+}
+
+// fetch baixa pkg para tmp e confere o sha256, tentando a URL principal e
+// depois cada mirror. Qualquer falha de uma fonte (HTML no lugar do arquivo,
+// HTTP de erro, sha256 diferente, conexão interrompida) passa para a próxima;
+// cancelar encerra na hora.
+func (m *Manager) fetch(ctx context.Context, pkg Package, tmp string, report func(phase string, done, total int64)) error {
+	var errs []error
+	for _, url := range pkg.sources() {
+		report(PhaseDownload, 0, -1)
+		sum, err := Download(ctx, m.client, url, tmp, func(done, total int64) { report(PhaseDownload, done, total) })
+		if err == nil {
+			report(PhaseVerify, 0, 0)
+			if err = verifySHA256(sum, pkg.SHA256); err == nil {
+				return nil
+			}
+			err = fmt.Errorf("%s: %w", url, err)
+		}
+		if ctx.Err() != nil {
+			return err
+		}
+		errs = append(errs, err)
+	}
+	return errors.Join(errs...)
+}
+
+// Fetch baixa pkg para dest, conferido pelo sha256 e sem extrair. É o caminho
+// dos pacotes que não são runtime (KindCACert): dest só aparece inteiro e
+// conferido.
+func (m *Manager) Fetch(ctx context.Context, pkg Package, dest string) error {
+	if err := os.MkdirAll(m.tmpDir, 0o755); err != nil {
+		return fmt.Errorf("pkgmgr: %w", err)
+	}
+	tmp := filepath.Join(m.tmpDir, pkg.ID+".part")
+	defer os.Remove(tmp)
+	if err := m.fetch(ctx, pkg, tmp, func(string, int64, int64) {}); err != nil {
+		return fmt.Errorf("pkgmgr: %s: %w", pkg.ID, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return fmt.Errorf("pkgmgr: %w", err)
+	}
+	if err := os.Rename(tmp, dest); err != nil {
+		return fmt.Errorf("pkgmgr: %w", err)
+	}
+	return nil
 }
 
 // place coloca o arquivo baixado em bin/ e devolve a pasta que runtime.Detect deve ler.

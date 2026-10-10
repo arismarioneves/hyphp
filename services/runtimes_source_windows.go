@@ -33,6 +33,10 @@ func (r *RuntimesService) available(installed []runtime.Installed) []pkgmgr.Pack
 	}
 	out := make([]pkgmgr.Package, 0, len(r.d.Catalog.Packages))
 	for _, p := range r.d.Catalog.Packages {
+		// O pacote de CAs não é runtime: o stack o baixa sozinho para o PHP.
+		if p.Kind == pkgmgr.KindCACert {
+			continue
+		}
 		if !have[string(p.Kind)+"@"+p.Version] {
 			out = append(out, p)
 		}
@@ -44,7 +48,7 @@ func (r *RuntimesService) available(installed []runtime.Installed) []pkgmgr.Pack
 // (done/error/canceled) com PackageID.
 func (r *RuntimesService) installer(packageID string) (installFunc, error) {
 	pkg, ok := r.d.Catalog.ByID(packageID)
-	if !ok {
+	if !ok || pkg.Kind == pkgmgr.KindCACert {
 		return nil, i18n.Errorf("err.runtimes.unknownPackage", packageID)
 	}
 	return func(ctx context.Context, on func(pkgmgr.Progress)) error {
