@@ -357,7 +357,11 @@ helper uninstall --cert "$CAROOT_DIR/rootCA.pem"
 # CAInstalled do app faz: o verify-cert na raiz seguiu dando 0 depois da
 # remoção no spike, então só a folha serve para conferir a confiança.
 sha1=$(openssl x509 -in "$CAROOT_DIR/rootCA.pem" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d :)
-if security find-certificate -a -Z /Library/Keychains/System.keychain | grep -q "SHA-1 hash: $sha1"; then
+# A listagem vem antes do grep: no pipe, o grep -q sai no primeiro acerto, o
+# security leva SIGPIPE (141) e, com pipefail, o if daria falso justo quando a
+# CA ficou.
+listagem=$(security find-certificate -a -Z /Library/Keychains/System.keychain)
+if grep -q "SHA-1 hash: $sha1" <<<"$listagem"; then
 	falha "a CA continua no keychain do sistema"
 fi
 if security verify-cert -c "$CORPO.leaf" -p ssl -s teste.test; then

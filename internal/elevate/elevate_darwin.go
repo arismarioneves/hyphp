@@ -54,6 +54,11 @@ func RunElevated(exe string, args []string) error {
 	defer cancel()
 	var stdout, stderr bytes.Buffer
 	cmd := exec.CommandContext(ctx, "/usr/bin/osascript", osascriptArgs(i18n.T("elevate.prompt"), exe, args)...)
+	// Sem WaitDelay o Wait podia ficar preso nos pipes herdados pelo filho
+	// privilegiado mesmo depois do timeout. No timeout só o osascript morre:
+	// o helper já rodando como root não pode ser morto pelo processo do
+	// usuário e termina sozinho.
+	cmd.WaitDelay = 5 * time.Second
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
 	switch {

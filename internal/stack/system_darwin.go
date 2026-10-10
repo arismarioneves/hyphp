@@ -20,6 +20,10 @@ func manageHosts() bool { return false }
 // mkcertMissingMessage: no Mac o mkcert vem do Homebrew, pela tela Runtimes.
 func mkcertMissingMessage() string { return i18n.T("warn.mkcertMissingBrew") }
 
+// mkcertMissingError: o texto do Windows cita bin/mkcert/mkcert.exe, que não
+// existe no Mac; aqui o erro aponta para o Homebrew.
+func mkcertMissingError() error { return errors.New(mkcertMissingMessage()) }
+
 // trustCA no Mac em dois passos. O mkcert cria a CA como o usuário: como
 // root, a chave nasceria com dono root e o app não conseguiria emitir os
 // certificados dos sites. Só a confiança no keychain do sistema pede senha.
@@ -42,12 +46,15 @@ func (s *Stack) trustCA(mk netcfg.Mkcert) error {
 
 // SystemChanges lê, sem senha, o que o HyPHP gravou no sistema. Erro ao
 // conferir a CA conta como não instalada: não há o que remover que se saiba.
+// Path é só a existência do /etc/paths.d/hyphp (spec §5): um arquivo com
+// outro conteúdo, deixado por outro root, ainda tem de poder sair pela UI.
 func (s *Stack) SystemChanges() SystemChanges {
 	ca, _ := s.mkcert().CAInstalled()
+	_, perr := os.Stat(paths.PathsDFile)
 	return SystemChanges{
 		Supported: true,
 		DNS:       resolverRuleState() == ruleOurs,
-		Path:      paths.PathsDRegistered(),
+		Path:      perr == nil,
 		CA:        ca,
 	}
 }
@@ -58,8 +65,15 @@ func (s *Stack) SystemChanges() SystemChanges {
 func (s *Stack) RemoveSystemChanges(ctx context.Context) error {
 	args := []string{"uninstall"}
 	mk := s.mkcert()
-	if ok, _ := mk.CAInstalled(); ok {
-		args = append(args, "--cert", filepath.Join(mk.CARoot, "rootCA.pem"))
+	// O --cert vai sempre que a CA existe em disco, não só quando o
+	// CAInstalled diz que está confiada: um certificado que ficou no keychain
+	// sem confiança também tem de sair, e o untrust do helper pula o SHA-1
+	// que não está no keychain.
+	if mk.CARoot != "" {
+		cert := filepath.Join(mk.CARoot, "rootCA.pem")
+		if _, err := os.Stat(cert); err == nil {
+			args = append(args, "--cert", cert)
+		}
 	}
 	helper, err := elevate.HelperPath()
 	if err != nil {

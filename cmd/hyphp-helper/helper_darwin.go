@@ -207,14 +207,24 @@ func untrust(cert string) (int, error) {
 	return exitOK, nil
 }
 
-// writeFileAtomic grava num temporário ao lado e renomeia: uma regra de DNS
-// pela metade mandaria as consultas .test para lugar nenhum.
+// writeFileAtomic grava num temporário e renomeia: uma regra de DNS pela
+// metade mandaria as consultas .test para lugar nenhum. O temporário fica na
+// pasta acima da do destino (ex.: /etc/.test.hyphp-tmp), no mesmo sistema de
+// arquivos para o rename seguir atômico: um resto dentro de /etc/resolver
+// após uma queda viraria regra do domínio test.hyphp-tmp, e um em
+// /etc/paths.d seria lido pelo path_helper. O chmod explícito tira a
+// dependência do umask do processo do osascript: o mDNSResponder e o
+// path_helper precisam ler o arquivo.
 func writeFileAtomic(path string, data []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp := path + ".hyphp-tmp"
+	tmp := filepath.Join(filepath.Dir(filepath.Dir(path)), "."+filepath.Base(path)+".hyphp-tmp")
 	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	if err := os.Chmod(tmp, 0o644); err != nil {
+		os.Remove(tmp)
 		return err
 	}
 	if err := os.Rename(tmp, path); err != nil {

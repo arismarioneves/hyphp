@@ -66,7 +66,9 @@ type Stack struct {
 	// lastSites guarda os sites do último Reconcile para o ApplyHosts saber
 	// quais domínios gravar sem recalcular o desired().
 	lastSites []webserver.Site
-	// resolver é o servidor DNS local; nil quando nenhum projeto usa wildcard.
+	// resolver é o servidor DNS local. No Windows só sobe quando algum
+	// projeto usa wildcard; no Mac fica sempre de pé, porque a regra
+	// /etc/resolver/test manda todo o .test para ele.
 	resolver *netcfg.Resolver
 	// nrptDone marca que a regra NRPT desta sessão já foi registrada, para o
 	// Reconcile parar de avisar. Só o Windows tem NRPT; no Mac a regra é
@@ -342,8 +344,9 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 		}
 	}
 
-	// 7b. DNS wildcard: o resolvedor sobe sem privilégio; a regra NRPT, que
-	// exige UAC, fica para ApplyWildcardDNS.
+	// 7b. DNS wildcard: o resolvedor sobe sem privilégio; a regra do sistema,
+	// que exige senha, fica para ApplyWildcardDNS: no Windows é a NRPT (UAC),
+	// no Mac é o /etc/resolver/test, gravado pelo helper com a senha.
 	warnings = append(warnings, s.syncWildcard(projs)...)
 	// 8. (plano 07) databases dos manifestos, em background: espera o mysql
 	// ficar ready sem segurar o Reconcile.
@@ -407,7 +410,7 @@ func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) 
 func (s *Stack) InstallCA(ctx context.Context) error {
 	mk := s.mkcert()
 	if mk.Exe == "" {
-		return i18n.Errorf("err.stack.mkcertMissing")
+		return mkcertMissingError()
 	}
 	switch ok, err := mk.CAInstalled(); {
 	case err != nil:

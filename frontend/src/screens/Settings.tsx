@@ -226,9 +226,16 @@ function ElevatedAction({ warning, label, run }: ElevatedActionProps) {
  * com pendência ou, no Mac, com algo gravado no sistema para remover; sem
  * nenhum dos dois, some inteiro: botão que não faz nada é pior que nenhum.
  */
-function PermissionsCard({ changes, onChanged }: { changes: SystemChanges | null; onChanged: () => void }) {
+function PermissionsCard({
+  changes,
+  warnings,
+  onChanged,
+}: {
+  changes: SystemChanges | null
+  warnings: Warning[]
+  onChanged: () => void
+}) {
   const t = useT('settings')
-  const { warnings } = useWarnings()
   const hosts = warnings.find((w) => w.code === HOSTS_PENDING)
   const ca = warnings.find((w) => w.code === CA_PENDING)
   const wildcard = warnings.find((w) => w.code === WILDCARD_PENDING)
@@ -550,7 +557,7 @@ export function Settings({ onNavigate }: ScreenProps) {
         <PortInput label="Mailpit UI" value={draft.mailpitHttpPort} onChange={(n) => set('mailpitHttpPort', n)} />
       </Section>
 
-      <PermissionsCard changes={changes} onChanged={loadChanges} />
+      <PermissionsCard changes={changes} warnings={warnings} onChanged={loadChanges} />
 
       <Section label={t('directories')}>
         {roots.length === 0 ? (
