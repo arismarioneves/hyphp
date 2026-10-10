@@ -37,22 +37,6 @@ func NewMkcert(exe, certDir string) (Mkcert, error) {
 	return Mkcert{Exe: exe, CARoot: caroot, CertDir: certDir}, nil
 }
 
-// CAInstalled devolve true se CARoot/rootCA.pem existe. Aproximação: o arquivo é criado por
-// `mkcert -install`; a confiança na store do Windows é verificada no smoke com certutil.
-func (m Mkcert) CAInstalled() (bool, error) {
-	if m.CARoot == "" {
-		return false, errors.New("CARoot não definido")
-	}
-	_, err := os.Stat(filepath.Join(m.CARoot, "rootCA.pem"))
-	if err == nil {
-		return true, nil
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	return false, err
-}
-
 // IssueCert emite (ou reutiliza) um certificado para o conjunto de domínios. O nome do arquivo
 // é derivado do hash dos domínios ordenados, então a mesma lista sempre cai no mesmo par
 // <hash>.pem / <hash>-key.pem. Reemite se o cert não existir, não parsear, ou expirar em < 30 dias.
