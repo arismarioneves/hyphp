@@ -101,6 +101,28 @@ pids() {
 	"$CLI" services --json | jq -r '.[] | select(.pid > 0) | "\(.pid) \(.id)"'
 }
 
+# conferir_avisos mostra os avisos e reprova qualquer um fora dos dois que a
+# M1 ainda deixa no Mac: hosts e certificado, que são da M2. Porta em uso, banco
+# que não inicializou ou web server ausente aparecem aqui.
+conferir_avisos() {
+	"$CLI" warnings
+	"$CLI" warnings --json |
+		jq -e 'all(.[]; .code == "hosts-pending" or .code == "tls-unavailable")' >/dev/null ||
+		falha "aviso inesperado; no Mac, até a M2, só hosts-pending e tls-unavailable"
+}
+
+# tentar repete um comando da CLI até ele ser aceito. Logo depois de um brew
+# install, o app ainda pode não ter relido o opt/ do Homebrew: o watcher reage
+# em segundo plano.
+tentar() {
+	local limite=$((SECONDS + $1))
+	shift
+	until "$CLI" "$@"; do
+		[ "$SECONDS" -lt "$limite" ] || falha "hyphp $* não foi aceito a tempo"
+		sleep 3
+	done
+}
+
 passo "runtimes pelo Homebrew"
 # O mesmo comando e o mesmo ambiente que o app usa (internal/brew/exec_darwin.go):
 # um `brew install` por fórmula, o PHP pelo nome completo do tap, sem tap/trust.
@@ -157,11 +179,7 @@ open "$APP"
 esperar_pronto 300
 "$CLI" status
 "$CLI" services
-# Os outros avisos não reprovam: no Mac, hosts e certificado ficam pendentes
-# até a M2. Porta em uso reprova, porque nada escutava antes de abrir o app.
-"$CLI" warnings
-"$CLI" warnings --json | jq -e 'all(.[]; .code != "port-conflict")' >/dev/null ||
-	falha "aviso de porta em uso com as portas livres antes de abrir o app"
+conferir_avisos
 "$CLI" status --json | jq -e '.failed == 0 and .ready == .total' >/dev/null ||
 	falha "status com serviço em falha"
 
@@ -234,6 +252,33 @@ if [ -n "$sobras" ]; then
 fi
 get -H "$HOST" "$SITE/"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu depois da reabertura"
+
+passo "nginx e MariaDB instalados com o app aberto"
+# Como depois de uma instalação pela tela Runtimes: o app tem de enxergar as
+# fórmulas novas sozinho, pelo watcher do opt/, sem reabrir.
+for f in nginx mariadb@11.8; do
+	brew install "$f"
+done
+tentar 90 web nginx
+tentar 90 db engine mariadb
+esperar_pronto 180
+"$CLI" services
+"$CLI" services --json | jq -e 'any(.[]; .id == "web:nginx" and .state == "ready")' >/dev/null ||
+	falha "o nginx não está no ar depois da troca"
+"$CLI" db --json | jq -e '.engine == "mariadb"' >/dev/null || falha "o banco ativo não é o MariaDB"
+conferir_avisos
+
+passo "projeto e banco pelo nginx e MariaDB"
+get -H "$HOST" "$SITE/"
+cat "$CORPO"
+grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu pelo nginx"
+# Cada motor tem o próprio datadir: o banco do MySQL não existe no MariaDB.
+"$CLI" db create hyphp_e2e
+get -H "$HOST" "$SITE/db.php"
+cat "$CORPO"
+grep -q '^mysql=.*MariaDB' "$CORPO" || falha "o PHP não conectou no MariaDB pelo socket"
+get "http://127.0.0.1:8036/index.php?route=/server/databases"
+grep -q 'hyphp_e2e' "$CORPO" || falha "o phpMyAdmin pelo nginx não listou o banco do MariaDB"
 
 passo "fechar o app"
 depois=$(pids)
