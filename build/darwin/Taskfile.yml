@@ -14,7 +14,7 @@ tasks:
   dev:deps:
     summary: Builds what `wails3 dev` needs on macOS (CLI)
     cmds:
-      # No macOS não há helper elevado; só a CLI, que vai para o bundle de dev.
+      # Só a CLI; o helper elevado entra pelo deps do run.
       - task: build:cli
 
   build:
@@ -134,11 +134,23 @@ tasks:
       CGO_ENABLED: 0
       GOARCH: '{{.ARCH | default ARCH}}'
 
+  build:helper:
+    summary: Builds the elevated helper (bin/hyphp-helper)
+    cmds:
+      # O helper roda como root pelo osascript (senha do usuário); vai para
+      # HyPHP.app/Contents/Helpers ao lado da CLI no create:app:bundle.
+      - go build -trimpath -buildvcs=false -ldflags="-w -s" -o "{{.BIN_DIR}}/hyphp-helper" ./cmd/hyphp-helper
+    env:
+      GOOS: darwin
+      CGO_ENABLED: 0
+      GOARCH: '{{.ARCH | default ARCH}}'
+
   package:
     summary: Packages the application into a `.app` bundle
     deps:
       - task: build
       - task: build:cli
+      - task: build:helper
     cmds:
       - task: create:app:bundle
 
@@ -147,6 +159,7 @@ tasks:
     deps:
       - task: build:universal
       - task: build:cli
+      - task: build:helper
     cmds:
       - task: create:app:bundle
 
@@ -195,16 +208,18 @@ tasks:
       - cp -R build/darwin/pt-BR.lproj "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Resources/"
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/MacOS/{{.APP_NAME}}"
       - cp "{{.BIN_DIR}}/cli/hyphp" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Helpers/hyphp"
+      - cp "{{.BIN_DIR}}/hyphp-helper" "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Helpers/hyphp-helper"
       - cp build/darwin/Info.plist "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents"
       - task: '{{if eq OS "darwin"}}codesign:adhoc{{else}}codesign:skip{{end}}'
 
   codesign:adhoc:
     summary: Ad-hoc signs the app bundle (macOS only)
     internal: true
-    # Assina de dentro para fora: primeiro a CLI, depois o bundle (--deep está
+    # Assina de dentro para fora: primeiro a CLI e o helper, depois o bundle (--deep está
     # obsoleto para assinar; só serve para conferir).
     cmds:
       - codesign --force --sign - --identifier com.hyphp.cli "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Helpers/hyphp"
+      - codesign --force --sign - --identifier com.hyphp.helper "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app/Contents/Helpers/hyphp-helper"
       - codesign --force --sign - "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app"
       - codesign --verify --deep --strict --verbose=2 "{{.BIN_DIR}}/{{.BUNDLE_NAME}}.app"
 
@@ -218,8 +233,9 @@ tasks:
     # Bundle de desenvolvimento com nome e bundle id próprios (Info.dev.plist),
     # para não colidir no Launch Services com o HyPHP.app instalado.
     # O `wails3 dev` só roda `wails3 build DEV=true` + esta task, sem compilar a
-    # CLI; o deps garante bin/cli/hyphp antes do cp num checkout novo.
-    deps: [build:cli]
+    # CLI nem o helper; o deps garante bin/cli/hyphp e bin/hyphp-helper antes
+    # do cp num checkout novo.
+    deps: [build:cli, build:helper]
     cmds:
       - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/MacOS"
       - mkdir -p "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Resources"
@@ -232,8 +248,10 @@ tasks:
       - cp -R build/darwin/pt-BR.lproj "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Resources/"
       - cp "{{.BIN_DIR}}/{{.APP_NAME}}" "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/MacOS/{{.APP_NAME}}"
       - cp "{{.BIN_DIR}}/cli/hyphp" "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Helpers/hyphp"
+      - cp "{{.BIN_DIR}}/hyphp-helper" "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Helpers/hyphp-helper"
       - cp "build/darwin/Info.dev.plist" "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Info.plist"
       - codesign --force --sign - --identifier com.hyphp.cli "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Helpers/hyphp"
+      - codesign --force --sign - --identifier com.hyphp.helper "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/Helpers/hyphp-helper"
       - codesign --force --sign - "{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app"
       - '"{{.BIN_DIR}}/{{.BUNDLE_NAME}} Dev.app/Contents/MacOS/{{.APP_NAME}}"'
 

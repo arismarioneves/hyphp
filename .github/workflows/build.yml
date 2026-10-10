@@ -34,6 +34,7 @@ jobs:
         run: |
           codesign --verify --deep --strict --verbose=2 bin/HyPHP.app
           test -x bin/HyPHP.app/Contents/Helpers/hyphp
+          test -x bin/HyPHP.app/Contents/Helpers/hyphp-helper
           bin/HyPHP.app/Contents/Helpers/hyphp version
           git diff --exit-code go.mod go.sum
       - name: zip
