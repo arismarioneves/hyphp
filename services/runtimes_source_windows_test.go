@@ -94,12 +94,33 @@ func TestCACertForaDaTelaRuntimes(t *testing.T) {
 		{ID: "php-8.3.35-nts-vs16-x64", Kind: runtime.PHP, Version: "8.3.35"},
 		{ID: "cacert-2026-09-25", Kind: pkgmgr.KindCACert, Version: "2026-09-25"},
 	}}
-	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir(), Catalog: cat})
+	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir(), Catalog: func() pkgmgr.Catalog { return cat }})
 	got := r.available(nil)
 	if len(got) != 1 || got[0].Kind != runtime.PHP {
 		t.Errorf("available = %+v, quer só o PHP", got)
 	}
 	if _, err := r.installer("cacert-2026-09-25"); err == nil {
 		t.Error("o pacote de CAs foi aceito como instalação")
+	}
+}
+
+// O catálogo remoto troca com o app aberto: a tela e a instalação passam a
+// usar o catálogo novo sem reiniciar. Um link corrigido só chega ao usuário
+// assim.
+func TestRuntimesUsamOCatalogoEmUso(t *testing.T) {
+	antigo := pkgmgr.Package{ID: "apache-2.4.68-vs18-x64", Kind: runtime.Apache, Version: "2.4.68"}
+	novo := pkgmgr.Package{ID: "apache-2.4.69-vs18-x64", Kind: runtime.Apache, Version: "2.4.69"}
+	cat := pkgmgr.Catalog{Packages: []pkgmgr.Package{antigo}}
+	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir(), Catalog: func() pkgmgr.Catalog { return cat }})
+
+	cat = pkgmgr.Catalog{Packages: []pkgmgr.Package{novo}}
+	if got := r.available(nil); len(got) != 1 || got[0].ID != novo.ID {
+		t.Errorf("available = %+v, quer o pacote do catálogo novo", got)
+	}
+	if _, err := r.installer(novo.ID); err != nil {
+		t.Errorf("pacote do catálogo novo recusado: %v", err)
+	}
+	if _, err := r.installer(antigo.ID); err == nil {
+		t.Error("pacote que saiu do catálogo ainda instala")
 	}
 }

@@ -207,6 +207,15 @@ func main() {
 		os.Exit(1)
 	}
 	tmpDir := filepath.Join(paths.Var(), "tmp")
+	// O catálogo em uso: o embutido, ou o remoto aceito numa sessão anterior.
+	// Um guardado que não confere fica de fora, e vale o embutido.
+	catalogSrc := pkgmgr.NewSource(catalog, pkgmgr.CatalogKey, filepath.Join(paths.Var(), "catalogo"))
+	if err := catalogSrc.LoadCache(); err != nil {
+		logger.Warn("catálogo guardado recusado", "err", err)
+	}
+	// nil: o pkgmgr monta um client com timeout de resposta; o
+	// http.DefaultClient esperava para sempre um CDN que parou de responder.
+	pkgs := pkgmgr.NewManager(paths.Bin(), tmpDir, nil)
 	reconcile := func(reason string) {
 		ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 		defer cancel()
@@ -221,13 +230,11 @@ func main() {
 	// do defaultPHP.
 	var refreshPathLinks func()
 	rtSvc := services.NewRuntimesService(services.RuntimesDeps{
-		App:    app,
-		BinDir: paths.Bin(),
-		TmpDir: tmpDir,
-		// nil: o pkgmgr monta um client com timeout de resposta; o
-		// http.DefaultClient esperava para sempre um CDN que parou de responder.
-		Manager: pkgmgr.NewManager(paths.Bin(), tmpDir, nil),
-		Catalog: catalog,
+		App:     app,
+		BinDir:  paths.Bin(),
+		TmpDir:  tmpDir,
+		Manager: pkgs,
+		Catalog: catalogSrc.Current,
 		// Só chamados depois de stack.New: antes dele o serviço apenas varre bin/.
 		UpdateState: func(fn func(*state.State)) error { return stk.UpdateState(fn) },
 		State:       func() state.State { return stk.State() },
@@ -491,6 +498,24 @@ func main() {
 	stopUpd = cancelUpd
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
 		upd.Start(updCtx)
+		catalogURL, err := pkgmgr.DefaultCatalogURL()
+		if err != nil {
+			logger.Warn("URL do catálogo", "err", err)
+			catalogURL = pkgmgr.CatalogURL
+		}
+		catalogSrc.Run(updCtx, pkgmgr.RemoteConfig{
+			URL:    catalogURL,
+			Client: &http.Client{Timeout: 30 * time.Second},
+			Logger: logger,
+			// Catálogo novo: o Rescan emite o runtime:changed, e a tela
+			// Runtimes relê o que dá para instalar. O OnChange dos runtimes
+			// reconcilia, e o Reconcile pega a versão nova do pacote de CAs.
+			OnChange: func(pkgmgr.Catalog) {
+				if err := rtSvc.Rescan(); err != nil {
+					logger.Warn("revarrer runtimes depois do catálogo novo", "err", err)
+				}
+			},
+		})
 	})
 
 	if err := app.Run(); err != nil {

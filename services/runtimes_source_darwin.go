@@ -116,7 +116,7 @@ func (r *RuntimesService) available(installed []runtime.Installed) []pkgmgr.Pack
 		}
 		out = append(out, pkgmgr.Package{ID: f.Name, Kind: f.Kind, Version: f.Series, Formula: f.Name})
 	}
-	for _, p := range r.d.Catalog.ByKind(runtime.PhpMyAdmin) {
+	for _, p := range r.d.Catalog().ByKind(runtime.PhpMyAdmin) {
 		if !have[string(p.Kind)+"@"+p.Version] {
 			out = append(out, p)
 		}
@@ -152,7 +152,7 @@ func (r *RuntimesService) installer(packageID string) (installFunc, error) {
 			return err
 		}, nil
 	}
-	pkg, ok := r.d.Catalog.ByID(packageID)
+	pkg, ok := r.d.Catalog().ByID(packageID)
 	if !ok || pkg.Kind != runtime.PhpMyAdmin {
 		return nil, i18n.Errorf("err.runtimes.unknownPackage", packageID)
 	}

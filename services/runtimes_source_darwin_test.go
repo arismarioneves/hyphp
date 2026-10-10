@@ -20,7 +20,7 @@ var catalogoMac = pkgmgr.Catalog{Packages: []pkgmgr.Package{
 
 func servicoComBrew(t *testing.T, locate func(context.Context) (brew.Brew, error)) *RuntimesService {
 	t.Helper()
-	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir(), Catalog: catalogoMac})
+	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir(), Catalog: func() pkgmgr.Catalog { return catalogoMac }})
 	r.src.locate = locate
 	return r
 }

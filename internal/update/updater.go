@@ -93,7 +93,6 @@ type Updater struct {
 const (
 	manifestLimit = 1 << 20
 	sigLimit      = 4 << 10
-	fetchTimeout  = 30 * time.Second
 	resultFile    = "resultado.json"
 )
 
@@ -103,17 +102,10 @@ func DefaultURL() (string, error) {
 	if raw == "" {
 		return ManifestURL, nil
 	}
-	u, err := url.Parse(raw)
-	if err != nil {
-		return "", fmt.Errorf("update: %s inválida: %w", EnvURL, err)
+	if err := pkgmgr.CheckOverrideURL(raw); err != nil {
+		return "", fmt.Errorf("update: %s %w", EnvURL, err)
 	}
-	switch {
-	case u.Scheme == "https" && u.Host != "":
-		return raw, nil
-	case u.Scheme == "http" && (u.Hostname() == "127.0.0.1" || u.Hostname() == "localhost" || u.Hostname() == "::1"):
-		return raw, nil
-	}
-	return "", fmt.Errorf("update: %s precisa ser https (http só em 127.0.0.1/localhost): %q", EnvURL, raw)
+	return raw, nil
 }
 
 // New cria o Updater. Não faz I/O: Start é quem lê o resultado anterior e
@@ -265,27 +257,9 @@ func (u *Updater) fetchLatest(ctx context.Context) (Latest, error) {
 }
 
 func (u *Updater) get(ctx context.Context, rawURL string, limit int64) ([]byte, error) {
-	ctx, cancel := context.WithTimeout(ctx, fetchTimeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	raw, err := pkgmgr.GetLimited(ctx, u.c.Client, rawURL, limit, "hyphp/"+u.c.Current)
 	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "hyphp/"+u.c.Current)
-	resp, err := u.c.Client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("update: buscar %s: %w", rawURL, err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("update: %s respondeu HTTP %d", rawURL, resp.StatusCode)
-	}
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
-	if err != nil {
-		return nil, fmt.Errorf("update: ler %s: %w", rawURL, err)
-	}
-	if int64(len(raw)) > limit {
-		return nil, fmt.Errorf("update: %s passa de %d bytes", rawURL, limit)
+		return nil, fmt.Errorf("update: %w", err)
 	}
 	return raw, nil
 }

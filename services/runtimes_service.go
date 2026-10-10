@@ -31,7 +31,10 @@ type RuntimesDeps struct {
 	BinDir  string
 	TmpDir  string
 	Manager *pkgmgr.Manager
-	Catalog pkgmgr.Catalog
+	// Catalog devolve o catálogo em uso: o embutido ou o remoto mais novo já
+	// aceito. É função, e não valor, porque o catálogo remoto troca sem
+	// reiniciar o app.
+	Catalog func() pkgmgr.Catalog
 	// UpdateState aplica a mutação sob o lock do Stack e persiste; State
 	// devolve uma cópia. O state é compartilhado com o Reconcile, que o
 	// serializa em outra goroutine: mexer nos mapas sem o lock derruba o
