@@ -51,6 +51,11 @@ type Ports struct {
 	HTTPS int
 }
 
+// PageDataFile é a lista de projetos da página de host sem projeto. O stack a
+// grava em PageDataDir() a cada Reconcile, e o web server a entrega em
+// /dados/projetos.json só para esta máquina.
+const PageDataFile = "projetos.json"
+
 // WebServer é a fachada que o stack usa para renderizar, validar, executar e
 // sondar o web server ativo.
 //
@@ -69,11 +74,6 @@ type Ports struct {
 //
 // Caminhos que NÃO são o etcDir (diretório do runtime, docroots, logDir,
 // certificados) podem e devem ser absolutos.
-// PageDataFile é a lista de projetos da página de host sem projeto. O stack a
-// grava em PageDataDir() a cada Reconcile, e o web server a entrega em
-// /dados/projetos.json só para esta máquina.
-const PageDataFile = "projetos.json"
-
 type WebServer interface {
 	Name() state.WebServerName
 	// Render devolve caminho-relativo-ao-etcDir (sempre com "/") → conteúdo.
