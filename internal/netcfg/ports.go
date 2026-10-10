@@ -132,7 +132,8 @@ func IsFree(port int) bool {
 	return !held
 }
 
-// bindable tenta escutar em cada endereço; qualquer falha = ocupada.
+// bindable tenta escutar em cada endereço; falha que bindOccupied (por SO)
+// classifica como porta ocupada = ocupada.
 func bindable(port int) bool {
 	p := strconv.Itoa(port)
 	for _, probe := range [...]struct{ network, addr string }{
@@ -142,7 +143,10 @@ func bindable(port int) bool {
 	} {
 		ln, err := net.Listen(probe.network, probe.addr)
 		if err != nil {
-			return false
+			if bindOccupied(err) {
+				return false
+			}
+			continue
 		}
 		ln.Close()
 	}

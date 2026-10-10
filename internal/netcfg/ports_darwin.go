@@ -7,7 +7,15 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 )
+
+// bindOccupied separa porta ocupada de bind recusado por permissão. Sem root,
+// o macOS só deixa escutar abaixo de 1024 no endereço curinga, que é como o
+// Apache e o nginx do HyPHP escutam; o bind de teste em 127.0.0.1:80 dá EACCES
+// com a porta livre e virava o aviso falso "porta 80 em uso". Com o EACCES
+// fora da conta, quem decide é o bind no curinga e o lsof em seguida.
+func bindOccupied(err error) bool { return !errors.Is(err, syscall.EACCES) }
 
 // listeningPorts executa `lsof -nP -iTCP -sTCP:LISTEN -F pcn` e devolve porta → PID de
 // todo listener TCP (v4 e v6). -n/-P evitam DNS e nomes de serviço: a saída fica numérica
