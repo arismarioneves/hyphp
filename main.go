@@ -284,6 +284,8 @@ func main() {
 		Web:       web,
 		Alloc:     alloc,
 		Mkcert:    mk,
+		Catalog:   catalogSrc.Current,
+		Fetch:     pkgs.Fetch,
 		Logger:    logger,
 		Emit:      emit,
 	})

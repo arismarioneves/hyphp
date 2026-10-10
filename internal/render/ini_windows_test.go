@@ -3,6 +3,7 @@ package render
 import (
 	"bytes"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"hyphp/internal/runtime"
@@ -12,7 +13,7 @@ import (
 // fastcgi.impersonate do php-cgi, que o php.ini do macOS não tem.
 func TestRenderPHPIniGolden(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	got := RenderPHPIni(inst, runtime.DefaultExtensions, "C:/hyphp/var/tmp/php/8.1", "C:/hyphp/log", 1025, "", "", nil)
+	got := RenderPHPIni(inst, runtime.DefaultExtensions, "C:/hyphp/var/tmp/php/8.1", "C:/hyphp/log", 1025, "", "", "C:/hyphp/etc/ssl/cacert.pem", nil)
 	got = bytes.ReplaceAll(got, []byte(filepath.ToSlash(inst.Dir)), []byte("__PHPDIR__"))
 	checkGolden(t, "php-8.1.ini.golden", got)
 }
@@ -39,6 +40,26 @@ func TestSocketsDoMySQLNaoSaoGerenciadosNoWindows(t *testing.T) {
 	for _, n := range []string{"mysqli.default_socket", "pdo_mysql.default_socket", "mysql.default_socket"} {
 		if IsManagedIniDirective(n) {
 			t.Errorf("%s não devia ser gerenciada no Windows", n)
+		}
+	}
+}
+
+// O bundle do HyPHP vence o do usuário. Um curl.cainfo antigo no state.json
+// (o contorno de antes da 4.0.0) apontaria para um arquivo que o HyPHP não
+// atualiza e sem a CA local dos sites .test.
+func TestCAsDoHyPHPVencemAsDoUsuario(t *testing.T) {
+	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
+	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "C:/hyphp/etc/ssl/cacert.pem",
+		map[string]string{"curl.cainfo": "C:/velho.pem", "openssl.cafile": "C:/velho.pem"}))
+	if strings.Contains(got, "velho.pem") {
+		t.Errorf("o bundle do usuário entrou no php.ini:\n%s", got)
+	}
+	for _, want := range []string{
+		"\ncurl.cainfo = \"C:/hyphp/etc/ssl/cacert.pem\"\n",
+		"\nopenssl.cafile = \"C:/hyphp/etc/ssl/cacert.pem\"\n",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("falta %q:\n%s", want, got)
 		}
 	}
 }

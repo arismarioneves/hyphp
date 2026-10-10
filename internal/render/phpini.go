@@ -97,7 +97,10 @@ func IsManagedIniDirective(name string) bool {
 // arquivo sai igual ao de antes. No macOS o SMTP/smtp_port acima não vale
 // (mail() usa sendmail_path), e o PHP do Homebrew tem /tmp/mysql.sock
 // compilado como socket padrão, que não é o do mysqld do HyPHP.
-func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int, sendmail, mysqlSocket string, userIni map[string]string) []byte {
+//
+// caFile é o bundle de CAs (etc/ssl/cacert.pem); vazio não emite linha, como
+// no macOS e no Windows antes do primeiro download.
+func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir string, smtpPort int, sendmail, mysqlSocket, caFile string, userIni map[string]string) []byte {
 	extDir := filepath.ToSlash(inst.ExtDir)
 	tmp := SlashDir(tmpDir)
 	log := SlashDir(logDir)
@@ -167,6 +170,17 @@ func RenderPHPIni(inst runtime.Installed, enabledExt []string, tmpDir, logDir st
 		fmt.Fprintf(&b, "mysqli.default_socket = %q\n", sock)
 		fmt.Fprintf(&b, "pdo_mysql.default_socket = %q\n", sock)
 		fmt.Fprintf(&b, "mysql.default_socket = %q\n", sock)
+	}
+
+	// O PHP do Windows não traz certificados de CA: sem cainfo e cafile, todo
+	// HTTPS de saída (curl, file_get_contents, SoapClient) falha com
+	// "curl error 60".
+	if caFile != "" {
+		ca := filepath.ToSlash(caFile)
+		fmt.Fprintf(&b, "\n[curl]\n")
+		fmt.Fprintf(&b, "curl.cainfo = %q\n", ca)
+		fmt.Fprintf(&b, "\n[openssl]\n")
+		fmt.Fprintf(&b, "openssl.cafile = %q\n", ca)
 	}
 
 	fmt.Fprintf(&b, "\n[opcache]\n")

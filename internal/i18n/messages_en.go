@@ -28,6 +28,8 @@ var messagesEN = map[string]string{
 	"warn.mkcertMissing":        "mkcert not found in %s; download it in Runtimes, otherwise sites stay HTTP-only",
 	"warn.caCheck":              "check mkcert CA: %v",
 	"warn.caPending":            "local root certificate not installed; sites are HTTP-only until you install it",
+	"warn.cacertMissing":        "PHP CA certificates not downloaded yet; PHP's outgoing HTTPS (curl, file_get_contents) fails with \"curl error 60\" until the download succeeds, and HyPHP retries on its own",
+	"warn.cacertWrite":          "write the PHP CA bundle: %v",
 	"warn.portBusy":             "port %d in use",
 	"warn.portBusyBy":           "port %d in use by %s (PID %d)",
 	"warn.hostsAdd":             "add %s",
