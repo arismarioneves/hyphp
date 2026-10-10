@@ -5,7 +5,7 @@ import type { Project as GeneratedProject } from '../../bindings/hyphp/internal/
 import type { Installed as GeneratedInstalled, Extension as GeneratedExtension } from '../../bindings/hyphp/internal/runtime/models'
 import type { Package as GeneratedPackage } from '../../bindings/hyphp/internal/pkgmgr/models'
 import type { State as GeneratedState } from '../../bindings/hyphp/internal/state/models'
-import type { Warning as GeneratedWarning } from '../../bindings/hyphp/internal/stack/models'
+import type { Warning as GeneratedWarning, SystemChanges as GeneratedSystemChanges } from '../../bindings/hyphp/internal/stack/models'
 import type { Status as GeneratedUpdateStatus } from '../../bindings/hyphp/internal/update/models'
 import type {
   DBInfo as GeneratedDBInfo,
@@ -21,6 +21,7 @@ export type Extension = GeneratedExtension
 export type Package = GeneratedPackage
 export type State = GeneratedState
 export type Warning = GeneratedWarning
+export type SystemChanges = GeneratedSystemChanges
 export type UpdateStatus = GeneratedUpdateStatus
 export type DBInfo = GeneratedDBInfo
 export type LogSource = GeneratedLogSource

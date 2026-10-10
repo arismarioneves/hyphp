@@ -63,6 +63,15 @@ export function RuntimeRoot(): $CancellablePromise<string> {
 }
 
 /**
+ * ShadowingPHP devolve o php que o Terminal acha antes do PHP do HyPHP, ou ""
+ * quando o do HyPHP vence. No Mac, o php do Homebrew em /opt/homebrew/bin vem
+ * antes do /etc/paths.d no PATH, e sem o aviso o botão pareceria não funcionar.
+ */
+export function ShadowingPHP(): $CancellablePromise<string> {
+    return $Call.ByID(488047745);
+}
+
+/**
  * SiteURL retorna a página do HyPHP, a mesma citada no cabeçalho do
  * hyphp.yaml, para o Sobre de Configurações.
  */

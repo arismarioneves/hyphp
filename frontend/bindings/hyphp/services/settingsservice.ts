@@ -57,6 +57,14 @@ export function Languages(): $CancellablePromise<string[] | null> {
 }
 
 /**
+ * RemoveSystemChanges desfaz a regra de DNS, o PATH e a confiança na CA com
+ * uma senha. Ação explícita, como as outras que pedem senha.
+ */
+export function RemoveSystemChanges(): $CancellablePromise<void> {
+    return $Call.ByID(445007977);
+}
+
+/**
  * RemoveWildcardDNS desfaz a regra. Sem esta porta, quem parasse de usar
  * wildcard ficaria com o namespace .test apontando para um resolvedor morto.
  */
@@ -99,6 +107,14 @@ export function SwitchDatabase(engine: string): $CancellablePromise<void> {
 
 export function SwitchWebServer(name: string): $CancellablePromise<void> {
     return $Call.ByID(2073644598, name);
+}
+
+/**
+ * SystemChanges diz o que o HyPHP gravou no sistema (só no Mac), para o card
+ * Permissões oferecer o "Remover do sistema".
+ */
+export function SystemChanges(): $CancellablePromise<stack$0.SystemChanges> {
+    return $Call.ByID(4078907833);
 }
 
 /**
