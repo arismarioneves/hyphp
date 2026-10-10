@@ -16,12 +16,14 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"hyphp/internal/elevate"
 	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
+	"hyphp/internal/pkgmgr"
 	"hyphp/internal/project"
 	"hyphp/internal/render"
 	"hyphp/internal/runtime"
@@ -40,8 +42,13 @@ type Deps struct {
 	Web       map[state.WebServerName]webserver.WebServer
 	Alloc     *netcfg.Allocator
 	Mkcert    netcfg.Mkcert
-	Logger    *slog.Logger
-	Emit      func(name string, data any)
+	// Catalog devolve o catálogo de pacotes em uso, e Fetch baixa um pacote
+	// conferido pelo sha256, sem extrair. O stack os usa para o pacote de CAs
+	// do PHP no Windows (cacert_windows.go).
+	Catalog func() pkgmgr.Catalog
+	Fetch   func(ctx context.Context, pkg pkgmgr.Package, dest string) error
+	Logger  *slog.Logger
+	Emit    func(name string, data any)
 }
 
 // Stack aplica o estado desejado ao supervisor.
@@ -75,6 +82,10 @@ type Stack struct {
 	// sempre lida do /etc/resolver/test.
 	//lint:ignore U1000 usado só em wildcard_windows.go
 	nrptDone bool
+	// cacertFetching marca o download do pacote de CAs em voo: o Reconcile
+	// roda várias vezes seguidas e não pode abrir um download a cada vez.
+	//lint:ignore U1000 usado só em cacert_windows.go
+	cacertFetching atomic.Bool
 	// stoppedByDir são os serviços que StopUsingDir parou e que estavam no ar.
 	// Quando a revarredura troca o spec para outra versão, applySpecs os
 	// religa: o Stopped veio da remoção do runtime, não de um pedido do usuário.
@@ -291,12 +302,16 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 		warnings = append(warnings, s.portConflicts(st, "web:"+string(web.Name()))...)
 	}
 
-	// 4. php.ini (e, no Mac, php-fpm.conf) por major
+	// 4. php.ini (e, no Mac, php-fpm.conf) por major. O bundle de CAs vem
+	// antes: quando ele aparece, o php.ini muda e os pools reiniciam neste
+	// mesmo Reconcile.
+	caFile, caWarns := s.syncCACert(rts)
+	warnings = append(warnings, caWarns...)
 	iniChanged := map[string]bool{}
 	sendmail := phpSendmail(rts, st.MailpitSMTPPort)
 	for _, pool := range out.Pools {
 		inst, _ := runtime.PHPByMajor(runtime.ByKind(rts, runtime.PHP), pool.Version)
-		changed, err := s.renderPHPIni(inst, pool, st.PoolSize, out.Extensions[pool.Version], st.MailpitSMTPPort, sendmail, st.PHPIni[pool.Version])
+		changed, err := s.renderPHPIni(inst, pool, st.PoolSize, out.Extensions[pool.Version], st.MailpitSMTPPort, sendmail, caFile, st.PHPIni[pool.Version])
 		if err != nil {
 			return s.finish(warnings), err
 		}
@@ -511,7 +526,7 @@ func ensureWebDirs(etcDir string) {
 // renderPHPIni grava etc/php/<major>/ (php.ini e, no Mac, php-fpm.conf) se o
 // conteúdo mudou. Os dois arquivos vão no mesmo WriteFiles: changed cobre
 // php.ini, porta e PoolSize, e o iniChanged da série reinicia o php-fpm.
-func (s *Stack) renderPHPIni(inst runtime.Installed, pool webserver.PHPPool, poolSize int, ext []string, smtpPort int, sendmail string, userIni map[string]string) (bool, error) {
+func (s *Stack) renderPHPIni(inst runtime.Installed, pool webserver.PHPPool, poolSize int, ext []string, smtpPort int, sendmail, caFile string, userIni map[string]string) (bool, error) {
 	major := pool.Version
 	dir := filepath.Join(paths.Etc(), "php", major)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -521,7 +536,7 @@ func (s *Stack) renderPHPIni(inst runtime.Installed, pool webserver.PHPPool, poo
 	if err := os.MkdirAll(tmpDir, 0o755); err != nil {
 		return false, fmt.Errorf("stack: criar %s: %w", tmpDir, err)
 	}
-	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, sendmail, mysqlSocket(paths.Var()), userIni)
+	content := render.RenderPHPIni(inst, ext, filepath.ToSlash(tmpDir), filepath.ToSlash(paths.Log()), smtpPort, sendmail, mysqlSocket(paths.Var()), caFile, userIni)
 	changed, err := render.WriteFiles(dir, phpConfFiles(content, pool, poolSize, paths.Log()))
 	if err != nil {
 		return false, fmt.Errorf("stack: gravar php.ini %s: %w", major, err)

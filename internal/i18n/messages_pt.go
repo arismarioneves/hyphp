@@ -31,6 +31,8 @@ var messagesPT = map[string]string{
 	"warn.mkcertMissing":        "mkcert não encontrado em %s; baixe em Runtimes, senão os sites ficam só em HTTP",
 	"warn.caCheck":              "verificar CA do mkcert: %v",
 	"warn.caPending":            "certificado raiz local não instalado; sites só em HTTP até você instalá-lo",
+	"warn.cacertMissing":        "certificados de CA do PHP ainda não baixados; o HTTPS de saída do PHP (curl, file_get_contents) falha com \"curl error 60\" até o download dar certo, e o HyPHP tenta de novo sozinho",
+	"warn.cacertWrite":          "gravar o bundle de CAs do PHP: %v",
 	"warn.portBusy":             "porta %d ocupada",
 	"warn.portBusyBy":           "porta %d ocupada por %s (PID %d)",
 	"warn.hostsAdd":             "adicionar %s",

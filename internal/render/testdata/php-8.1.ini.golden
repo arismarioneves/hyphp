@@ -45,6 +45,12 @@ smtp_port = 1025
 sendmail_from = hyphp@localhost
 mail.add_x_header = On
 
+[curl]
+curl.cainfo = "C:/hyphp/etc/ssl/cacert.pem"
+
+[openssl]
+openssl.cafile = "C:/hyphp/etc/ssl/cacert.pem"
+
 [opcache]
 opcache.enable = 1
 opcache.enable_cli = 0

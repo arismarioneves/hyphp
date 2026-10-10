@@ -56,13 +56,13 @@ func checkGolden(t *testing.T, name string, got []byte) {
 
 func TestRenderPHPIniDeterministico(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	a := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log", 1025, "", "", nil)
-	b := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log", 1025, "", "", nil)
+	a := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log", 1025, "", "", "", nil)
+	b := RenderPHPIni(inst, []string{"curl", "gd", "intl"}, "C:/tmp", "C:/log", 1025, "", "", "", nil)
 	if !bytes.Equal(a, b) {
 		t.Fatal("duas chamadas iguais produziram bytes diferentes")
 	}
 	// Ordem de entrada e duplicatas não podem mudar a saída.
-	c := RenderPHPIni(inst, []string{"intl", "curl", "gd", "curl"}, "C:/tmp", "C:/log", 1025, "", "", nil)
+	c := RenderPHPIni(inst, []string{"intl", "curl", "gd", "curl"}, "C:/tmp", "C:/log", 1025, "", "", "", nil)
 	if !bytes.Equal(a, c) {
 		t.Fatalf("saída depende da ordem de entrada:\n%s\n---\n%s", a, c)
 	}
@@ -73,7 +73,7 @@ func TestRenderPHPIniDeterministico(t *testing.T) {
 
 func TestRenderPHPIniIgnoraExtensaoSemDLL(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	out := string(RenderPHPIni(inst, runtime.DefaultExtensions, "C:/tmp", "C:/log", 1025, "", "", nil))
+	out := string(RenderPHPIni(inst, runtime.DefaultExtensions, "C:/tmp", "C:/log", 1025, "", "", "", nil))
 	// Comparação por início de linha: no macOS a saída tem
 	// "zend_extension=opcache.so", que contém "extension=opcache" como
 	// substring e daria falso positivo.
@@ -94,7 +94,7 @@ func TestRenderPHPIniIgnoraExtensaoSemDLL(t *testing.T) {
 func TestRenderPHPIniDiretivasDoUsuario(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
 	user := map[string]string{"memory_limit": "1G", "max_input_vars": "5000", "date.timezone": "America/Sao_Paulo"}
-	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", user))
+	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", user))
 	wantTail := "opcache.revalidate_freq = 0\n" +
 		"\n; Diretivas definidas pelo usuário em Runtimes › PHP (state.json, phpIni).\n" +
 		"; Ficam no fim porque no php.ini a última ocorrência vence.\n" +
@@ -110,11 +110,11 @@ func TestRenderPHPIniDiretivasDoUsuario(t *testing.T) {
 		t.Fatal("override do usuário saiu antes do padrão do HyPHP")
 	}
 	for range 20 {
-		if again := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", user)); again != got {
+		if again := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", user)); again != got {
 			t.Fatal("ordem do bloco do usuário varia entre chamadas (iteração de map)")
 		}
 	}
-	if a, b := RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", nil), RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", map[string]string{}); !bytes.Equal(a, b) || strings.Contains(string(a), "Runtimes › PHP") {
+	if a, b := RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", nil), RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", map[string]string{}); !bytes.Equal(a, b) || strings.Contains(string(a), "Runtimes › PHP") {
 		t.Fatal("sem diretivas do usuário o arquivo não pode ganhar bloco")
 	}
 }
@@ -123,7 +123,7 @@ func TestRenderPHPIniDiretivasDoUsuario(t *testing.T) {
 // injetar linhas.
 func TestRenderPHPIniIgnoraGerenciadasDoUsuario(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", map[string]string{
+	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", map[string]string{
 		"extension_dir":    "C:/outro",
 		"cgi.fix_pathinfo": "0",
 		"max_input_vars":   "5000\nextension=evil",
@@ -138,7 +138,7 @@ func TestRenderPHPIniIgnoraGerenciadasDoUsuario(t *testing.T) {
 // "extension_dir = C:/x" da linha gerada.
 func TestRenderPHPIniRecusaNomeInvalidoDoUsuario(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", map[string]string{
+	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", map[string]string{
 		"extension_dir = C:/x ;": "1",
 		"memory_limit":           "1G",
 	}))
@@ -169,7 +169,7 @@ func TestIsManagedIniDirective(t *testing.T) {
 // pode ser gerenciado (senão a UI ofereceria mudar algo que o serviço recusa).
 func TestPHPIniDefaultsBatemComArquivo(t *testing.T) {
 	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
-	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", nil))
+	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", nil))
 	for _, d := range PHPIniDefaults() {
 		if !strings.Contains(got, "\n"+d.Name+" = "+d.Value+"\n") {
 			t.Errorf("%s = %s não está no php.ini", d.Name, d.Value)
@@ -186,7 +186,7 @@ func TestPHPIniSendmailEMySQLSocket(t *testing.T) {
 	inst := fakePHP(t, "8.3", "8.3.20", nil)
 	sendmail := `"/opt/homebrew/opt/mailpit/bin/mailpit" sendmail -S 127.0.0.1:1025`
 	sock := "/Users/dev/Library/Application Support/HyPHP/var/run/mysql.sock"
-	got := string(RenderPHPIni(inst, nil, "/tmp", "/log", 1025, sendmail, sock, nil))
+	got := string(RenderPHPIni(inst, nil, "/tmp", "/log", 1025, sendmail, sock, "", nil))
 	for _, want := range []string{
 		"\nsendmail_path = \"\\\"/opt/homebrew/opt/mailpit/bin/mailpit\\\" sendmail -S 127.0.0.1:1025\"\n",
 		"\nmysqli.default_socket = \"" + sock + "\"\n",
@@ -198,7 +198,7 @@ func TestPHPIniSendmailEMySQLSocket(t *testing.T) {
 		}
 	}
 
-	vazio := string(RenderPHPIni(inst, nil, "/tmp", "/log", 1025, "", "", nil))
+	vazio := string(RenderPHPIni(inst, nil, "/tmp", "/log", 1025, "", "", "", nil))
 	for _, nao := range []string{"sendmail_path", "default_socket"} {
 		if strings.Contains(vazio, nao) {
 			t.Errorf("%s saiu sem valor:\n%s", nao, vazio)
@@ -212,5 +212,18 @@ func TestRenderMyIniSemIPv6(t *testing.T) {
 	got := string(RenderMyIni(3306, "C:/m", "C:/d", "C:/l", "", false, false))
 	if !strings.Contains(got, "\nbind-address = 127.0.0.1\n") {
 		t.Fatalf("bind-address devia ser só 127.0.0.1:\n%s", got)
+	}
+}
+
+// Sem bundle, nenhuma linha de CA: apontar o PHP para um arquivo que não
+// existe quebraria o HTTPS de saída que hoje funciona no macOS, com os
+// certificados do Homebrew.
+func TestSemBundleSemDiretivasDeCA(t *testing.T) {
+	inst := fakePHP(t, "8.1", "8.1.10", shippedIn81)
+	got := string(RenderPHPIni(inst, nil, "C:/tmp", "C:/log", 1025, "", "", "", nil))
+	for _, nao := range []string{"curl.cainfo", "openssl.cafile"} {
+		if strings.Contains(got, nao) {
+			t.Errorf("%s saiu sem bundle:\n%s", nao, got)
+		}
 	}
 }
