@@ -38,50 +38,55 @@
       "kind": "php",
       "version": "8.1.34",
       "url": "https://windows.php.net/downloads/releases/php-8.1.34-nts-Win32-vs16-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.1.34-nts-Win32-vs16-x64.zip"],
       "sha256": "9cfe246cb144076c16f5913a3ef88a474c3dd7e60f0f0c8bb95faf68674016cc",
       "compiler": "vs16",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
       "id": "php-8.2.34-nts-vs16-x64",
       "kind": "php",
       "version": "8.2.34",
       "url": "https://windows.php.net/downloads/releases/php-8.2.34-nts-Win32-vs16-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.2.34-nts-Win32-vs16-x64.zip"],
       "sha256": "03249b5c9414c6dbe30276f4a7598bd9d2a7417ee81f709b06b99e9c4a2aff4f",
       "compiler": "vs16",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
       "id": "php-8.3.35-nts-vs16-x64",
       "kind": "php",
       "version": "8.3.35",
       "url": "https://windows.php.net/downloads/releases/php-8.3.35-nts-Win32-vs16-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.3.35-nts-Win32-vs16-x64.zip"],
       "sha256": "25a8e2ac9ff30f1d768d1447c09a600617fa6e6082729f6e95f008b59c91fe45",
       "compiler": "vs16",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
       "id": "php-8.4.26-nts-vs17-x64",
       "kind": "php",
       "version": "8.4.26",
       "url": "https://windows.php.net/downloads/releases/php-8.4.26-nts-Win32-vs17-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.4.26-nts-Win32-vs17-x64.zip"],
       "sha256": "da68394f9193b7f6b89d0c76861a4034ae10efee7fd55a7255d8118c2acf70d7",
       "compiler": "vs17",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
       "id": "php-8.5.11-nts-vs17-x64",
       "kind": "php",
       "version": "8.5.11",
       "url": "https://windows.php.net/downloads/releases/php-8.5.11-nts-Win32-vs17-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.5.11-nts-Win32-vs17-x64.zip"],
       "sha256": "0ea96e0d2b9b737a6036f05cf4e95c49313faa6d0f27bd97edb2742503f0c043",
       "compiler": "vs17",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O Manager tenta o fallback de archives antes de desistir."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
       "id": "apache-2.4.69-vs18-x64",

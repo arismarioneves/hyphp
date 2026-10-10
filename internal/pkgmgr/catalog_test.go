@@ -2,6 +2,7 @@ package pkgmgr
 
 import (
 	"fmt"
+	"path"
 	"strings"
 	"testing"
 
@@ -24,6 +25,33 @@ func TestCatalogoEmbutido(t *testing.T) {
 	}
 	if n := len(c.ByKind(KindCACert)); n != 1 {
 		t.Errorf("o catálogo precisa de exatamente um pacote de CAs, tem %d", n)
+	}
+}
+
+// O php.net tira o patch anterior de /releases/ a cada patch novo e o move para
+// /releases/archives/ com o mesmo nome. Quem atualiza a url de um PHP e esquece
+// o mirror (ou erra o nome) deixa o download quebrar no próximo patch.
+func TestPHPDeReleasesTemMirrorEmArchives(t *testing.T) {
+	const releases = "https://windows.php.net/downloads/releases/"
+	const archives = releases + "archives/"
+	c, err := LoadEmbedded()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range c.ByKind(runtime.PHP) {
+		if !strings.HasPrefix(p.URL, releases) || strings.HasPrefix(p.URL, archives) {
+			continue
+		}
+		want := archives + path.Base(p.URL)
+		found := false
+		for _, m := range p.Mirrors {
+			if m == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: falta o mirror %s (mirrors: %v)", p.ID, want, p.Mirrors)
+		}
 	}
 }
 
