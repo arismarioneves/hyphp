@@ -69,7 +69,9 @@ type Stack struct {
 	// resolver é o servidor DNS local; nil quando nenhum projeto usa wildcard.
 	resolver *netcfg.Resolver
 	// nrptDone marca que a regra NRPT desta sessão já foi registrada, para o
-	// Reconcile parar de avisar.
+	// Reconcile parar de avisar. Só o Windows tem NRPT; no Mac a regra é
+	// sempre lida do /etc/resolver/test.
+	//lint:ignore U1000 usado só em wildcard_windows.go
 	nrptDone bool
 	// stoppedByDir são os serviços que StopUsingDir parou e que estavam no ar.
 	// Quando a revarredura troca o spec para outra versão, applySpecs os
@@ -332,10 +334,12 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	}
 
 	s.lastSites = append(s.lastSites[:0], out.Sites...)
-	hostWarns, err := s.syncHosts(out.Sites)
-	warnings = append(warnings, hostWarns...)
-	if err != nil {
-		return s.finish(warnings), err
+	if manageHosts() {
+		hostWarns, err := s.syncHosts(out.Sites)
+		warnings = append(warnings, hostWarns...)
+		if err != nil {
+			return s.finish(warnings), err
+		}
 	}
 
 	// 7b. DNS wildcard: o resolvedor sobe sem privilégio; a regra NRPT, que
@@ -747,6 +751,9 @@ func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
 // dispara UAC por causa de domínios, e só é chamada por ação explícita do
 // usuário (SettingsService.ApplyHosts → botão na UI).
 func (s *Stack) ApplyHosts(ctx context.Context) error {
+	if !manageHosts() {
+		return errors.New(i18n.T("err.stack.hostsMac"))
+	}
 	s.lock()
 	sites := append([]webserver.Site(nil), s.lastSites...)
 	s.unlock()
