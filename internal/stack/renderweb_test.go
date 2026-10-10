@@ -2,6 +2,8 @@ package stack
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -41,7 +43,8 @@ func (bindingWeb) Validate(etcDir string) error {
 }
 
 func (bindingWeb) Command(string) (string, []string, string) { return "", nil, "" }
-func (bindingWeb) Probe(webserver.Ports) supervisor.Probe     { return supervisor.AliveProbe{} }
+func (bindingWeb) Probe(webserver.Ports) supervisor.Probe    { return supervisor.AliveProbe{} }
+func (bindingWeb) PageDataDir() string                       { return "html/dados" }
 
 func TestRenderWebValidaComAsPortasReaisOcupadas(t *testing.T) {
 	t.Setenv(paths.EnvRoot, t.TempDir())
@@ -69,5 +72,38 @@ func TestRenderWebValidaComAsPortasReaisOcupadas(t *testing.T) {
 	}
 	if out.Tool.Port != held[2] {
 		t.Fatalf("renderWeb alterou a porta da ferramenta do chamador para %d", out.Tool.Port)
+	}
+}
+
+// paginaWeb renderiza como o nginx: a página e a pasta dos dados com .keep.
+type paginaWeb struct{}
+
+func (paginaWeb) Name() state.WebServerName { return state.Nginx }
+func (paginaWeb) Render([]webserver.Site, []webserver.PHPPool, webserver.Ports, string, *webserver.Tool) (map[string][]byte, error) {
+	return map[string][]byte{"nginx.conf": []byte("conf\n"), "html/index.html": []byte("pagina\n"), "html/dados/.keep": nil}, nil
+}
+func (paginaWeb) Validate(string) error                     { return nil }
+func (paginaWeb) Command(string) (string, []string, string) { return "", nil, "" }
+func (paginaWeb) Probe(webserver.Ports) supervisor.Probe    { return supervisor.AliveProbe{} }
+func (paginaWeb) PageDataDir() string                       { return "html/dados" }
+
+// A lista de projetos muda a cada projeto e não é configuração: gravá-la não
+// pode marcar o web server para reinício, e o render seguinte não pode
+// apagá-la.
+func TestListaDaPaginaNaoReiniciaOWebServer(t *testing.T) {
+	t.Setenv(paths.EnvRoot, t.TempDir())
+	s := &Stack{d: Deps{Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}}
+	st := state.State{HTTPPort: 80, HTTPSPort: 443}
+	if _, err := s.renderWeb(paginaWeb{}, desiredOutput{}, st); err != nil {
+		t.Fatal(err)
+	}
+	s.writePageData(paginaWeb{}, []webserver.Site{{ID: "app", Domain: "app.test"}}, st)
+	changed, err := s.renderWeb(paginaWeb{}, desiredOutput{}, st)
+	if err != nil || changed {
+		t.Fatalf("render depois da lista: changed=%v err=%v", changed, err)
+	}
+	raw, err := os.ReadFile(filepath.Join(paths.Etc(), "nginx", "html", "dados", "projetos.json"))
+	if err != nil || !strings.Contains(string(raw), `"app.test"`) {
+		t.Fatalf("lista depois do render: %v\n%s", err, raw)
 	}
 }

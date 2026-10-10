@@ -21,14 +21,14 @@ func TestRenderGolden(t *testing.T) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	want := []string{"default/index.html", "httpd.conf", "pools.conf", "tools/.dir", "vhosts/.dir", "vhosts/app72.conf", "vhosts/app81.conf"}
+	want := []string{"default/dados/.keep", "default/index.html", "httpd.conf", "pools.conf", "tools/.dir", "vhosts/.dir", "vhosts/app72.conf", "vhosts/app81.conf"}
 	if strings.Join(keys, ",") != strings.Join(want, ",") {
 		t.Fatalf("chaves = %v, quero %v", keys, want)
 	}
 
 	for _, key := range keys {
-		// ".dir" existe só para o diretório existir; não tem conteúdo a comparar.
-		if strings.HasSuffix(key, "/.dir") {
+		// ".dir" e ".keep" só declaram o diretório; não têm conteúdo a comparar.
+		if strings.HasSuffix(key, "/.dir") || strings.HasSuffix(key, "/.keep") {
 			continue
 		}
 		t.Run(key, func(t *testing.T) {

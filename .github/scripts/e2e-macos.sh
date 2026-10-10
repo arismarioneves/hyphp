@@ -288,6 +288,14 @@ passo "projeto pelo Apache na porta 80"
 get -H "$HOST" "$SITE/"
 cat "$CORPO"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu com o PHP 8.3"
+# A página de host sem projeto lista os projetos para esta máquina. A regra de
+# DNS ainda não existe: teste.test só abre com o cabeçalho Host.
+get "$SITE/dados/projetos.json"
+cat "$CORPO"
+jq -e '.projetos[] | select(.domain == "teste.test") | .abre == false and .motivo == "dns"' "$CORPO" >/dev/null ||
+	falha "projetos.json sem teste.test pendente da regra de DNS"
+get -H "Host: nada.test" "$SITE/"
+grep -q 'id="textos"' "$CORPO" || falha "host sem projeto não serviu a página do HyPHP"
 
 passo "banco pela CLI e pelo PHP"
 "$CLI" db create hyphp_e2e
@@ -370,6 +378,10 @@ get -H "$HOST" "$SITE/"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu depois da reabertura"
 # A reabertura roda um Reconcile completo: agora sem pendência nenhuma.
 conferir_avisos
+# Com a regra de DNS e a CA, a reabertura marca teste.test como aberto e em HTTPS.
+get "$SITE/dados/projetos.json"
+jq -e '.projetos[] | select(.domain == "teste.test") | .abre and .https' "$CORPO" >/dev/null ||
+	falha "projetos.json não marcou teste.test aberto e em HTTPS"
 get --cacert "$CAROOT_DIR/rootCA.pem" "https://teste.test/"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu em HTTPS"
 # O sistema confia no certificado do site: a cadeia fecha no keychain, não no --cacert.
@@ -400,6 +412,8 @@ cat "$CORPO"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu pelo nginx"
 get --cacert "$CAROOT_DIR/rootCA.pem" "https://teste.test/"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu em HTTPS pelo nginx"
+get "$SITE/dados/projetos.json"
+jq -e 'any(.projetos[]; .domain == "teste.test")' "$CORPO" >/dev/null || falha "o nginx não serviu o projetos.json"
 # Cada motor tem o próprio datadir: o banco do MySQL não existe no MariaDB.
 "$CLI" db create hyphp_e2e
 get -H "$HOST" "$SITE/db.php"

@@ -13,6 +13,7 @@
     --fg-muted: #8b9bb4;
     --fg-faint: #5b6b85;
     --accent-fg: #60a5fa;
+    --warn-fg: #fbbf24;
     --radius-card: 12px;
     --font-sans: Inter, system-ui, -apple-system, sans-serif;
     --font-mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
@@ -33,18 +34,123 @@
   p { margin: 0 0 16px; color: var(--fg-muted); font-size: 14px; line-height: 1.6; }
   ol { margin: 0; padding-left: 20px; color: var(--fg-muted); font-size: 14px; line-height: 1.9; }
   code { font-family: var(--font-mono); color: var(--accent-fg); }
+  #lista { margin-top: 24px; }
+  #lista .sub { margin-bottom: 8px; }
+  ul { margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 1.6; }
+  li { padding: 8px 0; border-top: 1px solid var(--border); }
+  a { font-family: var(--font-mono); color: var(--accent-fg); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .nao-abre { display: block; color: var(--warn-fg); font-size: 13px; }
 </style>
 </head>
 <body>
 <main>
   <h1>HyPHP</h1>
   <p class="sub">host sem projeto</p>
-  <p>O web server está no ar, mas nenhum projeto responde por este domínio.</p>
-  <ol>
+  <p id="lead">O web server está no ar, mas nenhum projeto responde por este domínio.</p>
+  <ol id="passos">
     <li>Abra o HyPHP e vá em <strong>Projetos</strong>.</li>
     <li>Adicione a pasta onde seus projetos ficam (ex.: <code>C:\DEV</code>).</li>
     <li>Confira o domínio no <code>hyphp.yaml</code> do projeto (<code>domain: acme.test</code>).</li>
   </ol>
+  <section id="lista" hidden>
+    <p class="sub">projetos nesta máquina</p>
+    <ul id="projetos"></ul>
+  </section>
 </main>
+<script type="application/json" id="textos">{"page.foraDoTest":"{host} não é um domínio \u003ccode\u003e.test\u003c/code\u003e. Ele chegou aqui porque o DNS dele aponta para esta máquina, e o HyPHP só serve domínios \u003ccode\u003e.test\u003c/code\u003e.","page.local":"Estes são os projetos que o HyPHP serve nesta máquina.","page.naoAbreDNS":"não abre: falta a regra de DNS do \u003ccode\u003e.test\u003c/code\u003e. Registre a regra pelo aviso no Dashboard do HyPHP.","page.naoAbreHosts":"não abre: o domínio não está no arquivo hosts. Aplique o hosts pelo aviso no Dashboard do HyPHP.","page.semProjetos":"O HyPHP ainda não serve nenhum projeto nesta máquina.","page.subSemDNS":"{host} é subdomínio de {dominio}, que aceita subdomínios, mas a regra de DNS do \u003ccode\u003e.test\u003c/code\u003e não está ativa. Registre a regra pelo aviso no Dashboard do HyPHP.","page.subSemWildcard":"{host} é subdomínio de {dominio}, que não aceita subdomínios. No \u003ccode\u003ehyphp.yaml\u003c/code\u003e do projeto, use \u003ccode\u003ewildcard: true\u003c/code\u003e.","page.testSemProjeto":"Nenhum projeto usa {host}."}</script>
+<script>
+// A página responde por todo host que não casa com um projeto e escolhe a
+// mensagem pelo host pedido, com a lista que o HyPHP grava em
+// /dados/projetos.json. O web server só entrega a lista para esta máquina:
+// pela rede o pedido volta 403 e fica a mensagem genérica acima. Os textos
+// vêm do app, no idioma dele (#textos); o script não tem texto próprio.
+var T = JSON.parse(document.getElementById('textos').textContent);
+
+// escrever põe em el o texto da chave. Os textos do app são HTML confiável;
+// {host} e {dominio} viram <code> com textContent, porque o host vem da barra
+// de endereço e nunca pode virar HTML.
+function escrever(el, chave, valores) {
+  el.textContent = '';
+  T[chave].split(/(\{host\}|\{dominio\})/).forEach(function (parte) {
+    var m = /^\{(host|dominio)\}$/.exec(parte);
+    if (m) {
+      var code = document.createElement('code');
+      code.textContent = valores[m[1]];
+      el.appendChild(code);
+    } else {
+      el.insertAdjacentHTML('beforeend', parte);
+    }
+  });
+}
+
+// endereco monta o link do projeto: https quando há certificado, e a porta só
+// quando não é a padrão.
+function endereco(p, portas) {
+  var porta = p.https ? portas.https : portas.http;
+  var padrao = p.https ? 443 : 80;
+  return (p.https ? 'https://' : 'http://') + p.domain + (porta === padrao ? '' : ':' + porta) + '/';
+}
+
+function listar(dados) {
+  var ul = document.getElementById('projetos');
+  ul.textContent = '';
+  dados.projetos.forEach(function (p) {
+    var li = document.createElement('li');
+    var a = document.createElement('a');
+    a.href = endereco(p, dados.portas);
+    a.textContent = p.domain;
+    li.appendChild(a);
+    if (!p.abre) {
+      var aviso = document.createElement('span');
+      aviso.className = 'nao-abre';
+      escrever(aviso, p.motivo === 'dns' ? 'page.naoAbreDNS' : 'page.naoAbreHosts', {});
+      li.appendChild(aviso);
+    }
+    ul.appendChild(li);
+  });
+  document.getElementById('lista').hidden = dados.projetos.length === 0;
+}
+
+// mostrar escolhe a mensagem para host. Fica separada da leitura do
+// location.hostname para a página poder ser conferida com qualquer host.
+function mostrar(host, dados) {
+  var h = host.toLowerCase().replace(/\.$/, '');
+  var lead = document.getElementById('lead');
+  var passos = document.getElementById('passos');
+  // O projeto do qual h é subdomínio; o domínio mais longo vence.
+  var dono = null;
+  dados.projetos.forEach(function (p) {
+    var sufixo = '.' + p.domain;
+    if (h.slice(-sufixo.length) === sufixo && (!dono || p.domain.length > dono.domain.length)) {
+      dono = p;
+    }
+  });
+  passos.hidden = true;
+  if (h === 'localhost' || h === '127.0.0.1' || h === '[::1]') {
+    if (dados.projetos.length === 0) {
+      escrever(lead, 'page.semProjetos', {});
+      passos.hidden = false;
+    } else {
+      escrever(lead, 'page.local', {});
+    }
+  } else if (dono && !dono.wildcard) {
+    escrever(lead, 'page.subSemWildcard', { host: h, dominio: dono.domain });
+  } else if (dono && !dono.subdominios) {
+    escrever(lead, 'page.subSemDNS', { host: h, dominio: dono.domain });
+  } else if (/\.test$/.test(h)) {
+    escrever(lead, 'page.testSemProjeto', { host: h });
+    passos.hidden = false;
+  } else {
+    escrever(lead, 'page.foraDoTest', { host: h });
+  }
+  listar(dados);
+}
+
+fetch('/dados/projetos.json', { cache: 'no-store' })
+  .then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (dados) { if (dados) mostrar(location.hostname, dados); })
+  .catch(function () {});
+</script>
 </body>
 </html>

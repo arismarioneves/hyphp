@@ -363,6 +363,11 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	// que exige senha, fica para ApplyWildcardDNS: no Windows é a NRPT (UAC),
 	// no Mac é o /etc/resolver/test, gravado pelo helper com a senha.
 	warnings = append(warnings, s.syncWildcard(projs)...)
+	// 7c. lista da página de host sem projeto, depois do hosts e do DNS: ela
+	// diz se cada domínio abre nesta máquina.
+	if web != nil {
+		s.writePageData(web, out.Sites, st)
+	}
 	// 8. (plano 07) databases dos manifestos, em background: espera o mysql
 	// ficar ready sem segurar o Reconcile.
 	s.syncDatabases(rts, projs)

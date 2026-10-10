@@ -106,6 +106,7 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 	}
 
 	files["html/index.html"] = webserver.DefaultIndexHTML()
+	files[s.PageDataDir()+"/"+hrender.KeepFile] = nil
 	// logs/ e temp/ precisam existir dentro do prefixo -p: o nginx abre o log
 	// de erro e os diretórios temporários antes de ler a config. O ".keep"
 	// cria o diretório sem que render.WriteFiles passe a varrer o que o nginx
@@ -201,3 +202,7 @@ func render(name string, data any) ([]byte, error) {
 func prefix(etcDir string) string {
 	return hrender.SlashDir(etcDir) + "/"
 }
+
+// PageDataDir: a lista de projetos fica numa pasta própria da página, que o
+// template restringe a esta máquina.
+func (s server) PageDataDir() string { return "html/dados" }

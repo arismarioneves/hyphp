@@ -126,6 +126,7 @@ func (s server) Render(sites []webserver.Site, pools []webserver.PHPPool, ports 
 	files["tools/"+hrender.DirFile] = nil
 
 	files["default/index.html"] = webserver.DefaultIndexHTML()
+	files[s.PageDataDir()+"/"+hrender.KeepFile] = nil
 	return files, nil
 }
 
@@ -184,3 +185,7 @@ func render(name string, data any) ([]byte, error) {
 	}
 	return buf.Bytes(), nil
 }
+
+// PageDataDir: a lista de projetos fica numa pasta própria da página, que o
+// template restringe a esta máquina.
+func (s server) PageDataDir() string { return "default/dados" }
