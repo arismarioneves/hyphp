@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/sha256"
@@ -16,6 +17,7 @@ import (
 	"strings"
 	"testing"
 
+	"hyphp/internal/pkgmgr"
 	"hyphp/internal/update"
 )
 
@@ -479,20 +481,85 @@ func TestChaveDoAmbiente(t *testing.T) {
 	}
 	seed := hex.EncodeToString(priv.Seed())
 	// O gh secret set guarda o arquivo como está, com a quebra de linha final.
-	if k, err := releaseKey(seed+"\n", pub); err != nil || !k.Equal(priv) {
+	if k, err := signingKey(releaseKeyEnv, seed+"\n", pub); err != nil || !k.Equal(priv) {
 		t.Fatalf("seed certa recusada: %v", err)
 	}
 	_, outra, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := releaseKey(hex.EncodeToString(outra.Seed()), pub); err == nil {
+	if _, err := signingKey(releaseKeyEnv, hex.EncodeToString(outra.Seed()), pub); err == nil {
 		t.Error("seed de outra chave aceita")
 	}
 	for _, ruim := range []string{"", "zz", seed[:10]} {
-		if _, err := releaseKey(ruim, pub); err == nil {
+		if _, err := signingKey(releaseKeyEnv, ruim, pub); err == nil {
 			t.Errorf("seed %q aceita", ruim)
 		}
+	}
+}
+
+// catalogoValido é um catalog.json mínimo que o app aceita.
+func catalogoValido(serial int64) []byte {
+	return fmt.Appendf(nil, `{"schema":1,"serial":%d,"updatedAt":"2026-10-11","packages":[{"id":"php-8.3.35-nts-vs16-x64","kind":"php","version":"8.3.35","url":"https://windows.php.net/php-8.3.35.zip","sha256":"%s"}]}`, serial, strings.Repeat("a", 64))
+}
+
+// O catálogo publicado é o arquivo do repositório byte a byte, com a
+// assinatura que o app confere. O serial tem de subir, senão as versões
+// instaladas ignoram a publicação.
+func TestPublicarCatalogo(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	web := t.TempDir()
+	raw := catalogoValido(2026101100)
+	if c, err := publishCatalog(raw, web, priv); err != nil || c.Serial != 2026101100 {
+		t.Fatalf("publicar: %+v, %v", c, err)
+	}
+	body, _ := os.ReadFile(filepath.Join(web, "catalogo", "catalog.json"))
+	sig, _ := os.ReadFile(filepath.Join(web, "catalogo", "catalog.json.sig"))
+	if !bytes.Equal(body, raw) {
+		t.Error("o catálogo publicado não é o arquivo do repositório byte a byte")
+	}
+	if err := pkgmgr.VerifySignature(pub, body, sig); err != nil {
+		t.Fatalf("o app recusaria a assinatura: %v", err)
+	}
+	for _, serial := range []int64{2026101100, 2026101099} {
+		if _, err := publishCatalog(catalogoValido(serial), web, priv); err == nil {
+			t.Errorf("serial %d aceito sobre o publicado 2026101100", serial)
+		}
+	}
+	if again, _ := os.ReadFile(filepath.Join(web, "catalogo", "catalog.json")); !bytes.Equal(again, raw) {
+		t.Error("uma publicação recusada mexeu no catálogo do site")
+	}
+	if _, err := publishCatalog(catalogoValido(2026101101), web, priv); err != nil {
+		t.Errorf("serial maior recusado: %v", err)
+	}
+}
+
+// Os apps descartam em silêncio um tipo que não conhecem; na publicação isso
+// é erro, porque é quase sempre um typo no catalog.json.
+func TestPublicarCatalogoRecusaTipoDesconhecido(t *testing.T) {
+	_, priv, _ := ed25519.GenerateKey(rand.Reader)
+	raw := bytes.Replace(catalogoValido(2026101100), []byte(`"kind":"php"`), []byte(`"kind":"pph"`), 1)
+	if _, err := publishCatalog(raw, t.TempDir(), priv); err == nil {
+		t.Error("catálogo com tipo desconhecido publicado")
+	}
+}
+
+// Um catálogo no site que não se lê não é sobrescrito sem olhar: o serial
+// dele não pode ser comparado.
+func TestPublicarCatalogoComPublicadoIlegivel(t *testing.T) {
+	_, priv, _ := ed25519.GenerateKey(rand.Reader)
+	web := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(web, "catalogo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(web, "catalogo", "catalog.json"), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := publishCatalog(catalogoValido(2026101100), web, priv); err == nil {
+		t.Error("publicou sobre um catálogo ilegível")
 	}
 }
 
