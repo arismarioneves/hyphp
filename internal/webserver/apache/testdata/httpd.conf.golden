@@ -79,6 +79,11 @@ Include "${HYPHP_ETC}/pools.conf"
         Options -Indexes
         AllowOverride None
     </Directory>
+    # A lista de projetos é só para esta máquina: pela rede o script da página
+    # recebe 403 e fica a mensagem genérica.
+    <Directory "${HYPHP_ETC}/default/dados">
+        Require local
+    </Directory>
     ErrorLog "C:/hyphp/log/apache-default-error.log"
     CustomLog "C:/hyphp/log/apache-default-access.log" combined
 </VirtualHost>

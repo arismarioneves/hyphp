@@ -91,6 +91,11 @@ ProxyFCGISetEnvIf "%{REQUEST_FILENAME} =~ m|([A-Za-z]:/.*)$|" SCRIPT_FILENAME "$
         Options -Indexes
         AllowOverride None
     </Directory>
+    # A lista de projetos é só para esta máquina: pela rede o script da página
+    # recebe 403 e fica a mensagem genérica.
+    <Directory "${HYPHP_ETC}/default/dados">
+        Require local
+    </Directory>
     ErrorLog "{{.LogDir}}/apache-default-error.log"
     CustomLog "{{.LogDir}}/apache-default-access.log" combined
 </VirtualHost>

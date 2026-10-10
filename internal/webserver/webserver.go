@@ -69,6 +69,11 @@ type Ports struct {
 //
 // Caminhos que NÃO são o etcDir (diretório do runtime, docroots, logDir,
 // certificados) podem e devem ser absolutos.
+// PageDataFile é a lista de projetos da página de host sem projeto. O stack a
+// grava em PageDataDir() a cada Reconcile, e o web server a entrega em
+// /dados/projetos.json só para esta máquina.
+const PageDataFile = "projetos.json"
+
 type WebServer interface {
 	Name() state.WebServerName
 	// Render devolve caminho-relativo-ao-etcDir (sempre com "/") → conteúdo.
@@ -81,6 +86,12 @@ type WebServer interface {
 	Command(etcDir string) (exe string, args []string, dir string)
 	// Probe é a prova de readiness do serviço web (spec §7.2).
 	Probe(ports Ports) supervisor.Probe
+
+	// PageDataDir é a pasta de PageDataFile, relativa ao etcDir e com "/".
+	// O Render declara nela um .keep: o stack grava a lista fora do Render
+	// (ela não é configuração e não reinicia o servidor), e o WriteFiles do
+	// web server não pode apagá-la.
+	PageDataDir() string
 }
 
 // PoolName converte uma série de PHP no nome do pool/upstream: "8.1" → "php81".

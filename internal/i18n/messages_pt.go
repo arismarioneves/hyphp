@@ -121,12 +121,21 @@ var messagesPT = map[string]string{
 	"update.semEscrita":        "sem permissão para trocar o app em %s; atualize pelo Terminal: %s",
 
 	// Página do host default (default-index.html). Os textos são HTML confiável.
-	"page.title": "HyPHP — nenhum projeto para este host",
-	"page.sub":   "host sem projeto",
-	"page.lead":  "O web server está no ar, mas nenhum projeto responde por este domínio.",
-	"page.step1": "Abra o HyPHP e vá em <strong>Projetos</strong>.",
-	"page.step2": `Adicione a pasta onde seus projetos ficam (ex.: <code>C:\DEV</code>).`,
-	"page.step3": "Confira o domínio no <code>hyphp.yaml</code> do projeto (<code>domain: acme.test</code>).",
+	"page.title":          "HyPHP — nenhum projeto para este host",
+	"page.sub":            "host sem projeto",
+	"page.lead":           "O web server está no ar, mas nenhum projeto responde por este domínio.",
+	"page.step1":          "Abra o HyPHP e vá em <strong>Projetos</strong>.",
+	"page.step2":          `Adicione a pasta onde seus projetos ficam (ex.: <code>C:\DEV</code>).`,
+	"page.step3":          "Confira o domínio no <code>hyphp.yaml</code> do projeto (<code>domain: acme.test</code>).",
+	"page.lista":          "projetos nesta máquina",
+	"page.local":          "Estes são os projetos que o HyPHP serve nesta máquina.",
+	"page.semProjetos":    "O HyPHP ainda não serve nenhum projeto nesta máquina.",
+	"page.subSemWildcard": "{host} é subdomínio de {dominio}, que não aceita subdomínios. No <code>hyphp.yaml</code> do projeto, use <code>wildcard: true</code>.",
+	"page.subSemDNS":      "{host} é subdomínio de {dominio}, que aceita subdomínios, mas a regra de DNS do <code>.test</code> não está ativa. Registre a regra pelo aviso no Dashboard do HyPHP.",
+	"page.testSemProjeto": "Nenhum projeto usa {host}.",
+	"page.foraDoTest":     "{host} não é um domínio <code>.test</code>. Ele chegou aqui porque o DNS dele aponta para esta máquina, e o HyPHP só serve domínios <code>.test</code>.",
+	"page.naoAbreHosts":   "não abre: o domínio não está no arquivo hosts. Aplique o hosts pelo aviso no Dashboard do HyPHP.",
+	"page.naoAbreDNS":     "não abre: falta a regra de DNS do <code>.test</code>. Registre a regra pelo aviso no Dashboard do HyPHP.",
 
 	// Comentários do hyphp.yaml gerado.
 	"yaml.header":         "# Configuração do projeto no HyPHP — %s",

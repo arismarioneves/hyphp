@@ -18,7 +18,7 @@ func TestRenderGolden(t *testing.T) {
 	}
 	sort.Strings(keys)
 	want := []string{
-		"html/index.html", "logs/.keep", "nginx.conf",
+		"html/dados/.keep", "html/index.html", "logs/.keep", "nginx.conf",
 		"sites/.dir", "sites/app72.conf", "sites/app81.conf", "temp/.keep", "upstreams.conf",
 	}
 	if strings.Join(keys, ",") != strings.Join(want, ",") {

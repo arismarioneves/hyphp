@@ -39,5 +39,13 @@ http {
         server_name _;
         root html;
         index index.html;
+
+        # A lista de projetos é só para esta máquina: pela rede o script da
+        # página recebe 403 e fica a mensagem genérica.
+        location /dados/ {
+            allow 127.0.0.1;
+            allow ::1;
+            deny all;
+        }
     }
 }
