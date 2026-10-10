@@ -72,8 +72,9 @@ func (s *Stack) writePageData(web webserver.WebServer, sites []webserver.Site, s
 	hosts, dns, motivo := s.resolucao()
 	raw := projetosJSON(sites, webserver.Ports{HTTP: st.HTTPPort, HTTPS: st.HTTPSPort}, hosts, dns, motivo)
 	dir := filepath.Join(paths.Etc(), string(web.Name()), filepath.FromSlash(web.PageDataDir()))
-	// O .keep no mapa impede este WriteFiles de apagar o que o do web server
-	// criou na pasta.
+	// O .keep vai no mapa porque está em want: assim este WriteFiles não o
+	// apaga. Se apagasse, o próximo render do web server o recriaria e marcaria
+	// mudança, reiniciando o Apache/nginx a cada Reconcile.
 	if _, err := render.WriteFiles(dir, map[string][]byte{render.KeepFile: nil, webserver.PageDataFile: raw}); err != nil {
 		s.d.Logger.Warn("stack: gravar a lista de projetos da página", "err", err)
 	}

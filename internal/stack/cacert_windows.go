@@ -21,7 +21,8 @@ const (
 	// não responde não pode deixar o download marcado como em voo para sempre.
 	cacertFetchTimeout = 2 * time.Minute
 	// cacertReconcileTimeout é o prazo do Reconcile que põe o bundle novo no
-	// php.ini; o mesmo dos Reconciles do tray e do boot.
+	// php.ini, o mesmo dos Reconciles do tray e do boot. Só conta depois que o
+	// Reconcile toma o lock op, cuja espera não tem prazo.
 	cacertReconcileTimeout = 60 * time.Second
 )
 
