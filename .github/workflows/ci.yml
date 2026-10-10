@@ -73,10 +73,12 @@ jobs:
       - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks inherit,-SA4023 $PKGS
       - run: go test -count=1 ./cmd/... ./services/... ./internal/...
 
-  # O roteiro manual da M1 de ponta a ponta num Mac Apple Silicon de verdade:
-  # o .app empacotado, runtimes do Homebrew, projeto servido, banco, e-mail,
-  # phpMyAdmin e a limpeza de órfãos depois de um kill -9. O runner tem sessão
-  # gráfica, então o app abre como no Mac do usuário. O .app não sai do job.
+  # O roteiro manual da M1 e da M2 de ponta a ponta num Mac Apple Silicon de
+  # verdade: o .app empacotado, runtimes do Homebrew, projeto servido, banco,
+  # e-mail, phpMyAdmin, a regra de DNS, a CA e o PATH pelo helper (o sudo do
+  # runner faz o papel da janela de senha), HTTPS, a limpeza de órfãos depois
+  # de um kill -9 e a remoção do sistema. O runner tem sessão gráfica, então o
+  # app abre como no Mac do usuário. O .app não sai do job.
   macos-e2e:
     runs-on: macos-15
     timeout-minutes: 45
