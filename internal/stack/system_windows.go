@@ -21,6 +21,9 @@ func mkcertMissingMessage() string {
 	return i18n.T("warn.mkcertMissing", filepath.Join(paths.Bin(), "mkcert"))
 }
 
+// mkcertMissingError: no Windows o texto cita bin/mkcert/mkcert.exe.
+func mkcertMissingError() error { return i18n.Errorf("err.stack.mkcertMissing") }
+
 // trustCA instala a CA pelo helper elevado (mkcert -install sob UAC).
 func (s *Stack) trustCA(mk netcfg.Mkcert) error {
 	helper, herr := elevate.HelperPath()

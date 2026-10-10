@@ -26,8 +26,9 @@ func TestRaizPadraoNoMac(t *testing.T) {
 // usuário: um arquivo de outra instalação (outra raiz) pede a senha de novo.
 func TestPathsDRegistrado(t *testing.T) {
 	t.Setenv(EnvRoot, t.TempDir())
+	old := PathsDFile
 	PathsDFile = filepath.Join(t.TempDir(), "hyphp")
-	t.Cleanup(func() { PathsDFile = "/etc/paths.d/hyphp" })
+	t.Cleanup(func() { PathsDFile = old })
 	if PathsDRegistered() {
 		t.Fatal("registrado sem arquivo")
 	}
