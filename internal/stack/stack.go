@@ -383,7 +383,7 @@ func (s *Stack) finish(w []Warning) []Warning {
 func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) {
 	mk := s.mkcert()
 	if mk.Exe == "" {
-		return nil, []Warning{{Code: "tls-unavailable", Message: i18n.T("warn.mkcertMissing", filepath.Join(paths.Bin(), "mkcert"))}}
+		return nil, []Warning{{Code: "tls-unavailable", Message: mkcertMissingMessage()}}
 	}
 	if !s.caReady {
 		ok, err := mk.CAInstalled()
@@ -415,18 +415,8 @@ func (s *Stack) InstallCA(ctx context.Context) error {
 	case ok:
 		return nil
 	}
-	helper, herr := elevate.HelperPath()
-	if herr != nil {
-		return i18n.Errorf("err.stack.helperUnavailable", herr)
-	}
-	// --caroot fixa no helper elevado o CAROOT deste usuário: se o UAC elevar
-	// com outra conta, o mkcert -install gravaria a CA no perfil dela, e
-	// CAInstalled(), que olha aqui, seguiria falso a cada clique.
-	switch err := elevate.RunElevated(helper, []string{"mkcert-install", "--exe", mk.Exe, "--caroot", mk.CARoot}); {
-	case errors.Is(err, elevate.ErrElevationDenied):
-		return i18n.Errorf("err.stack.caCancelled")
-	case err != nil:
-		return i18n.Errorf("err.stack.caInstallFailed", err)
+	if err := s.trustCA(mk); err != nil {
+		return err
 	}
 	s.d.Logger.Info("stack: CA local instalada")
 	// Agora os vhosts podem nascer com TLS: o Reconcile re-emite tudo.
