@@ -101,14 +101,44 @@ pids() {
 	"$CLI" services --json | jq -r '.[] | select(.pid > 0) | "\(.pid) \(.id)"'
 }
 
-# conferir_avisos mostra os avisos e reprova qualquer um fora dos dois que a
-# M1 ainda deixa no Mac: hosts e certificado, que são da M2. Porta em uso, banco
-# que não inicializou ou web server ausente aparecem aqui.
+# conferir_avisos mostra os avisos e exige exatamente os códigos dados, em
+# qualquer ordem. Sem argumento, exige nenhum: com a regra de DNS e a CA
+# registradas, o Mac não deixa pendência.
 conferir_avisos() {
+	local esperados
+	esperados=$(printf '%s\n' "$@" | jq -R . | jq -sc 'map(select(. != "")) | sort')
 	"$CLI" warnings
-	"$CLI" warnings --json |
-		jq -e 'all(.[]; .code == "hosts-pending" or .code == "tls-unavailable")' >/dev/null ||
-		falha "aviso inesperado; no Mac, até a M2, só hosts-pending e tls-unavailable"
+	"$CLI" warnings --json | jq -e --argjson e "$esperados" '[.[].code] | unique == ($e | unique)' >/dev/null ||
+		falha "avisos diferentes de $esperados"
+}
+
+# helper roda o hyphp-helper do bundle com sudo. O sudo do runner não pede
+# senha e faz o papel da janela do osascript: o helper roda como root, como o
+# app o chamaria.
+helper() {
+	local out
+	out=$(sudo "$APP/Contents/Helpers/hyphp-helper" "$@") || true
+	echo "$out"
+	grep -q '"ok":true' <<<"$out" || falha "hyphp-helper $1"
+}
+
+# fechar_app fecha pelo mesmo caminho do menu Sair e exige que nenhum
+# serviço nem registro de processo sobre.
+fechar_app() {
+	local depois
+	depois=$(pids)
+	# SIGTERM cai no mesmo app.Quit do menu Sair (handler de sinal do Wails). O
+	# osascript "quit" precisaria da permissão de Automação, que o runner não dá.
+	pkill -TERM -f "$MAIN"
+	esperar_saida 90
+	while read -r pid id; do
+		if ps -p "$pid" >/dev/null; then
+			falha "o serviço $id (pid $pid) ficou vivo depois de fechar o app"
+		fi
+	done <<<"$depois"
+	if compgen -G "$ROOT/var/run/procs/*.json" >/dev/null; then
+		falha "registros de processo sobraram depois de fechar o app: $(ls "$ROOT/var/run/procs")"
+	fi
 }
 
 # tentar repete um comando da CLI até ele ser aceito. Logo depois de um brew
@@ -133,7 +163,7 @@ instalar() {
 
 passo "runtimes pelo Homebrew"
 export HOMEBREW_NO_ENV_HINTS=1 HOMEBREW_NO_COLOR=1 HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
-for f in shivammathur/php/php@8.3 httpd mysql@8.4 mailpit; do
+for f in shivammathur/php/php@8.3 httpd mysql@8.4 mailpit mkcert; do
 	instalar "$f"
 done
 ls -ld "$(brew --prefix)"/opt/{php*,httpd,mysql*,mariadb*,mailpit,nginx} 2>/dev/null || true
@@ -185,7 +215,7 @@ open "$APP"
 esperar_pronto 300
 "$CLI" status
 "$CLI" services
-conferir_avisos
+conferir_avisos ca-pending wildcard-pending
 "$CLI" status --json | jq -e '.failed == 0 and .ready == .total' >/dev/null ||
 	falha "status com serviço em falha"
 
@@ -223,6 +253,21 @@ passo "phpMyAdmin"
 get "http://127.0.0.1:8036/index.php?route=/server/databases"
 grep -q 'hyphp_e2e' "$CORPO" || falha "o phpMyAdmin não listou o banco hyphp_e2e"
 
+passo "regra de DNS, certificado e PATH pelo helper"
+helper resolver-write --port 15353
+cat /etc/resolver/test
+# O passo de usuário do InstallCA: a CA nasce com dono do usuário, sem tocar
+# no keychain; só a confiança passa pelo helper.
+CAROOT_DIR=$(mkcert -CAROOT)
+CAROOT="$CAROOT_DIR" TRUST_STORES=nss mkcert -install
+helper ca-trust --cert "$CAROOT_DIR/rootCA.pem"
+mkdir -p "$ROOT/cli"
+helper paths-write --dir "$ROOT/cli"
+# O resolvedor já está no ar: o nome resolve de verdade, sem o cabeçalho Host.
+get "http://teste.test/"
+cat "$CORPO"
+grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não resolveu pela regra de DNS"
+
 passo "kill -9 no app"
 antes=$(pids)
 echo "$antes"
@@ -258,6 +303,16 @@ if [ -n "$sobras" ]; then
 fi
 get -H "$HOST" "$SITE/"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu depois da reabertura"
+# A reabertura roda um Reconcile completo: agora sem pendência nenhuma.
+conferir_avisos
+get --cacert "$CAROOT_DIR/rootCA.pem" "https://teste.test/"
+grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu em HTTPS"
+# O sistema confia no certificado do site: a cadeia fecha no keychain, não no --cacert.
+openssl s_client -connect 127.0.0.1:443 -servername teste.test </dev/null 2>/dev/null | openssl x509 >"$CORPO.leaf"
+security verify-cert -c "$CORPO.leaf" -p ssl -s teste.test || falha "o sistema não confia no certificado de teste.test"
+achado=$(zsh -lc 'command -v hyphp' | tail -n 1)
+[ "$achado" = "$ROOT/cli/hyphp" ] || falha "o Terminal acha $achado, não o hyphp da pasta cli"
+zsh -lc 'hyphp version'
 
 passo "nginx e MariaDB instalados com o app aberto"
 # Como depois de uma instalação pela tela Runtimes: o app tem de enxergar as
@@ -278,6 +333,8 @@ passo "projeto e banco pelo nginx e MariaDB"
 get -H "$HOST" "$SITE/"
 cat "$CORPO"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu pelo nginx"
+get --cacert "$CAROOT_DIR/rootCA.pem" "https://teste.test/"
+grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu em HTTPS pelo nginx"
 # Cada motor tem o próprio datadir: o banco do MySQL não existe no MariaDB.
 "$CLI" db create hyphp_e2e
 get -H "$HOST" "$SITE/db.php"
@@ -287,18 +344,22 @@ get "http://127.0.0.1:8036/index.php?route=/server/databases"
 grep -q 'hyphp_e2e' "$CORPO" || falha "o phpMyAdmin pelo nginx não listou o banco do MariaDB"
 
 passo "fechar o app"
-depois=$(pids)
-# SIGTERM cai no mesmo app.Quit do menu Sair (handler de sinal do Wails). O
-# osascript "quit" precisaria da permissão de Automação, que o runner não dá.
-pkill -TERM -f "$MAIN"
-esperar_saida 90
-while read -r pid id; do
-	if ps -p "$pid" >/dev/null; then
-		falha "o serviço $id (pid $pid) ficou vivo depois de fechar o app"
-	fi
-done <<<"$depois"
-if compgen -G "$ROOT/var/run/procs/*.json" >/dev/null; then
-	falha "registros de processo sobraram depois de fechar o app: $(ls "$ROOT/var/run/procs")"
+fechar_app
+
+passo "remover do sistema pelo helper"
+helper uninstall --cert "$CAROOT_DIR/rootCA.pem"
+[ ! -e /etc/resolver/test ] || falha "a regra de DNS ficou"
+[ ! -e /etc/paths.d/hyphp ] || falha "o /etc/paths.d/hyphp ficou"
+if security verify-cert -c "$CORPO.leaf" -p ssl -s teste.test; then
+	falha "o sistema ainda confia no certificado do site"
 fi
+
+passo "reabrir sem as mudanças no sistema"
+open "$APP"
+esperar_pronto 300
+conferir_avisos ca-pending wildcard-pending
+
+passo "fechar o app de novo"
+fechar_app
 
 passo "ok"
