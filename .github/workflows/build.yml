@@ -212,9 +212,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: dist
+      # O repositório vem de um segredo, não de uma variável: o log do Actions
+      # é público e só valores de segredo saem mascarados.
       - uses: actions/checkout@v4
         with:
-          repository: ${{ vars.WEB }}
+          repository: ${{ secrets.WEB }}
           ssh-key: ${{ secrets.HYPHP_WEB_DEPLOY_KEY }}
           path: web
       # Confere a escrita no repositório do histórico de versões antes da
