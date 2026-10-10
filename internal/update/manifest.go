@@ -1,10 +1,10 @@
 // Package update verifica, baixa e aplica versões novas do HyPHP.
 //
-// Cada versão é uma release do GitHub com três assets: o instalador,
-// latest.json (um Latest) e latest.json.sig (ed25519 dos bytes exatos do
-// latest.json, em base64). Toda versão instalada fica para sempre lendo o
-// mesmo endereço e esperando o mesmo formato, então campo existente nunca
-// muda de sentido.
+// Cada versão é uma release do GitHub. O app lê dois assets dela:
+// latest.json (um Latest, com o instalador do Windows e o dmg do Mac) e
+// latest.json.sig (ed25519 dos bytes exatos do latest.json, em base64). Toda
+// versão instalada fica para sempre lendo o mesmo endereço e esperando o
+// mesmo formato, então campo existente nunca muda de sentido.
 package update
 
 import (
@@ -118,8 +118,9 @@ func (r Release) Validate() error {
 	if err := validPath(a.Path); err != nil {
 		return err
 	}
-	// darwin_arm64 é opcional (a M0 ainda não publica), mas se vier tem de
-	// ser tão confiável quanto o do Windows: é ele que o Mac baixaria.
+	// darwin_arm64 é opcional no contrato (as releases até a 3.0.1 não têm),
+	// mas se vier tem de ser tão confiável quanto o do Windows: é ele que o
+	// Mac baixa.
 	if d := r.DarwinARM64; d != nil {
 		if d.Size <= 0 {
 			return fmt.Errorf("update: tamanho darwin_arm64 %d inválido", d.Size)
