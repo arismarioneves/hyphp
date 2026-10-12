@@ -10,6 +10,7 @@
 //	go run ./cmd/hyphp-release -gerar-chave
 //	go run ./cmd/hyphp-release -gerar-chave-catalogo
 //	go run ./cmd/hyphp-release -catalogo -web <checkout do site>
+//	go run ./cmd/hyphp-release -checar-catalogo
 //	go run ./cmd/hyphp-release -so-js -web <checkout do site>
 //
 // A chave de assinatura vem só da variável de ambiente HYPHP_RELEASE_KEY;
@@ -18,12 +19,14 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -51,6 +54,7 @@ func run() error {
 		publicar      = flag.Bool("publicar", false, "publica a release e grava o histórico do site (job publicar)")
 		ensaio        = flag.Bool("ensaio", false, "monta e assina o latest.json em memória, sem publicar")
 		catalogo      = flag.Bool("catalogo", false, "assina o internal/pkgmgr/catalog.json e o grava em <web>/catalogo (workflow catalogo.yml)")
+		checar        = flag.Bool("checar-catalogo", false, "confere o catálogo publicado, as fontes e o Apache Lounge, e abre issues (workflow checagem.yml)")
 		tag           = flag.String("tag", "", "tag v<versão> da release")
 		web           = flag.String("web", "", "checkout do repositório do site")
 		inst          = flag.String("instalador", "", "instalador do Windows (bin/hyphp-amd64-installer.exe)")
@@ -62,13 +66,13 @@ func run() error {
 	flag.Parse()
 
 	modos := 0
-	for _, on := range []bool{*gerar, *gerarCatalogo, *soJS, *verificar, *conferir != "", *publicar, *ensaio, *catalogo} {
+	for _, on := range []bool{*gerar, *gerarCatalogo, *soJS, *verificar, *conferir != "", *publicar, *ensaio, *catalogo, *checar} {
 		if on {
 			modos++
 		}
 	}
 	if modos != 1 {
-		return errors.New("escolha um modo: -verificar, -conferir-instalador, -publicar, -ensaio, -catalogo, -gerar-chave, -gerar-chave-catalogo ou -so-js")
+		return errors.New("escolha um modo: -verificar, -conferir-instalador, -publicar, -ensaio, -catalogo, -checar-catalogo, -gerar-chave, -gerar-chave-catalogo ou -so-js")
 	}
 	files := Files{Installer: *inst, DMG: *dmg, Install: *install, Uninstall: *uninstall}
 
@@ -103,6 +107,23 @@ func run() error {
 		fmt.Printf("ensaio ok: latest.json da %s assinado e conferido com a chave do app; nada publicado\n  %s, %d bytes\n  %s, %d bytes\n",
 			l.Version, l.WindowsAMD64.Path, l.WindowsAMD64.Size, l.DarwinARM64.Path, l.DarwinARM64.Size)
 		return nil
+	case *checar:
+		reserva, err := pkgmgr.LoadEmbedded()
+		if err != nil {
+			return err
+		}
+		// Sem Timeout no client: cada GET tem o próprio prazo, e o download
+		// do zip do Apache tem o watchdog do pkgmgr.Download.
+		achados, errChecagem := Checagem{
+			Client: &http.Client{}, CatalogURL: pkgmgr.CatalogURL, Key: pkgmgr.CatalogKey,
+			Reserva: reserva, LoungeURL: LoungeURL, TmpDir: os.TempDir(),
+			Pausa: 10 * time.Second, Log: os.Stdout,
+		}.Rodar(context.Background())
+		fmt.Printf("checagem: %d achados\n", len(achados))
+		if err := abrirIssues(runGH, update.GitHubRepo, achados, os.Stdout); err != nil {
+			return errors.Join(err, errChecagem)
+		}
+		return errChecagem
 	case *catalogo:
 		if *web == "" {
 			return errors.New("-catalogo exige -web <checkout do site>")
