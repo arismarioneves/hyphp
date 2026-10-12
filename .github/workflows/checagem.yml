@@ -1,0 +1,38 @@
+# Checagem diária do catálogo de pacotes: o catálogo publicado e a
+# assinatura dele, build nova do Apache no Apache Lounge (que apaga a
+# anterior) e as fontes de cada pacote. Cada problema vira uma issue com o
+# rótulo "catalogo"; nada é publicado.
+#
+# Roda no Windows: o hyphp-release importa o internal/pkgmgr, que só compila
+# no Windows e no Mac.
+name: checagem
+
+on:
+  schedule:
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: checagem
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checar:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: checar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: go run ./cmd/hyphp-release -checar-catalogo
