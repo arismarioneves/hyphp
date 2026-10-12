@@ -45,7 +45,7 @@ var (
 	// buildCatalogo lê a build do arquivo do Apache que está no catálogo.
 	buildCatalogo = regexp.MustCompile(`httpd-2\.4\.\d+-(\d+)-Win64-VS18\.zip$`)
 	// sha256Lounge é a linha do SHA-256 no .txt publicado ao lado de cada
-	// zip; o mesmo arquivo traz SHA1 e SHA224, em maiúsculas.
+	// zip; o mesmo arquivo traz SHA1, SHA224, SHA384 e SHA512, em maiúsculas.
 	sha256Lounge = regexp.MustCompile(`SHA256-Checksum for: [^\r\n]*:\s*([0-9A-Fa-f]{64})`)
 )
 
@@ -96,7 +96,13 @@ func (c Checagem) Rodar(ctx context.Context) ([]Achado, error) {
 	}
 	apache, errApache := c.apache(ctx, cat)
 	achados = append(achados, apache...)
-	achados = append(achados, c.fontes(ctx, cat)...)
+	// Com build nova, o Lounge já apagou o zip do Apache do catálogo: a issue
+	// da build nova cobre isso, e a de "sem fonte" seria repetida.
+	pular := ""
+	if slices.ContainsFunc(apache, func(a Achado) bool { return a.Unico }) {
+		pular = cat.ByKind(runtime.Apache)[0].ID
+	}
+	achados = append(achados, c.fontes(ctx, cat, pular)...)
 	return achados, errApache
 }
 
@@ -222,27 +228,45 @@ func ultimaBuild(pagina []byte) (buildApache, bool) {
 }
 
 // fontes testa a url e os mirrors de cada pacote com um GET de 1 byte.
-// Pacote sem nenhuma fonte boa vira issue; principal caído com mirror bom só
-// vai para o log, porque o download já cai para o mirror.
-func (c Checagem) fontes(ctx context.Context, cat pkgmgr.Catalog) []Achado {
+// Pacote sem nenhuma fonte boa vira issue; fonte caída com outra boa só vai
+// para o log, porque o download já cai para a que responde. pular é o pacote
+// que já tem issue por outro motivo.
+func (c Checagem) fontes(ctx context.Context, cat pkgmgr.Catalog, pular string) []Achado {
 	var achados []Achado
 	for _, p := range cat.Packages {
-		errPrincipal := c.sondar(ctx, p.URL)
-		if errPrincipal == nil {
+		if p.ID == pular {
+			fmt.Fprintf(c.Log, "%s: fontes não conferidas; a issue da build nova do Apache já cobre o link antigo\n", p.ID)
 			continue
 		}
-		falhas := []string{fmt.Sprintf("- %s: %v", p.URL, errPrincipal)}
-		mirror := ""
-		for _, m := range p.Mirrors {
-			if err := c.sondar(ctx, m); err != nil {
-				falhas = append(falhas, fmt.Sprintf("- %s: %v", m, err))
-				continue
-			}
-			mirror = m
-			break
+		errPrincipal := c.sondar(ctx, p.URL)
+		var falhas []string
+		if errPrincipal != nil {
+			falhas = append(falhas, fmt.Sprintf("- %s: %v", p.URL, errPrincipal))
 		}
-		if mirror != "" {
-			fmt.Fprintf(c.Log, "%s: o link principal falhou (%v); o mirror %s responde\n", p.ID, errPrincipal, mirror)
+		// Todo mirror é sondado, mesmo com o principal vivo: senão um mirror
+		// morto só seria notado no dia em que o principal também caísse.
+		mirror := ""
+		var errMirrors []error
+		for _, m := range p.Mirrors {
+			err := c.sondar(ctx, m)
+			errMirrors = append(errMirrors, err)
+			if err != nil {
+				falhas = append(falhas, fmt.Sprintf("- %s: %v", m, err))
+			} else if mirror == "" {
+				mirror = m
+			}
+		}
+		if errPrincipal == nil || mirror != "" {
+			if errPrincipal != nil {
+				fmt.Fprintf(c.Log, "%s: o link principal falhou (%v); o mirror %s responde\n", p.ID, errPrincipal, mirror)
+			}
+			for i, err := range errMirrors {
+				if err != nil && errPrincipal == nil {
+					fmt.Fprintf(c.Log, "%s: o mirror %s falhou (%v); o link principal responde\n", p.ID, p.Mirrors[i], err)
+				} else if err != nil {
+					fmt.Fprintf(c.Log, "%s: o mirror %s falhou (%v); o mirror %s responde\n", p.ID, p.Mirrors[i], err, mirror)
+				}
+			}
 			continue
 		}
 		achados = append(achados, Achado{

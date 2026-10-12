@@ -159,8 +159,8 @@ func TestChecagemBuildNovaDoApache(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, ok := achado(achados, "catálogo: Apache 2.4.70 build 261102 no Apache Lounge")
-	if !ok || !a.Unico {
-		t.Fatalf("sem a issue única da build nova: %q", titulos(achados))
+	if !ok || !a.Unico || len(achados) != 1 {
+		t.Fatalf("quer só a issue única da build nova (o link antigo apagado não vira outra): %q", titulos(achados))
 	}
 	for _, quer := range []string{
 		hex.EncodeToString(sum[:]),
@@ -236,19 +236,22 @@ func TestChecagemLoungeForaDoAr(t *testing.T) {
 }
 
 // Pacote sem nenhuma fonte boa vira issue com cada tentativa; principal
-// caído com mirror bom só vai para o log, porque o download já cai para o
-// mirror.
+// caído com mirror bom, ou mirror caído com principal bom, só vai para o
+// log, porque o download já cai para a fonte que responde.
 func TestChecagemFontes(t *testing.T) {
 	w := novoMundo(t)
 	sha := strings.Repeat("b", 64)
 	comMirror := pkgmgr.Package{ID: "php-8.3.35-nts-vs16-x64", Kind: "php", Version: "8.3.35",
 		URL: w.srv.URL + "/releases/php.zip", Mirrors: []string{w.srv.URL + "/archives/php.zip"}, SHA256: sha}
+	mirrorCaido := pkgmgr.Package{ID: "mailpit-1.31.1", Kind: "mailpit", Version: "1.31.1",
+		URL: w.srv.URL + "/mailpit.zip", Mirrors: []string{w.srv.URL + "/espelho/mailpit.zip"}, SHA256: sha}
 	semFonte := pkgmgr.Package{ID: "nginx-1.30.5", Kind: "nginx", Version: "1.30.5",
 		URL: w.srv.URL + "/nginx.zip", Mirrors: []string{w.srv.URL + "/espelho/nginx.zip"}, SHA256: sha}
-	w.publicar(w.catalogo(comMirror, semFonte), w.priv)
+	w.publicar(w.catalogo(comMirror, mirrorCaido, semFonte), w.priv)
 	w.pagina(apacheAtual)
 	w.arquivo(apacheAtual)
 	w.arquivo("/archives/php.zip")
+	w.arquivo("/mailpit.zip")
 	w.servir("/nginx.zip", http.StatusOK, "text/html", []byte("<html>Oops</html>"))
 	ch, log := w.checagem(pkgmgr.Catalog{})
 	achados, err := ch.Rodar(context.Background())
@@ -266,6 +269,9 @@ func TestChecagemFontes(t *testing.T) {
 	}
 	if !strings.Contains(log.String(), "php-8.3.35-nts-vs16-x64") || !strings.Contains(log.String(), "/archives/php.zip") {
 		t.Errorf("o principal caído com mirror bom não foi para o log:\n%s", log)
+	}
+	if !strings.Contains(log.String(), "mailpit-1.31.1: o mirror "+w.srv.URL+"/espelho/mailpit.zip falhou") {
+		t.Errorf("o mirror caído com principal bom não foi para o log:\n%s", log)
 	}
 }
 
@@ -358,5 +364,17 @@ func TestAbrirIssuesSemRepetir(t *testing.T) {
 	}
 	if g.labels != 1 {
 		t.Errorf("rótulo criado %d vezes, quer 1", g.labels)
+	}
+}
+
+// Sem achado, o gh não roda: a checagem passa todo dia sem problema e não
+// pode mexer no repositório (nem criar o rótulo).
+func TestAbrirIssuesSemAchadoNaoChamaOGh(t *testing.T) {
+	gh := func(args ...string) ([]byte, error) {
+		t.Errorf("gh chamado sem achado: %q", args)
+		return nil, nil
+	}
+	if err := abrirIssues(gh, "dono/repo", nil, io.Discard); err != nil {
+		t.Fatal(err)
 	}
 }
