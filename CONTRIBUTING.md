@@ -23,7 +23,7 @@ go test . ./cmd/... ./services/... ./internal/...
 npx --prefix frontend tsc --noEmit -p frontend
 ```
 
-In code comments, explain why each decision was made; the code already says what it does.
+In code comments, explain why each decision was made; the code already says what it does. The full project rules (comments, tests, commits, checks) are in [AGENTS.md](AGENTS.md), in Portuguese.
 
 ## Website
 
