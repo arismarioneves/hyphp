@@ -32,3 +32,6 @@ desktop.ini
 .*.ps1
 .*.png
 .smoke/
+
+# site
+web/releases/
