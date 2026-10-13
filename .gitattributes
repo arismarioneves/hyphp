@@ -9,6 +9,7 @@
 *.jar binary
 *.woff2 binary
 *.ttf binary
+*.webp binary
 
 # Embutidos no binario e comparados byte a byte pelos testes de golden: LF
 # sempre, mesmo com core.autocrlf=true (o gitconfig do Git for Windows liga

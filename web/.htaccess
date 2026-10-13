@@ -1,0 +1,15 @@
+RedirectMatch 404 "/\.git"
+RedirectMatch 404 "/docs(/|$)"
+RedirectMatch 404 "\.md$"
+
+AddType application/javascript .js
+AddType image/svg+xml .svg
+AddType font/woff2 .woff2
+AddType image/webp .webp
+
+<FilesMatch "\.(html|js)$">
+  Header set Cache-Control "no-cache"
+</FilesMatch>
+<FilesMatch "\.(css|svg|woff2|png|ico|webp)$">
+  Header set Cache-Control "public, max-age=86400"
+</FilesMatch>
