@@ -1,0 +1,63 @@
+name: site
+
+on:
+  push:
+    branches: [main]
+    paths: ['web/**', '!web/README.md', '!web/README.pt-BR.md']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test .github/scripts/site.test.mjs
+      - run: node .github/scripts/site.mjs conferir
+
+  publicar:
+    needs: conferir
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: release
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ secrets.WEB }}
+          ssh-key: ${{ secrets.HYPHP_WEB_DEPLOY_KEY }}
+          path: destino
+      - run: node .github/scripts/site.mjs espelhar destino
+      - name: publicar
+        working-directory: destino
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo "nada mudou"
+            exit 0
+          fi
+          assunto=$(git -C .. log -1 --format=%s)
+          git commit -m "site: ${GITHUB_SHA::7} $assunto"
+          for tentativa in 1 2 3; do
+            git push origin HEAD:main && exit 0
+            git pull --rebase origin main
+          done
+          exit 1
