@@ -252,6 +252,7 @@ O código fica aberto para leitura, no modelo *open core* do Chatwoot e do GitLa
   e uso por assinatura. Hoje ela só tem a licença: ainda não existe recurso pago.
 
 Ao enviar um pull request, você concorda com o [CLA](CLA.md); ver [CONTRIBUTING.md](CONTRIBUTING.md) (em inglês).
+O site fica em [`web/`](web/), com regras próprias em [web/README.pt-BR.md](web/README.pt-BR.md).
 
 Os componentes que o HyPHP baixa (tabela em [Stack](#stack)) seguem cada um a
 própria licença.

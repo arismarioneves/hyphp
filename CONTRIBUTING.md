@@ -24,3 +24,7 @@ npx --prefix frontend tsc --noEmit -p frontend
 ```
 
 In code comments, explain why each decision was made; the code already says what it does.
+
+## Website
+
+The website lives in [`web/`](web/): plain HTML, CSS and JavaScript, with no build step. Read [web/README.md](web/README.md) for its rules and checks before opening a pull request.
