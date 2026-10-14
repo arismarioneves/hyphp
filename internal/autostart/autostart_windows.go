@@ -43,7 +43,7 @@ func Apply(enabled bool) error {
 	// As aspas são obrigatórias: o caminho de instalação tem espaço
 	// ("C:\Program Files\HyPHP\hyphp.exe") e sem elas o Windows tentaria
 	// executar "C:\Program".
-	if err := k.SetStringValue(valueName, `"`+exe+`"`); err != nil {
+	if err := k.SetStringValue(valueName, `"`+exe+`" `+Flag); err != nil {
 		return fmt.Errorf("autostart: gravar entrada: %w", err)
 	}
 	return nil

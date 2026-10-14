@@ -174,6 +174,7 @@ func (s *SettingsService) Set(in state.State) error {
 		st.Terminal = in.Terminal
 		st.SidebarCollapsed = in.SidebarCollapsed
 		st.Autostart = in.Autostart
+		st.AutostartHidden = in.AutostartHidden
 		st.Theme = in.Theme
 		st.Language = in.Language
 	})

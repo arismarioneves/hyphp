@@ -396,7 +396,9 @@ func main() {
 	services.RegisterLogStreams(app, sup)
 	stopFwd = services.ForwardServiceEvents(app, sup)
 
-	// janela (plano 01)
+	// janela (plano 01). Aberta pelo login com a opção ligada, nasce
+	// escondida e o app fica só na bandeja; clicar no ícone ou abrir o app de
+	// novo mostra a janela.
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "main",
 		Title:            "HyPHP",
@@ -405,6 +407,7 @@ func main() {
 		MinWidth:         960,
 		MinHeight:        600,
 		Frameless:        true,
+		Hidden:           autostart.Hidden(os.Args[1:], st.AutostartHidden),
 		BackgroundColour: windowBackground(st.Theme, systemDarkMode()),
 		URL:              "/",
 	})

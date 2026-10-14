@@ -504,6 +504,7 @@ cat >"$AGENTE" <<EOF
 	<key>ProgramArguments</key>
 	<array>
 		<string>$MAIN</string>
+		<string>--bandeja</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>

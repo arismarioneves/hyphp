@@ -280,6 +280,8 @@ export function Settings({ onNavigate }: ScreenProps) {
   const phpMajors = Object.keys(majorSeen).sort()
   const missingWebServer = WEB_SERVERS.some((w) => versions[w.name] === undefined)
   const activeDb = activeDbEngine(settings.dbEngine, versions)
+  // Mesmo critério do card Permissões: só o Mac grava mudanças no sistema.
+  const mac = changes?.supported === true
 
   const doSave = async () => {
     setSaving(true)
@@ -519,9 +521,17 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
-      <Section label={t('autostartSection')}>
+      <Section label={mac ? t('autostartSectionMac') : t('autostartSection')}>
         <Row label={t('autostart')} hint={t('autostartHint')}>
-          <Toggle checked={draft.autostart} label={t('autostartAria')} onChange={(on) => set('autostart', on)} />
+          <Toggle checked={draft.autostart} label={t('autostart')} onChange={(on) => set('autostart', on)} />
+        </Row>
+        <Row label={mac ? t('autostartHiddenMac') : t('autostartHidden')} hint={t('autostartHiddenHint')}>
+          <Toggle
+            checked={draft.autostartHidden}
+            disabled={!draft.autostart}
+            label={mac ? t('autostartHiddenMac') : t('autostartHidden')}
+            onChange={(on) => set('autostartHidden', on)}
+          />
         </Row>
       </Section>
 
