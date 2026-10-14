@@ -9,4 +9,4 @@ package version
 // cmd/hyphp-release recusa publicar se divergirem, porque um binário
 // que se declara mais velho do que é acha sempre uma versão "nova" no
 // manifesto e entra em loop de update.
-const Current = "4.0.0"
+const Current = "4.1.0"
