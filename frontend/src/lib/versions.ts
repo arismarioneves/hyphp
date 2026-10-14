@@ -30,3 +30,11 @@ export function newestVersions(installed: Installed[]): Record<string, string> {
   }
   return versions
 }
+
+/**
+ * Banco ativo pela mesma regra de stack.DBRuntime: sem escolha gravada vale o
+ * MySQL se estiver instalado, senão o MariaDB.
+ */
+export function activeDbEngine(dbEngine: string, versions: Record<string, string>): string {
+  return dbEngine || (versions.mysql === undefined && versions.mariadb ? 'mariadb' : 'mysql')
+}

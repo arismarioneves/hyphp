@@ -12,6 +12,7 @@
 //	go run ./cmd/hyphp-release -catalogo -web <checkout do site>
 //	go run ./cmd/hyphp-release -checar-catalogo
 //	go run ./cmd/hyphp-release -so-js -web <checkout do site>
+//	go run ./cmd/hyphp-release -contribuidores
 //
 // A chave de assinatura vem só da variável de ambiente HYPHP_RELEASE_KEY;
 // -gerar-chave a cria uma única vez. A do catálogo, separada, vem de
@@ -31,6 +32,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"hyphp/internal/credits"
 	"hyphp/internal/pkgmgr"
 	"hyphp/internal/update"
 	"hyphp/internal/version"
@@ -55,6 +57,7 @@ func run() error {
 		ensaio        = flag.Bool("ensaio", false, "monta e assina o latest.json em memória, sem publicar")
 		catalogo      = flag.Bool("catalogo", false, "assina o internal/pkgmgr/catalog.json e o grava em <web>/catalogo (workflow catalogo.yml)")
 		checar        = flag.Bool("checar-catalogo", false, "confere o catálogo publicado, as fontes e o Apache Lounge, e abre issues (workflow checagem.yml)")
+		contrib       = flag.Bool("contribuidores", false, "regrava "+credits.File+" com os contribuidores do GitHub (job verificar do build.yml)")
 		tag           = flag.String("tag", "", "tag v<versão> da release")
 		web           = flag.String("web", "", "checkout do repositório do site")
 		inst          = flag.String("instalador", "", "instalador do Windows (bin/hyphp-amd64-installer.exe)")
@@ -66,17 +69,24 @@ func run() error {
 	flag.Parse()
 
 	modos := 0
-	for _, on := range []bool{*gerar, *gerarCatalogo, *soJS, *verificar, *conferir != "", *publicar, *ensaio, *catalogo, *checar} {
+	for _, on := range []bool{*gerar, *gerarCatalogo, *soJS, *verificar, *conferir != "", *publicar, *ensaio, *catalogo, *checar, *contrib} {
 		if on {
 			modos++
 		}
 	}
 	if modos != 1 {
-		return errors.New("escolha um modo: -verificar, -conferir-instalador, -publicar, -ensaio, -catalogo, -checar-catalogo, -gerar-chave, -gerar-chave-catalogo ou -so-js")
+		return errors.New("escolha um modo: -verificar, -conferir-instalador, -publicar, -ensaio, -catalogo, -checar-catalogo, -contribuidores, -gerar-chave, -gerar-chave-catalogo ou -so-js")
 	}
 	files := Files{Installer: *inst, DMG: *dmg, Install: *install, Uninstall: *uninstall}
 
 	switch {
+	case *contrib:
+		logins, err := contribuidores(runGH, update.GitHubRepo)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("contribuidores: %d\n", len(logins))
+		return writeJSON(credits.File, logins)
 	case *gerar:
 		return generateKey(filepath.Join(home, ".hyphp", "release-ed25519.key"), "internal/update/key.go", releaseKeyEnv)
 	case *gerarCatalogo:

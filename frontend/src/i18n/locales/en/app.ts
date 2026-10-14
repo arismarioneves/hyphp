@@ -10,6 +10,7 @@ export const app: typeof base = {
   logs: 'Logs',
   cli: 'CLI',
   settings: 'Settings',
+  about: 'About',
   status: 'Status',
   statusTitle: 'Service summary — click to open Services',
   statusReady_one: '{count} running',

@@ -7,6 +7,7 @@ import {
   EnvelopeSimple,
   FolderOpen,
   Heartbeat,
+  Info,
   Pulse,
   Scroll,
   Sliders,
@@ -100,6 +101,13 @@ export function Sidebar({ current, onNavigate, collapsed, onToggleCollapsed, sta
           active={current === 'settings'}
           collapsed={collapsed}
           onClick={() => onNavigate('settings')}
+        />
+        <NavItem
+          icon={Info}
+          label={t('about')}
+          active={current === 'about'}
+          collapsed={collapsed}
+          onClick={() => onNavigate('about')}
         />
         <button
           type="button"

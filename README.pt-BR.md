@@ -224,7 +224,7 @@ arquivos da CA do mkcert não são tocados.
 ### Atualizações
 
 O app procura a versão mais nova um minuto depois de abrir e a cada 6 horas (dá para
-desligar em **Configurações › Atualizações**) e a baixa em segundo plano. O manifesto da
+desligar na aba **Sobre**) e a baixa em segundo plano. O manifesto da
 release é assinado com ed25519 (chave pública em `internal/update/key.go`) e traz o SHA-256 do
 instalador; o app recusa manifesto ou instalador que não confira. A instalação só acontece
 quando você clica em **Atualizar e reiniciar**: os serviços param, o sistema pede permissão

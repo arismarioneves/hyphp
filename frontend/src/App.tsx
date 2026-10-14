@@ -10,6 +10,7 @@ import { aggregateState, summarize } from './lib/status';
 import { useApplyTheme } from './lib/theme';
 import { useServices } from './lib/useServices';
 import { useSettings } from './lib/useSettings';
+import { About } from './screens/About';
 import { Cli } from './screens/Cli';
 import { Dashboard } from './screens/Dashboard';
 import { Database } from './screens/Database';
@@ -33,6 +34,7 @@ const SCREENS: Record<Screen, (props: ScreenProps) => ReactElement> = {
   logs: Logs,
   cli: Cli,
   settings: Settings,
+  about: About,
 };
 
 export default function App() {

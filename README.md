@@ -224,7 +224,7 @@ left alone.
 ### Updates
 
 The app checks for the newest release one minute after it opens and every 6 hours (can be
-turned off in **Settings › Updates**) and downloads it in the background. The release
+turned off in the **About** tab) and downloads it in the background. The release
 manifest is signed with ed25519 (public key in `internal/update/key.go`) and carries the
 installer's SHA-256; the app rejects a manifest or an installer that does not match.
 Installation only happens when you click **Update and restart**: the services stop, the

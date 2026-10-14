@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { ArrowSquareOut, FolderPlus, Trash } from '@phosphor-icons/react'
+import { useCallback, useEffect, useState } from 'react'
+import { FolderPlus, Trash } from '@phosphor-icons/react'
 import { AppService, ProjectsService, SettingsService } from '../../bindings/hyphp/services'
 // O enum gerado `state.WebServerName` é nominal: o literal 'apache' não é
 // atribuível a `State.webServer`. Para comparar e gravar o web server, usa-se
@@ -7,9 +7,8 @@ import { AppService, ProjectsService, SettingsService } from '../../bindings/hyp
 import { WebServerName } from '../../bindings/hyphp/internal/state/models'
 import { Badge } from '../components/Badge'
 import { Button } from '../components/Button'
-import { Card } from '../components/Card'
 import { ProgressBar } from '../components/ProgressBar'
-import { SectionLabel } from '../components/SectionLabel'
+import { Row, Section } from '../components/Section'
 import { Select } from '../components/Select'
 import { Skeleton } from '../components/Skeleton'
 import { Toggle } from '../components/Toggle'
@@ -17,15 +16,11 @@ import type { ScreenProps } from '../lib/screens'
 import type { State, SystemChanges, Warning } from '../lib/types'
 import { useRuntimes } from '../lib/useRuntimes'
 import { useSettings } from '../lib/useSettings'
-import { useUpdate } from '../lib/useUpdate'
 import { useWarnings } from '../lib/useWarnings'
 import { errorText } from '../lib/errors'
 import { mergeDraft } from '../lib/draft'
 import { LANGS, useLang, useT } from '../i18n'
-import type { UpdateStatus } from '../lib/types'
-import { newestVersions } from '../lib/versions'
-import type { Messages } from '../i18n/types'
-import type { Vars } from '../i18n/format'
+import { activeDbEngine, newestVersions } from '../lib/versions'
 
 /** Códigos de `stack.Warning` que o card Permissões resolve (C18.42 e C18.45). */
 const HOSTS_PENDING = 'hosts-pending'
@@ -42,92 +37,6 @@ const DB_ENGINES = [
   { name: 'mysql', label: 'MySQL' },
   { name: 'mariadb', label: 'MariaDB' },
 ]
-
-function Section({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <Card>
-      <SectionLabel>{label}</SectionLabel>
-      <div className="mt-3 flex flex-col gap-3">{children}</div>
-    </Card>
-  )
-}
-
-// Texto de estado do auto-update; os estados vêm de internal/update.State.
-function updateLine(s: UpdateStatus, t: SettingsT, lang: string) {
-  switch (s.state as string) {
-    case 'inativo':
-      return t('updateInactive')
-    case 'ocioso':
-      return t('updateIdle')
-    case 'verificando':
-      return t('updateChecking')
-    case 'em-dia': {
-      const at = s.checkedAt ? new Date(s.checkedAt).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' }) : ''
-      return at ? t('updateUpToDateAt', { at }) : t('updateUpToDate')
-    }
-    case 'baixando':
-      return t('updateDownloading', { version: s.available })
-    case 'pronto':
-      return t('updateReady', { version: s.available })
-    case 'aplicando':
-      return t('updateApplying', { version: s.available })
-    default:
-      return t('updateFailed', { error: s.error })
-  }
-}
-
-// Tradutor de `settings` recebido por parâmetro: updateLine fica fora do componente.
-type SettingsT = (key: keyof Messages['settings'], vars?: Vars) => string
-
-function UpdateRow() {
-  const t = useT('settings')
-  const { lang } = useLang()
-  const { status, busy, error, check, apply } = useUpdate()
-  if (!status) return <Skeleton className="h-9" />
-  const state = status.state as string
-  return (
-    <div className="flex flex-col gap-2">
-      <Row label={t('updateState')}>
-        <div className="flex items-center gap-3">
-          <span className={`selectable text-sm ${state === 'falhou' ? 'text-err' : 'text-fg-muted'}`}>
-            {updateLine(status, t, lang)}
-          </span>
-          {state === 'pronto' ? (
-            <Button variant="primary" size="sm" loading={busy} onClick={() => void apply()}>
-              {t('updateAndRestart')}
-            </Button>
-          ) : (
-            <Button
-              variant="secondary"
-              size="sm"
-              loading={busy || state === 'verificando' || state === 'baixando'}
-              disabled={state === 'inativo' || state === 'aplicando'}
-              onClick={() => void check()}
-            >
-              {t('checkNow')}
-            </Button>
-          )}
-        </div>
-      </Row>
-      {state === 'baixando' && status.total > 0 && (
-        <ProgressBar value={status.done / status.total} label={`${Math.round((status.done / status.total) * 100)}%`} />
-      )}
-      {error && <span className="selectable text-sm text-err">{error}</span>}
-    </div>
-  )
-}
-
-function Row({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-4 text-sm">
-      <div className="flex flex-col">
-        <span className="text-fg">{label}</span>
-        {hint && <span className="text-xs text-fg-muted">{hint}</span>}
-      </div>
-      {children}
-    </div>
-  )
-}
 
 // `selectable` porque o body tem user-select: none — portas e caminhos precisam
 // ser copiáveis para colar em .env, cliente de banco, etc.
@@ -328,13 +237,9 @@ export function Settings({ onNavigate }: ScreenProps) {
   const [switchDbError, setSwitchDbError] = useState<string | null>(null)
   const [roots, setRoots] = useState<string[]>([])
   const [rootsError, setRootsError] = useState<string | null>(null)
-  const [version, setVersion] = useState('')
-  const [runtimeRoot, setRuntimeRoot] = useState('')
-  const [siteURL, setSiteURL] = useState('')
   const [pathBusy, setPathBusy] = useState(false)
   const [pathMsg, setPathMsg] = useState('')
   const [pathError, setPathError] = useState<string | null>(null)
-  const [aboutError, setAboutError] = useState<string | null>(null)
   const [changes, setChanges] = useState<SystemChanges | null>(null)
   const [pathShadow, setPathShadow] = useState('')
   const { warnings } = useWarnings()
@@ -360,9 +265,6 @@ export function Settings({ onNavigate }: ScreenProps) {
 
   useEffect(() => {
     void ProjectsService.Roots().then((r) => setRoots(r ?? []))
-    void AppService.Version().then(setVersion)
-    void AppService.RuntimeRoot().then(setRuntimeRoot)
-    void AppService.SiteURL().then(setSiteURL)
   }, [])
 
   if (!settings || !draft) return <Skeleton lines={10} />
@@ -377,9 +279,7 @@ export function Settings({ onNavigate }: ScreenProps) {
   for (const i of installed) if ((i.kind as string) === 'php') majorSeen[i.major] = true
   const phpMajors = Object.keys(majorSeen).sort()
   const missingWebServer = WEB_SERVERS.some((w) => versions[w.name] === undefined)
-  // Mesma regra de stack.DBRuntime: sem escolha gravada vale o MySQL se
-  // estiver instalado, senão o MariaDB.
-  const activeDb = settings.dbEngine || (versions.mysql === undefined && versions.mariadb ? 'mariadb' : 'mysql')
+  const activeDb = activeDbEngine(settings.dbEngine, versions)
 
   const doSave = async () => {
     setSaving(true)
@@ -625,17 +525,6 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
-      <Section label={t('updates')}>
-        <UpdateRow />
-        <Row label={t('autoUpdate')} hint={t('autoUpdateHint')}>
-          <Toggle
-            checked={!draft.autoUpdateOff}
-            label={t('autoUpdate')}
-            onChange={(on) => set('autoUpdateOff', !on)}
-          />
-        </Row>
-      </Section>
-
       <Section label={t('appearance')}>
         <Row label={t('theme')}>
           <Select
@@ -667,36 +556,12 @@ export function Settings({ onNavigate }: ScreenProps) {
         </Row>
       </Section>
 
-      <Section label={t('about')}>
-        <Row label={t('version')}>
-          <span className="selectable font-mono text-sm text-fg">{version || '—'}</span>
-        </Row>
-        <Row label={t('site')}>
-          {siteURL ? (
-            <button
-              type="button"
-              onClick={() => {
-                setAboutError(null)
-                void AppService.OpenExternal(siteURL).catch((e: unknown) => setAboutError(errorText(e)))
-              }}
-              className="inline-flex items-center gap-1 font-mono text-sm text-accent-fg hover:underline focus-visible:outline-2 focus-visible:outline-accent"
-            >
-              {siteURL.replace(/^https:\/\//, '').replace(/\/$/, '')}
-              <ArrowSquareOut size={12} />
-            </button>
-          ) : (
-            <span className="font-mono text-sm text-fg">—</span>
-          )}
-          {aboutError && <span className="selectable text-xs text-err">{aboutError}</span>}
-        </Row>
-        <Row label={t('runtimeRoot')}>
-          <span className="selectable font-mono text-sm text-fg">{runtimeRoot || '—'}</span>
-        </Row>
-        <div>
+      <Section label={t('quitSection')}>
+        <Row label={t('quitLabel')} hint={t('quitHint')}>
           <Button variant="danger" size="sm" onClick={() => void AppService.Quit()}>
             {t('quit')}
           </Button>
-        </div>
+        </Row>
       </Section>
 
       {dirty && (

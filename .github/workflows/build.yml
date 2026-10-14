@@ -100,6 +100,19 @@ jobs:
           TAG: ${{ steps.modo.outputs.tag }}
           GH_TOKEN: ${{ github.token }}
         run: go run ./cmd/hyphp-release -verificar -tag "$TAG" >>"$GITHUB_OUTPUT"
+      # Os créditos da tela Sobre saem do GitHub uma vez por release e vão
+      # iguais para os dois builds; o arquivo do repositório só vale para
+      # builds locais.
+      - name: contribuidores
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: go run ./cmd/hyphp-release -contribuidores
+      - uses: actions/upload-artifact@v4
+        with:
+          name: contribuidores
+          path: internal/credits/contributors.json
+          if-no-files-found: error
+          retention-days: 7
 
   windows:
     needs: verificar
@@ -130,6 +143,10 @@ jobs:
             fi
             echo 'C:\Program Files (x86)\NSIS' >>"$GITHUB_PATH"
           fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: contribuidores
+          path: internal/credits
       - name: package
         run: wails3 task windows:package
       - name: conferir
@@ -158,6 +175,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: wails3
         run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
+      - uses: actions/download-artifact@v4
+        with:
+          name: contribuidores
+          path: internal/credits
       - name: package
         run: wails3 task darwin:package:dmg
       # O dmg é o que o site, o install.sh e o update entregam: confere o app

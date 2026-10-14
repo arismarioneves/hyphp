@@ -9,6 +9,7 @@ export const app = {
   logs: 'Logs',
   cli: 'CLI',
   settings: 'Configurações',
+  about: 'Sobre',
   status: 'Status',
   statusTitle: 'Resumo dos serviços — clique para abrir Serviços',
   // O plural do pt trata 0 como "one"; manter "ativos" evita "0 ativo".

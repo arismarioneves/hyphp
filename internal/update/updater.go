@@ -87,7 +87,7 @@ type Updater struct {
 	st     Status
 	latest *Latest // último manifesto verificado com versão nova
 
-	checking sync.Mutex // um Check por vez; o laço e o botão "Verificar agora" disputam
+	checking sync.Mutex // um Check por vez; o laço e o botão "Verificar atualizações" disputam
 }
 
 const (
