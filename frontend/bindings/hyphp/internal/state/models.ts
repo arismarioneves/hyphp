@@ -96,6 +96,12 @@ export interface State {
     "autostart": boolean;
 
     /**
+     * AutostartHidden deixa só o ícone na bandeja quando o HyPHP abre no
+     * login (autostart.Hidden). Aberto pelo usuário, a janela sempre aparece.
+     */
+    "autostartHidden": boolean;
+
+    /**
      * AutoUpdateOff desliga a verificação periódica de versões. Invertido de
      * propósito: o zero-value (ausente em state.json antigo) significa ligado.
      */

@@ -57,6 +57,9 @@ type State struct {
 	Terminal         string                       `json:"terminal"` // "" = wt.exe se existir, senão cmd
 	SidebarCollapsed bool                         `json:"sidebarCollapsed"`
 	Autostart        bool                         `json:"autostart"`
+	// AutostartHidden deixa só o ícone na bandeja quando o HyPHP abre no
+	// login (autostart.Hidden). Aberto pelo usuário, a janela sempre aparece.
+	AutostartHidden bool `json:"autostartHidden"`
 	// AutoUpdateOff desliga a verificação periódica de versões. Invertido de
 	// propósito: o zero-value (ausente em state.json antigo) significa ligado.
 	AutoUpdateOff bool `json:"autoUpdateOff"`

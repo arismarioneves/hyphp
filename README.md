@@ -87,8 +87,8 @@ project itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised wo
 - **CLI for the terminal and AI agents.** `hyphp status`, `hyphp start all`,
   `hyphp logs mysql -f`, `hyphp ini 8.3 max_input_vars 5000`… Every command runs in the open
   app, with `--json` output and meaningful exit codes. See [CLI](#cli).
-- **Lives in the tray**, can start at login, in English or Portuguese, dark or light theme
-  (or the system's).
+- **Lives in the tray**, can start at login (with or without the window), in English or
+  Portuguese, dark or light theme (or the system's).
 
 ## Getting started
 

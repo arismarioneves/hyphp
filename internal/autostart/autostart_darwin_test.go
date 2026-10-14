@@ -21,7 +21,7 @@ func TestLaunchAgentLigaEDesliga(t *testing.T) {
 		t.Fatal(err)
 	}
 	exe, _ := os.Executable()
-	if !strings.Contains(string(raw), "<string>"+exe+"</string>") || !strings.Contains(string(raw), "<key>RunAtLoad</key>") {
+	if !strings.Contains(string(raw), "<string>"+exe+"</string>\n\t\t<string>"+Flag+"</string>") || !strings.Contains(string(raw), "<key>RunAtLoad</key>") {
 		t.Fatalf("plist inesperado:\n%s", raw)
 	}
 	if on, err := Enabled(); err != nil || !on {

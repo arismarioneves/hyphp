@@ -87,8 +87,8 @@ O HyPHP junta, no Windows e no macOS e sem Docker, o que os outros entregam sepa
 - **CLI para o terminal e agentes de IA.** `hyphp status`, `hyphp start all`,
   `hyphp logs mysql -f`, `hyphp ini 8.3 max_input_vars 5000`… Cada comando roda no app
   aberto, com saída `--json` e códigos de saída que dizem o que houve. Veja [CLI](#cli).
-- **Mora na bandeja**, pode abrir com o sistema, em português ou inglês, tema escuro ou claro
-  (ou igual ao do sistema).
+- **Mora na bandeja**, pode abrir com o sistema (com ou sem a janela), em português ou
+  inglês, tema escuro ou claro (ou igual ao do sistema).
 
 ## Primeiros passos
 

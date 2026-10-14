@@ -43,6 +43,7 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 	<key>ProgramArguments</key>
 	<array>
 		<string>%s</string>
+		<string>%s</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
@@ -85,7 +86,7 @@ func Apply(enabled bool) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("autostart: criar diretório %s: %w", dir, err)
 	}
-	content := fmt.Sprintf(plistTemplate, html.EscapeString(exe))
+	content := fmt.Sprintf(plistTemplate, html.EscapeString(exe), Flag)
 	if err := os.WriteFile(target, []byte(content), 0o644); err != nil {
 		return fmt.Errorf("autostart: gravar plist: %w", err)
 	}
