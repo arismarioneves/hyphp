@@ -92,4 +92,4 @@ The one exception is the release notes in the history: they appear as published,
 
 ## License
 
-Contributions follow the [CLA](../CLA.md) and this repository's license ([CONTRIBUTING.md](../CONTRIBUTING.md)). The fonts keep their own licenses (`assets/fontes/LICENSE-*`).
+Contributions are licensed under this repository's [MIT License](../LICENSE) ([CONTRIBUTING.md](../CONTRIBUTING.md)). The fonts keep their own licenses (`assets/fontes/LICENSE-*`).

@@ -10,7 +10,7 @@
   <a href="https://github.com/arismarioneves/hyphp/releases/latest"><img src="https://img.shields.io/github/v/release/arismarioneves/hyphp?label=release&color=2563eb" alt="Última versão"></a>
   <a href="https://github.com/arismarioneves/hyphp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/arismarioneves/hyphp/ci.yml?branch=main&label=ci" alt="CI"></a>
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS-555" alt="Windows e macOS">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-555" alt="Licença"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-555" alt="Licença"></a>
 </p>
 
 <p align="center">
@@ -270,16 +270,16 @@ O HyPHP é gratuito. Se ele economiza o seu tempo, você pode apoiar o desenvolv
 
 ## Licença
 
-O código é aberto para leitura, no modelo *open core*:
+O HyPHP segue o modelo *open core*:
 
-- **Tudo fora de `enterprise/`** usa a [PolyForm Shield 1.0.0](LICENSE). Qualquer
-  pessoa ou empresa pode usar o HyPHP de graça, inclusive no trabalho, e estudar,
-  modificar e compartilhar o código. O que ela não permite é oferecer um produto
-  que concorra com o HyPHP ou com os recursos pagos dele, seja pago ou gratuito,
-  o que inclui vender o próprio HyPHP.
+- **Tudo fora de `enterprise/`** usa a [licença MIT](LICENSE): qualquer pessoa ou empresa
+  pode usar, estudar, modificar, compartilhar e vender.
 - **`enterprise/`** vai guardar os recursos pagos, com [licença própria](enterprise/LICENSE)
   e uso por assinatura. Hoje ela só tem a licença: ainda não existe recurso pago.
 
-Ao enviar um pull request, você concorda com o [CLA](CLA.md); ver
-[CONTRIBUTING.md](CONTRIBUTING.md) (em inglês). Os componentes que o HyPHP baixa (tabela em
-[Stack](#stack)) seguem cada um a própria licença.
+O nome "HyPHP" e o logo não fazem parte dessas licenças: um fork precisa de outro nome e
+outro logo.
+
+Contribuições fora de `enterprise/` ficam sob a licença MIT; as feitas em `enterprise/`
+seguem o [CLA](CLA.md). Ver [CONTRIBUTING.md](CONTRIBUTING.md) (em inglês). Os componentes
+que o HyPHP baixa (tabela em [Stack](#stack)) seguem cada um a própria licença.

@@ -92,4 +92,4 @@ A única exceção são as notas de versão do histórico: elas aparecem como fo
 
 ## Licença
 
-As contribuições seguem o [CLA](../CLA.md) e a licença deste repositório ([CONTRIBUTING.md](../CONTRIBUTING.md)). As fontes mantêm as próprias licenças (`assets/fontes/LICENSE-*`).
+As contribuições ficam sob a [licença MIT](../LICENSE) deste repositório ([CONTRIBUTING.md](../CONTRIBUTING.md)). As fontes mantêm as próprias licenças (`assets/fontes/LICENSE-*`).

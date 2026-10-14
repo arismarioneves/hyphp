@@ -10,7 +10,7 @@
   <a href="https://github.com/arismarioneves/hyphp/releases/latest"><img src="https://img.shields.io/github/v/release/arismarioneves/hyphp?label=release&color=2563eb" alt="Latest release"></a>
   <a href="https://github.com/arismarioneves/hyphp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/arismarioneves/hyphp/ci.yml?branch=main&label=ci" alt="CI"></a>
   <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS-555" alt="Windows and macOS">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Shield%201.0.0-555" alt="License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-555" alt="License"></a>
 </p>
 
 <p align="center">
@@ -270,17 +270,17 @@ HyPHP is free. If it saves you time, you can support its development:
 
 ## License
 
-The code is open to read, following the *open core* model:
+HyPHP follows the *open core* model:
 
-- **Everything outside `enterprise/`** is under the [PolyForm Shield 1.0.0](LICENSE).
-  Anyone, individuals or companies, can use HyPHP for free, including at work, and study,
-  modify and share the code. What it does not allow is offering a product that competes
-  with HyPHP or with its paid features, whether paid or free, which includes selling HyPHP
-  itself.
+- **Everything outside `enterprise/`** is under the [MIT License](LICENSE): anyone,
+  individuals or companies, can use, study, modify, share and sell it.
 - **`enterprise/`** will hold the paid features, under [its own license](enterprise/LICENSE)
   and subscription-based use. Today it only contains the license: there are no paid
   features yet.
 
-By submitting a pull request, you agree to the [CLA](CLA.md); see
-[CONTRIBUTING.md](CONTRIBUTING.md). The components HyPHP downloads (table in
-[Stack](#stack)) each follow their own license.
+The name "HyPHP" and its logo are not covered by these licenses: a fork must use another
+name and logo.
+
+Contributions outside `enterprise/` are licensed under the MIT License; contributions to
+`enterprise/` follow the [CLA](CLA.md). See [CONTRIBUTING.md](CONTRIBUTING.md). The
+components HyPHP downloads (table in [Stack](#stack)) each follow their own license.
