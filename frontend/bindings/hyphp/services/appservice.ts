@@ -10,6 +10,17 @@
 // @ts-ignore: Unused imports
 import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wailsio/runtime";
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore: Unused imports
+import * as $models from "./models.js";
+
+/**
+ * About reúne versão, sistema, links e créditos para a tela Sobre.
+ */
+export function About(): $CancellablePromise<$models.About> {
+    return $Call.ByID(27366522);
+}
+
 /**
  * AddDefaultPHPToUserPath põe a série padrão de PHP no PATH do usuário, para
  * `php` e `composer` no terminal usarem a mesma versão que o HyPHP serve.
@@ -69,14 +80,6 @@ export function RuntimeRoot(): $CancellablePromise<string> {
  */
 export function ShadowingPHP(): $CancellablePromise<string> {
     return $Call.ByID(488047745);
-}
-
-/**
- * SiteURL retorna a página do HyPHP, a mesma citada no cabeçalho do
- * hyphp.yaml, para o Sobre de Configurações.
- */
-export function SiteURL(): $CancellablePromise<string> {
-    return $Call.ByID(3450115475);
 }
 
 /**

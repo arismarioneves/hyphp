@@ -7,7 +7,8 @@ export type Screen =
   | 'mail'
   | 'logs'
   | 'cli'
-  | 'settings';
+  | 'settings'
+  | 'about';
 
 // O título de cada tela está no catálogo `app`, com o id da tela como chave.
 

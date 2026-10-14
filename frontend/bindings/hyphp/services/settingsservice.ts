@@ -76,16 +76,26 @@ export function RemoveWildcardDNS(): $CancellablePromise<void> {
  * Set aplica os campos da tela Configurações. SchemaVersion e PortAlloc
  * pertencem ao Stack e são ignorados. Roots (ProjectsService),
  * PHPExtensions (RuntimesService), WebServer (SwitchWebServer, chamado
- * pelos cards da tela e por `hyphp web`) e DBEngine (SwitchDatabase) também
- * ficam de fora: são mudados por outros caminhos, e a cópia que a UI manda
- * pode ser anterior à mudança — gravá-la a desfaria (uma pasta recém-adicionada
- * sumia ao recolher a sidebar; um salvar qualquer trocava o web server de
- * volta). DefaultPHP fica: a tela tem o seletor "Versão padrão", e o rascunho
+ * pelos cards da tela e por `hyphp web`), DBEngine (SwitchDatabase) e
+ * AutoUpdateOff (SetAutoUpdate, da tela Sobre) também ficam de fora: são
+ * mudados por outros caminhos, e a cópia que a UI manda pode ser anterior à
+ * mudança — gravá-la a desfaria (uma pasta recém-adicionada sumia ao recolher
+ * a sidebar; um salvar qualquer trocava o web server de volta). DefaultPHP
+ * fica: a tela tem o seletor "Versão padrão", e o rascunho
  * dela recebe o valor novo quando o Runtimes ou a CLI o trocam
  * (settings:changed).
  */
 export function Set($in: state$0.State): $CancellablePromise<void> {
     return $Call.ByID(992415247, $in);
+}
+
+/**
+ * SetAutoUpdate liga ou desliga a verificação periódica de versões. A tela
+ * Sobre grava o toggle na hora, sem rascunho, então grava só o campo, pelo
+ * mesmo motivo de SetSidebarCollapsed.
+ */
+export function SetAutoUpdate(on: boolean): $CancellablePromise<void> {
+    return $Call.ByID(1876308221, on);
 }
 
 /**

@@ -130,11 +130,12 @@ func (s *SettingsService) RemoveSystemChanges() error {
 // Set aplica os campos da tela Configurações. SchemaVersion e PortAlloc
 // pertencem ao Stack e são ignorados. Roots (ProjectsService),
 // PHPExtensions (RuntimesService), WebServer (SwitchWebServer, chamado
-// pelos cards da tela e por `hyphp web`) e DBEngine (SwitchDatabase) também
-// ficam de fora: são mudados por outros caminhos, e a cópia que a UI manda
-// pode ser anterior à mudança — gravá-la a desfaria (uma pasta recém-adicionada
-// sumia ao recolher a sidebar; um salvar qualquer trocava o web server de
-// volta). DefaultPHP fica: a tela tem o seletor "Versão padrão", e o rascunho
+// pelos cards da tela e por `hyphp web`), DBEngine (SwitchDatabase) e
+// AutoUpdateOff (SetAutoUpdate, da tela Sobre) também ficam de fora: são
+// mudados por outros caminhos, e a cópia que a UI manda pode ser anterior à
+// mudança — gravá-la a desfaria (uma pasta recém-adicionada sumia ao recolher
+// a sidebar; um salvar qualquer trocava o web server de volta). DefaultPHP
+// fica: a tela tem o seletor "Versão padrão", e o rascunho
 // dela recebe o valor novo quando o Runtimes ou a CLI o trocam
 // (settings:changed).
 func (s *SettingsService) Set(in state.State) error {
@@ -173,7 +174,6 @@ func (s *SettingsService) Set(in state.State) error {
 		st.Terminal = in.Terminal
 		st.SidebarCollapsed = in.SidebarCollapsed
 		st.Autostart = in.Autostart
-		st.AutoUpdateOff = in.AutoUpdateOff
 		st.Theme = in.Theme
 		st.Language = in.Language
 	})
@@ -206,6 +206,17 @@ func (s *SettingsService) Set(in state.State) error {
 // por Set: a cópia da UI levaria junto campos que outros serviços mudaram.
 func (s *SettingsService) SetSidebarCollapsed(collapsed bool) error {
 	if err := s.stk.UpdateState(func(st *state.State) { st.SidebarCollapsed = collapsed }); err != nil {
+		return err
+	}
+	s.emit("settings:changed", s.stk.State())
+	return nil
+}
+
+// SetAutoUpdate liga ou desliga a verificação periódica de versões. A tela
+// Sobre grava o toggle na hora, sem rascunho, então grava só o campo, pelo
+// mesmo motivo de SetSidebarCollapsed.
+func (s *SettingsService) SetAutoUpdate(on bool) error {
+	if err := s.stk.UpdateState(func(st *state.State) { st.AutoUpdateOff = !on }); err != nil {
 		return err
 	}
 	s.emit("settings:changed", s.stk.State())

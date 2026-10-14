@@ -9,11 +9,14 @@ import (
 	"os"
 	"os/exec"
 
+	"hyphp/internal/credits"
 	"hyphp/internal/i18n"
 	"hyphp/internal/paths"
 	"hyphp/internal/project"
 	"hyphp/internal/runtime"
 	"hyphp/internal/state"
+	"hyphp/internal/sysinfo"
+	"hyphp/internal/update"
 	"hyphp/internal/version"
 )
 
@@ -39,9 +42,48 @@ func NewAppService(d AppDeps) *AppService {
 // Version retorna a versão do HyPHP.
 func (a *AppService) Version() string { return version.Current }
 
-// SiteURL retorna a página do HyPHP, a mesma citada no cabeçalho do
-// hyphp.yaml, para o Sobre de Configurações.
-func (a *AppService) SiteURL() string { return project.SiteURL }
+// About são os dados da tela Sobre.
+type About struct {
+	Version      string   `json:"version"`
+	OS           string   `json:"os"`   // "Windows 11 (10.0.26100)", "macOS 15.1"
+	Arch         string   `json:"arch"` // "x64", "arm64"
+	Root         string   `json:"root"`
+	Site         string   `json:"site"`
+	Repository   string   `json:"repository"`
+	ReleaseNotes string   `json:"releaseNotes"` // release da versão em uso
+	NewIssue     string   `json:"newIssue"`
+	License      string   `json:"license"`
+	Copyright    string   `json:"copyright"`
+	Author       string   `json:"author"`
+	AuthorLogin  string   `json:"authorLogin"`
+	Contributors []string `json:"contributors"` // logins do GitHub, de quem mais contribuiu para quem menos
+	Support      string   `json:"support"`
+}
+
+// About reúne versão, sistema, links e créditos para a tela Sobre.
+func (a *AppService) About() (About, error) {
+	contributors, err := credits.Contributors()
+	if err != nil {
+		return About{}, err
+	}
+	repo := "https://github.com/" + update.GitHubRepo
+	return About{
+		Version:      version.Current,
+		OS:           sysinfo.OS(),
+		Arch:         sysinfo.Arch(),
+		Root:         paths.Root(),
+		Site:         project.SiteURL,
+		Repository:   repo,
+		ReleaseNotes: repo + "/releases/tag/v" + version.Current,
+		NewIssue:     repo + "/issues/new",
+		License:      credits.License,
+		Copyright:    credits.Copyright,
+		Author:       credits.Author,
+		AuthorLogin:  credits.AuthorLogin,
+		Contributors: contributors,
+		Support:      credits.SupportURL,
+	}, nil
+}
 
 // RuntimeRoot retorna a raiz de runtime em uso (bin/, etc/, var/, log/).
 func (a *AppService) RuntimeRoot() string { return paths.Root() }

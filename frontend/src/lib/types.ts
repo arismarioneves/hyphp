@@ -12,6 +12,7 @@ import type {
   LogSource as GeneratedLogSource,
   Credentials as GeneratedCredentials,
   BrewStatus as GeneratedBrewStatus,
+  About as GeneratedAbout,
 } from '../../bindings/hyphp/services/models'
 
 export type ServiceStatus = Status
@@ -27,6 +28,7 @@ export type DBInfo = GeneratedDBInfo
 export type LogSource = GeneratedLogSource
 export type Credentials = GeneratedCredentials
 export type BrewStatus = GeneratedBrewStatus
+export type AboutInfo = GeneratedAbout
 
 export type ProgressPhase = 'download' | 'verify' | 'extract' | 'done' | 'error' | 'canceled'
 
