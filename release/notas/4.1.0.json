@@ -1,0 +1,10 @@
+{
+  "pt": [
+    "Aba Sobre, abaixo de Configurações: versão e atualizações, sistema e diagnóstico para colar numa issue, raiz de dados, links do projeto, licença e contribuidores.",
+    "Abrir minimizado na bandeja: com a opção ligada, o HyPHP que abre no login sobe os serviços sem mostrar a janela. Aberto pelo atalho, a janela aparece."
+  ],
+  "en": [
+    "About tab, below Settings: version and updates, system info and diagnostics to paste into an issue, data root, project links, license and contributors.",
+    "Start minimized to the tray: with the option on, HyPHP opening at login starts the services without showing the window. Opened from the shortcut, the window shows."
+  ]
+}
