@@ -6,8 +6,8 @@ import (
 )
 
 // defaultRoot no Linux é $XDG_DATA_HOME/HyPHP, com ~/.local/share como padrão
-// da especificação XDG. Ao lado do executável nunca: o pacote instala em
-// /usr/lib/hyphp, onde o usuário não grava.
+// da especificação XDG. Ao lado do executável nunca: instalado, o app fica
+// numa pasta do sistema, onde o usuário não grava.
 func defaultRoot() string {
 	if d := os.Getenv("XDG_DATA_HOME"); filepath.IsAbs(d) {
 		return filepath.Join(d, "HyPHP")
