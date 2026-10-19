@@ -10,6 +10,7 @@ import (
 
 	"hyphp/internal/i18n"
 	"hyphp/internal/paths"
+	"hyphp/internal/runtime"
 )
 
 // shellOpen entrega pasta e URL ao xdg-open, que escolhe o app padrão da
@@ -55,13 +56,25 @@ func (a *AppService) openTerminal(path string) error {
 }
 
 // readUserPath pergunta ao shell de login do usuário o PATH dele: o app
-// aberto pela sessão gráfica pode não ter o mesmo PATH do terminal.
+// aberto pela sessão gráfica pode não ter o mesmo PATH do terminal. Vale a
+// última linha: um perfil que imprime algo no login sai antes dela.
 func readUserPath() (string, error) {
-	return loginShell(`printf %s "$PATH"`)
+	out, err := loginShell(`printf '\n%s' "$PATH"`)
+	if err != nil {
+		return "", err
+	}
+	return out[strings.LastIndexByte(out, '\n')+1:], nil
 }
 
 // ensurePathsD: o HyPHP ainda não grava o PATH do sistema no Linux.
 func ensurePathsD() error { return i18n.Errorf("err.linux.unavailable") }
+
+// addCLIToUserPath: idem ensurePathsD. Falha antes de criar a pasta cli, para
+// não deixar um atalho que nenhum PATH alcança.
+func addCLIToUserPath(string) error { return ensurePathsD() }
+
+// addPHPToUserPath: idem addCLIToUserPath.
+func addPHPToUserPath(runtime.Installed) error { return ensurePathsD() }
 
 // shadowingPHP pergunta ao shell de login qual php ele acha. Sem php nenhum,
 // nada a avisar.
@@ -83,6 +96,7 @@ func loginShell(script string) (string, error) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	out, err := exec.CommandContext(ctx, sh, "-lc", script).Output()
 	if err != nil {
 		return "", fmt.Errorf("app: shell de login %s: %w", sh, err)
 	}

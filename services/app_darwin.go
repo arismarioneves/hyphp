@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"hyphp/internal/elevate"
 	"hyphp/internal/i18n"
 	"hyphp/internal/paths"
+	"hyphp/internal/runtime"
 )
 
 // shellOpen entrega pasta e URL ao `open`, que escolhe o app padrão do
@@ -60,6 +62,24 @@ func readUserPath() (string, error) {
 		}
 	}
 	return strings.Join(dirs, ":"), nil
+}
+
+// addCLIToUserPath põe o atalho hyphp na pasta cli e registra a pasta no
+// /etc/paths.d (senha só na primeira vez).
+func addCLIToUserPath(exe string) error {
+	if err := relink(filepath.Join(paths.Cli(), "hyphp"), exe); err != nil {
+		return err
+	}
+	return ensurePathsD()
+}
+
+// addPHPToUserPath aponta o php-bin para a pasta bin da série padrão. A partir
+// daí RefreshPathLinks o reaponta quando a série muda, sem senha.
+func addPHPToUserPath(inst runtime.Installed) error {
+	if err := relink(filepath.Join(paths.Cli(), paths.PhpBin), filepath.Join(inst.Dir, "bin")); err != nil {
+		return err
+	}
+	return ensurePathsD()
 }
 
 // ensurePathsD pede a senha só quando o /etc/paths.d/hyphp ainda não tem a
