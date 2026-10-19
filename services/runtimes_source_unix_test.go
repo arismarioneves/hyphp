@@ -1,0 +1,113 @@
+//go:build darwin || linux
+
+package services
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"hyphp/internal/brew"
+	"hyphp/internal/i18n"
+	"hyphp/internal/pkgmgr"
+	"hyphp/internal/runtime"
+)
+
+// catalogoEmbutido imita o catálogo embutido: builds Windows e o phpMyAdmin.
+var catalogoEmbutido = pkgmgr.Catalog{Packages: []pkgmgr.Package{
+	{ID: "php-8.3.35-nts-vs16-x64", Kind: runtime.PHP, Version: "8.3.35"},
+	{ID: "phpmyadmin-5.2.3", Kind: runtime.PhpMyAdmin, Version: "5.2.3"},
+}}
+
+func servicoComBrew(t *testing.T, locate func(context.Context) (brew.Brew, error)) *RuntimesService {
+	t.Helper()
+	r := NewRuntimesService(RuntimesDeps{BinDir: t.TempDir(), Catalog: func() pkgmgr.Catalog { return catalogoEmbutido }})
+	r.src.locate = locate
+	return r
+}
+
+// Um php@8.3 já presente em opt/ (mesmo instalado pelo terminal) não pode
+// ser oferecido: o `brew install` do tap falharia como "já instalado".
+func TestAvailableEscondeFormulaComKegEmOpt(t *testing.T) {
+	prefix := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(prefix, "opt", "php@8.3"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	r := servicoComBrew(t, func(context.Context) (brew.Brew, error) {
+		return brew.Brew{Exe: filepath.Join(prefix, "bin", "brew"), Prefix: prefix}, nil
+	})
+
+	ids := map[string]bool{}
+	for _, p := range r.Available() {
+		ids[p.ID] = true
+	}
+	if ids["shivammathur/php/php@8.3"] {
+		t.Error("php@8.3 oferecido apesar de opt/php@8.3 existir")
+	}
+	if !ids["shivammathur/php/php@8.4"] {
+		t.Error("php@8.4 deveria ser oferecido")
+	}
+	if !ids["phpmyadmin-5.2.3"] {
+		t.Error("phpMyAdmin do catálogo deveria continuar oferecido")
+	}
+	if ids["php-8.3.35-nts-vs16-x64"] {
+		t.Error("build Windows do catálogo oferecida com o Homebrew")
+	}
+}
+
+// Sem Homebrew a instalação de fórmula falha na hora com a mensagem que
+// aponta o banner, e Homebrew() entrega o comando para copiar.
+func TestSemHomebrewInstallRecusaEStatusTrazComando(t *testing.T) {
+	r := servicoComBrew(t, func(context.Context) (brew.Brew, error) {
+		return brew.Brew{}, brew.ErrNotFound
+	})
+
+	err := r.Install("httpd")
+	if err == nil || err.Error() != i18n.Errorf("err.brew.missing").Error() {
+		t.Fatalf("Install(httpd) = %v; quer err.brew.missing", err)
+	}
+	want := BrewStatus{Supported: true, Found: false, InstallCommand: brew.InstallCommand}
+	if got := r.Homebrew(); got != want {
+		t.Fatalf("Homebrew() = %+v; quer %+v", got, want)
+	}
+}
+
+// Homebrew instalado com o app aberto: o "Verificar de novo" (Rescan da UI)
+// precisa avisar o watcher para ele passar a observar <prefix>/opt. Sem
+// mudança no Homebrew, nenhum aviso.
+func TestRescanAvisaWatcherQuandoHomebrewAparece(t *testing.T) {
+	prefix := t.TempDir()
+	achado := false
+	r := servicoComBrew(t, func(context.Context) (brew.Brew, error) {
+		if !achado {
+			return brew.Brew{}, brew.ErrNotFound
+		}
+		return brew.Brew{Exe: filepath.Join(prefix, "bin", "brew"), Prefix: prefix}, nil
+	})
+	avisou := func() bool {
+		select {
+		case <-r.watchRefresh:
+			return true
+		default:
+			return false
+		}
+	}
+
+	_ = r.Rescan()
+	if avisou() {
+		t.Fatal("aviso ao watcher sem Homebrew")
+	}
+	achado = true
+	_ = r.Rescan()
+	if !avisou() {
+		t.Fatal("Homebrew apareceu e o watcher não foi avisado")
+	}
+	if got, want := r.extraWatchDirs(), []string{filepath.Join(prefix, "opt")}; len(got) != 1 || got[0] != want[0] {
+		t.Fatalf("extraWatchDirs = %q; quer %q", got, want)
+	}
+	_ = r.Rescan()
+	if avisou() {
+		t.Fatal("aviso repetido sem mudança no Homebrew")
+	}
+}

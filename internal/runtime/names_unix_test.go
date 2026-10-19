@@ -1,0 +1,45 @@
+//go:build darwin || linux
+
+package runtime
+
+import (
+	"path/filepath"
+	"testing"
+)
+
+// O Homebrew instala módulos PHP como <nome>.so; o inverso precisa recusar
+// o que não é módulo, senão a lista de extensões mostra lixo da pasta.
+func TestExtensaoDoHomebrew(t *testing.T) {
+	if got := extFile("intl"); got != "intl.so" {
+		t.Fatalf("extFile = %q", got)
+	}
+	if n, ok := extName("intl.so"); !ok || n != "intl" {
+		t.Fatalf("extName(intl.so) = %q, %v", n, ok)
+	}
+	if _, ok := extName("intl.dylib"); ok {
+		t.Fatal("intl.dylib aceito como extensão")
+	}
+}
+
+// No Homebrew os módulos ficam em <keg>/lib/php/<api>. Só o basename do
+// PHP_EXTENSION_DIR entra: o valor compilado aponta para o Cellar versionado,
+// e montar a partir do opt/ mantém o caminho válido depois de um upgrade.
+func TestExtDirPorSO(t *testing.T) {
+	dir := "/opt/homebrew/opt/php@8.3"
+	if got, want := phpExtDir(dir, "20230831"), filepath.Join(dir, "lib", "php", "20230831"); got != want {
+		t.Fatalf("phpExtDir = %q, want %q", got, want)
+	}
+}
+
+// O PHP do Homebrew pode não ter pasta de módulos (tudo estático, como o
+// opcache a partir do 8.5): a lista mostra só os embutidos, sem erro.
+func TestListaSemPastaDeModulos(t *testing.T) {
+	dir := t.TempDir()
+	got, err := ListExtensions(Installed{Kind: PHP, Dir: dir, ExtDir: filepath.Join(dir, "lib", "php", "20250925")}, nil, []string{"opcache"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != (Extension{Name: "opcache", Enabled: true, Builtin: true}) {
+		t.Fatalf("ListExtensions = %+v; quer só o opcache embutido", got)
+	}
+}
