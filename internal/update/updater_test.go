@@ -38,8 +38,10 @@ func novoFeed(t *testing.T, priv ed25519.PrivateKey, version string, installer [
 		Version: version, Date: "2026-09-26", Notes: []string{"novidade"},
 		WindowsAMD64: &Artifact{Path: version + "/setup.exe", Size: int64(len(installer)), SHA256: shaAnunciado},
 	}}
-	// Mesmo artefato nas duas plataformas: os testes valem no Windows e no Mac.
+	// Mesmo artefato nas três plataformas: os testes valem no Windows, no Mac e
+	// no Linux.
 	l.DarwinARM64 = l.WindowsAMD64
+	l.LinuxAMD64 = l.WindowsAMD64
 	body, err := json.Marshal(l)
 	if err != nil {
 		t.Fatal(err)
@@ -350,6 +352,7 @@ func TestCheckSegueRedirecionamentoDoGitHub(t *testing.T) {
 		Version: "2.1.0", Date: "2026-10-01", Notes: []string{"novidade"},
 		WindowsAMD64: &Artifact{Path: name, Size: int64(len(installer)), SHA256: hex.EncodeToString(sum[:])},
 		DarwinARM64:  &Artifact{Path: name, Size: int64(len(installer)), SHA256: hex.EncodeToString(sum[:])},
+		LinuxAMD64:   &Artifact{Path: name, Size: int64(len(installer)), SHA256: hex.EncodeToString(sum[:])},
 	}})
 	if err != nil {
 		t.Fatal(err)

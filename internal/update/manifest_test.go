@@ -112,6 +112,32 @@ func TestReleaseValidate(t *testing.T) {
 	}
 }
 
+// O artefato do Linux pode faltar (releases anteriores a ele), mas quando vem
+// passa pelas mesmas regras do Windows: é o que o Linux baixa.
+func TestArtefatoLinuxOpcionalMasConferido(t *testing.T) {
+	r := releaseValido()
+	r.LinuxAMD64 = nil
+	if err := r.Validate(); err != nil {
+		t.Fatalf("release sem linux_amd64 recusado: %v", err)
+	}
+	r.LinuxAMD64 = &Artifact{Path: "1.0.0/hyphp.deb", Size: 10, SHA256: shaValido}
+	if err := r.Validate(); err != nil {
+		t.Fatalf("linux_amd64 válido recusado: %v", err)
+	}
+	for nome, estraga := range map[string]func(*Artifact){
+		"sha curto":     func(a *Artifact) { a.SHA256 = shaValido[1:] },
+		"tamanho zero":  func(a *Artifact) { a.Size = 0 },
+		"path absoluto": func(a *Artifact) { a.Path = "/1.0.0/hyphp.deb" },
+	} {
+		a := Artifact{Path: "1.0.0/hyphp.deb", Size: 10, SHA256: shaValido}
+		estraga(&a)
+		r.LinuxAMD64 = &a
+		if err := r.Validate(); err == nil {
+			t.Errorf("linux_amd64 com %s aceito", nome)
+		}
+	}
+}
+
 // Comparação lexicográfica diria que 1.0.10 < 1.0.9, e a 1.0.10 nunca seria
 // oferecida a quem está na 1.0.9.
 func TestCompare(t *testing.T) {

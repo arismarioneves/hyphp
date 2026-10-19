@@ -38,9 +38,6 @@ type Result struct {
 	Error string `json:"erro,omitempty"`
 }
 
-// appExitTimeout é quanto o atualizador espera o app fechar.
-const appExitTimeout = 60 * time.Second
-
 var errAppAlive = errors.New("o HyPHP não fechou a tempo; a atualização não foi aplicada")
 
 func (r ApplyRequest) args() []string {
@@ -139,24 +136,4 @@ func openApplyLog(path string) func(string, ...any) {
 	return func(format string, a ...any) {
 		fmt.Fprintf(f, "%s %s\n", time.Now().Format(time.RFC3339), fmt.Sprintf(format, a...))
 	}
-}
-
-func copyExe(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return err
-	}
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	return out.Close()
 }

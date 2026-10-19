@@ -41,6 +41,7 @@ type Release struct {
 	NotesEN      []string  `json:"notes_en,omitempty"`
 	WindowsAMD64 *Artifact `json:"windows_amd64,omitempty"`
 	DarwinARM64  *Artifact `json:"darwin_arm64,omitempty"`
+	LinuxAMD64   *Artifact `json:"linux_amd64,omitempty"`
 }
 
 // Latest é o latest.json: um Release com o schema ao lado, em JSON plano.
@@ -113,17 +114,24 @@ func (r Release) Validate() error {
 	if err := validPath(a.Path); err != nil {
 		return err
 	}
-	// darwin_arm64 é opcional no contrato (as releases até a 3.0.1 não têm),
-	// mas se vier tem de ser tão confiável quanto o do Windows: é ele que o
-	// Mac baixa.
-	if d := r.DarwinARM64; d != nil {
-		if d.Size <= 0 {
-			return fmt.Errorf("update: tamanho darwin_arm64 %d inválido", d.Size)
+	// darwin_arm64 e linux_amd64 são opcionais no contrato (as releases até a
+	// 3.0.1 não têm o do Mac, e nenhuma publicada até aqui tem o do Linux), mas
+	// se vierem têm de ser tão confiáveis quanto o do Windows: é o que cada
+	// sistema baixa.
+	for _, o := range []struct {
+		nome string
+		a    *Artifact
+	}{{"darwin_arm64", r.DarwinARM64}, {"linux_amd64", r.LinuxAMD64}} {
+		if o.a == nil {
+			continue
 		}
-		if !sha256Re.MatchString(d.SHA256) {
-			return fmt.Errorf("update: sha256 darwin_arm64 %q não tem 64 hex minúsculos", d.SHA256)
+		if o.a.Size <= 0 {
+			return fmt.Errorf("update: tamanho %s %d inválido", o.nome, o.a.Size)
 		}
-		if err := validPath(d.Path); err != nil {
+		if !sha256Re.MatchString(o.a.SHA256) {
+			return fmt.Errorf("update: sha256 %s %q não tem 64 hex minúsculos", o.nome, o.a.SHA256)
+		}
+		if err := validPath(o.a.Path); err != nil {
 			return err
 		}
 	}
