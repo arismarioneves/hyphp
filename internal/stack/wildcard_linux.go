@@ -2,33 +2,24 @@ package stack
 
 import (
 	"context"
-	"net"
-	"strconv"
 	"strings"
 
 	"hyphp/internal/i18n"
 	"hyphp/internal/project"
 )
 
-// resolverPort é a porta do resolvedor no Linux: abaixo de 1024 o bind exige
-// root, e a 15353 fica fora da faixa efêmera, como no Mac.
-const resolverPort = 15353
+// dnsAddr no Linux: 127.0.0.1 numa porta alta, fora da faixa efêmera, porque
+// abaixo de 1024 o bind exige root.
+const dnsAddr = "127.0.0.1:15353"
 
-// dnsAddr no Linux: 127.0.0.1 na porta alta. Variável para os testes usarem
-// porta efêmera.
-var dnsAddr = net.JoinHostPort("127.0.0.1", strconv.Itoa(resolverPort))
-
-// syncWildcard sobe o resolvedor quando algum projeto tem wildcard e avisa que
-// os subdomínios ainda não resolvem: o HyPHP ainda não registra a regra de DNS
-// do .test no Linux. Sem wildcard, o resolvedor fica parado.
+// syncWildcard avisa que os subdomínios dos projetos com wildcard ainda não
+// resolvem: falta a regra de DNS do .test, que o HyPHP ainda não registra no
+// Linux. Sem a regra ninguém consulta o resolvedor, então ele fica parado.
 func (s *Stack) syncWildcard(projs []project.Project) []Warning {
-	domains := wildcardDomains(projs)
-	if err := s.ensureResolver(len(domains) > 0); err != nil {
-		return []Warning{{
-			Code:    "wildcard-unavailable",
-			Message: i18n.T("warn.wildcardUnavailable", dnsAddr, err, strings.Join(domains, ", ")),
-		}}
+	if err := s.ensureResolver(false); err != nil {
+		s.d.Logger.Warn("parar resolvedor DNS", "err", err)
 	}
+	domains := wildcardDomains(projs)
 	if len(domains) == 0 {
 		return nil
 	}
