@@ -30,6 +30,16 @@ func TestParseProcNetTCPSoLISTEN(t *testing.T) {
 	}
 }
 
+// Porta em LISTEN sem dono visível (outro usuário) entra com PID 0: está
+// ocupada mesmo assim. Com IPv4 e IPv6 da mesma porta, o dono visível vence.
+func TestPortaDeOutroUsuarioFicaComPIDZero(t *testing.T) {
+	inodePort := map[uint64]int{1: 80, 2: 3306, 3: 3306}
+	inodePID := map[uint64]int{3: 4242}
+	if got, want := portOwners(inodePort, inodePID), map[int]int{80: 0, 3306: 4242}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("portOwners = %v; quero %v", got, want)
+	}
+}
+
 func TestQuemEscutaUmaPortaDoProprioTeste(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
