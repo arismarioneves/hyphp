@@ -132,3 +132,33 @@ jobs:
         run: wails3 task darwin:package:dmg
       - name: e2e
         run: bash .github/scripts/e2e-macos.sh bin/HyPHP.dmg
+
+  # O roteiro do Linux sem tela num runner ubuntu-24.04: runtimes do Homebrew,
+  # o app do build local num Xvfb, projeto servido na 8080, banco, e-mail,
+  # phpMyAdmin, a limpeza de órfãos depois de um kill -9 e nginx e MariaDB
+  # instalados com o app aberto. As portas 80 e 443, o hosts, a CA e o PATH
+  # pedem privilégio de administrador e não entram.
+  linux-e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev xvfb xauth
+      # O wails3 da mesma versão do go.mod, como no build.yml.
+      - name: wails3
+        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
+      - name: build
+        run: wails3 task linux:build
+      - name: e2e
+        run: bash .github/scripts/e2e-linux.sh
