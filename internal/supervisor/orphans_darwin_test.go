@@ -107,6 +107,10 @@ func bateria(t *testing.T, r procRecord) {
 	}
 }
 
+// donoMorto é o pid do HyPHP que gravou os registros dos testes: nenhum
+// processo vivo tem esse pid, e o órfão tem o launchd como pai.
+const donoMorto = 1 << 30
+
 // registrarComo grava o registro que o supervisor gravaria para o pid.
 func registrarComo(t *testing.T, runDir, id string, pid int, exe string) procRecord {
 	t.Helper()
@@ -114,7 +118,7 @@ func registrarComo(t *testing.T, runDir, id string, pid int, exe string) procRec
 	if !info.alive {
 		t.Fatalf("pid %d não está vivo", pid)
 	}
-	r := procRecord{ID: id, PID: pid, PGID: pid, Exe: exe, StartSec: info.startSec, StartUsec: info.startUsec, OwnerPID: 1}
+	r := procRecord{ID: id, PID: pid, PGID: pid, Exe: exe, StartSec: info.startSec, StartUsec: info.startUsec, OwnerPID: donoMorto}
 	if err := writeRecord(runDir, r); err != nil {
 		t.Fatalf("writeRecord: %v", err)
 	}

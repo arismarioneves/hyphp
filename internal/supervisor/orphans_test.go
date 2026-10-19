@@ -69,15 +69,26 @@ func TestShouldReapMataSoQuandoTudoBate(t *testing.T) {
 	}
 }
 
+// No Linux o órfão vai para o subreaper da sessão, não para o pid 1: qualquer
+// pai que não seja o dono registrado conta como dono morto.
+func TestShouldReapAceitaPaiQueNaoEODono(t *testing.T) {
+	r, info := orfaoValido()
+	info.ppid = 1500
+	if ok, why := shouldReap(r, info); !ok {
+		t.Fatalf("órfão adotado pelo subreaper não foi encerrado: %s", why)
+	}
+}
+
 func TestShouldReapPreservaQuandoAlgoNaoBate(t *testing.T) {
 	casos := map[string]func(*procRecord, *procInfo){
 		"processo morto":           func(_ *procRecord, i *procInfo) { *i = procInfo{} },
 		"segundos do início":       func(_ *procRecord, i *procInfo) { i.startSec++ },
 		"microssegundos do início": func(_ *procRecord, i *procInfo) { i.startUsec++ },
 		"outro grupo":              func(_ *procRecord, i *procInfo) { i.pgid = 777 },
-		// O `brew services` do usuário tem ppid 1 e o mesmo exe; o que o
-		// distingue é pid + início. Já um pai vivo é o HyPHP (ou outro dono).
-		"pai vivo":              func(_ *procRecord, i *procInfo) { i.ppid = 999 },
+		// O `brew services` do usuário tem o launchd como pai e o mesmo exe; o
+		// que o distingue é pid + início. Já o dono como pai é o HyPHP vivo.
+		"pai vivo":              func(r *procRecord, i *procInfo) { i.ppid = r.OwnerPID },
+		"registro sem dono":     func(r *procRecord, _ *procInfo) { r.OwnerPID = 0 },
 		"exe diferente":         func(_ *procRecord, i *procInfo) { i.exe = "/usr/sbin/httpd" },
 		"exe ilegível":          func(_ *procRecord, i *procInfo) { i.exe = "" },
 		"registro sem exe":      func(r *procRecord, i *procInfo) { r.Exe = ""; i.exe = "" },

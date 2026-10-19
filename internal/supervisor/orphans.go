@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-// A limpeza de órfãos é por SO (orphans_windows.go, orphans_darwin.go), com o
+// A limpeza de órfãos é por SO (orphans_windows.go, orphans_unix.go), com o
 // mesmo trio de funções:
 //
 //	func recordProcess(runDir string, spec Spec, cmd *exec.Cmd, h procHandle) error
@@ -15,8 +15,8 @@ import (
 //	func ReapOrphans(runDir string, logger *slog.Logger) []string
 //
 // Este arquivo guarda a parte sem syscall (formato do registro, leitura do
-// kern.procargs2 e a decisão de matar) sem build tag, para os testes dela
-// rodarem também no Windows.
+// kern.procargs2 do Mac e a decisão de matar) sem build tag, para os testes
+// dela rodarem também no Windows.
 
 // procRecord é o registro de um serviço iniciado, gravado em
 // <runDir>/procs/<id escapado>.json. Pid sozinho não identifica um processo
@@ -93,11 +93,11 @@ func resolvePath(p string) string {
 
 // shouldReap decide se o grupo do registro é um órfão nosso. Só mata se TUDO
 // bater (spec §3): o pid vivo com o mesmo horário de início (pid reciclado
-// tem outro), o mesmo pgid, o pai é o launchd (ppid 1: o HyPHP que o iniciou
-// morreu; com o dono vivo o pai seria ele) e o executável é o registrado. Não
-// há atalho por porta ou por "binário do Homebrew": o `brew services` do
-// usuário roda os mesmos binários, também com ppid 1. Devolve o motivo quando
-// não mata.
+// tem outro), o mesmo pgid, o pai não é mais o HyPHP que o iniciou (morto, o
+// processo vai para o launchd no Mac e para o subreaper ou o init no Linux) e
+// o executável é o registrado. Não há atalho por porta ou por "binário do
+// Homebrew": o `brew services` do usuário roda os mesmos binários, também sem
+// o HyPHP como pai. Devolve o motivo quando não mata.
 func shouldReap(r procRecord, info procInfo) (bool, string) {
 	// pgid <= 1 viraria kill(-1) ou kill(0): todos os processos do usuário ou
 	// o grupo do próprio app. E o registro sempre nasce com pgid == pid
@@ -108,13 +108,16 @@ func shouldReap(r procRecord, info procInfo) (bool, string) {
 		return false, "registro com pid/pgid inválido"
 	case r.Exe == "":
 		return false, "registro sem executável"
+	case r.OwnerPID <= 0:
+		// Sem o dono não há como saber se o pai ainda é o HyPHP.
+		return false, "registro sem dono"
 	case !info.alive:
 		return false, "processo não existe mais"
 	case info.startSec != r.StartSec || info.startUsec != r.StartUsec:
 		return false, "horário de início diferente (pid reutilizado)"
 	case info.pgid != r.PGID:
 		return false, "grupo de processos diferente"
-	case info.ppid != 1:
+	case info.ppid == r.OwnerPID:
 		return false, "processo ainda tem pai vivo"
 	case !sameExecutable(r.Exe, info.exe):
 		return false, "executável diferente do registrado"
