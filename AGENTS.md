@@ -51,11 +51,11 @@ npx --prefix frontend tsc --noEmit -p frontend
 npm --prefix frontend test
 ```
 
-- **No Windows:** confira também o código do macOS e do Linux. O `main.go` e o `services/` precisam do Wails nativo e só compilam no próprio sistema (no CI).
+- **No Windows:** confira também o código do macOS e do Linux. A tag `server` tira o cgo de janela do Wails e deixa o `main.go` e o `services/` compilarem de fora do sistema; o build de verdade de cada um roda no CI.
 
   ```sh
-  GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go vet ./internal/... ./cmd/hyphp/ ./cmd/hyphp-release/ ./cmd/hyphp-helper/
-  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go vet ./internal/... ./cmd/hyphp/ ./cmd/hyphp-release/ ./cmd/hyphp-helper/
+  GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go vet -tags server . ./cmd/... ./services/... ./internal/...
+  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go vet -tags server . ./cmd/... ./services/... ./internal/...
   ```
 
 - **Site:** `node .github/scripts/site.mjs conferir`.

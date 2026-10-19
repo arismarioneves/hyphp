@@ -150,8 +150,8 @@ func TestRenderPHPIniRecusaNomeInvalidoDoUsuario(t *testing.T) {
 	}
 }
 
-// Os sockets do MySQL só são gerenciados no macOS (phpini_darwin_test.go e
-// ini_windows_test.go); aqui fica o que vale nos dois SOs.
+// Os sockets do MySQL só são gerenciados fora do Windows (phpini_unix_test.go
+// e ini_windows_test.go); aqui fica o que vale em todos os SOs.
 func TestIsManagedIniDirective(t *testing.T) {
 	for _, n := range []string{"extension_dir", "extension", "zend_extension", "error_log", "sys_temp_dir", "upload_tmp_dir", "session.save_path", "SMTP", "smtp", "smtp_port", "sendmail_from", "sendmail_path", "mail.add_x_header", "cgi.fix_pathinfo", "cgi.force_redirect", "cgi.rfc2616_headers", "fastcgi.impersonate", "user_ini.filename"} {
 		if !IsManagedIniDirective(n) {

@@ -6,7 +6,7 @@ import (
 	"os/exec"
 )
 
-// O controle de processos é por SO (process_windows.go, process_darwin.go),
+// O controle de processos é por SO (process_windows.go, process_unix.go),
 // e cada um fornece o mesmo conjunto, para supervisor.go não conhecer job
 // nem grupo de processos:
 //

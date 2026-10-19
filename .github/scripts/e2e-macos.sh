@@ -167,7 +167,7 @@ tentar() {
 	done
 }
 
-# instalar roda o `brew install` como o app (internal/brew/exec_darwin.go): uma
+# instalar roda o `brew install` como o app (internal/brew/exec_unix.go): uma
 # fórmula por vez, o PHP pelo nome completo do tap, sem tap/trust, e a saída 1
 # com o keg no opt/ conta como sucesso, porque só o link em bin/ falhou (por
 # exemplo, mariadb@11.8 ao lado do mysql@8.4).
