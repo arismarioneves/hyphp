@@ -100,7 +100,9 @@ jobs:
       # Como no Mac, o RemoveWildcardDNS do Linux sempre devolve erro, então o
       # `if err != nil` do SettingsService é sempre verdadeiro.
       - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks inherit,-SA4023 $PKGS
-      - run: go test -count=1 ./cmd/... ./services/... ./internal/...
+      # Um D-Bus de sessão só do job: os testes da bandeja e do tema fazem o
+      # papel do painel e do portal nele.
+      - run: dbus-run-session -- go test -count=1 ./cmd/... ./services/... ./internal/...
 
   # O roteiro manual da M1, da M2 e da M3 de ponta a ponta num Mac Apple
   # Silicon de verdade: o dmg instalado pelo install.sh, runtimes do Homebrew,
