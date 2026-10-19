@@ -60,6 +60,13 @@ export function OpenTerminal(path: string): $CancellablePromise<void> {
 }
 
 /**
+ * Platform devolve o sistema, a bandeja e o tema de agora.
+ */
+export function Platform(): $CancellablePromise<$models.Platform> {
+    return $Call.ByID(501912918);
+}
+
+/**
  * Quit encerra o app de verdade (não apenas oculta a janela).
  */
 export function Quit(): $CancellablePromise<void> {

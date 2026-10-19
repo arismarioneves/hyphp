@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	goruntime "runtime"
 
 	"hyphp/internal/credits"
 	"hyphp/internal/i18n"
@@ -28,6 +29,10 @@ type AppDeps struct {
 	// DefaultPHP resolve a série padrão pela mesma regra do Stack
 	// (state.DefaultPHP, vazio = maior instalada); ligado em main.go.
 	DefaultPHP func() (runtime.Installed, bool)
+	// Tray e Dark dizem se a sessão tem bandeja e se o tema do sistema é o
+	// escuro. Mudam com o app aberto, e main.go avisa no platform:changed.
+	Tray func() bool
+	Dark func() bool
 }
 
 // AppService expõe ações globais do app à UI.
@@ -41,6 +46,23 @@ func NewAppService(d AppDeps) *AppService {
 
 // Version retorna a versão do HyPHP.
 func (a *AppService) Version() string { return version.Current }
+
+// Platform é o sistema em que o app roda e o que a sessão gráfica oferece. A
+// interface escolhe os textos por ele e o relê no evento platform:changed.
+type Platform struct {
+	OS string `json:"os"` // runtime.GOOS: "windows", "darwin", "linux"
+	// Tray: com bandeja, fechar esconde a janela; sem ela (GNOME sem a
+	// extensão AppIndicator), minimiza.
+	Tray bool `json:"tray"`
+	// Dark é o tema escuro do sistema. Só o Linux o usa: lá o WebView não o
+	// segue no prefers-color-scheme.
+	Dark bool `json:"dark"`
+}
+
+// Platform devolve o sistema, a bandeja e o tema de agora.
+func (a *AppService) Platform() Platform {
+	return Platform{OS: goruntime.GOOS, Tray: a.d.Tray(), Dark: a.d.Dark()}
+}
 
 // About são os dados da tela Sobre.
 type About struct {
