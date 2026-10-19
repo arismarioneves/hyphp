@@ -22,6 +22,9 @@ var defaultIndexHTML string
 // {{chave}} do HTML.
 var pageKeys = []string{"page.title", "page.sub", "page.lead", "page.step1", "page.step2", "page.step3", "page.lista"}
 
+// pageArgs são os valores dos textos de pageKeys que têm %s.
+var pageArgs = map[string][]any{"page.step2": {exampleRoot}}
+
 // scriptKeys são os textos do script da página. Vão como JSON no marcador
 // {{page.textos}}: o script escolhe a mensagem pelo host e não tem texto
 // próprio. {host} e {dominio} nesses textos nunca ficam dentro de uma tag,
@@ -42,7 +45,7 @@ func DefaultIndexHTML() []byte {
 	pairs := make([]string, 0, 2*(len(pageKeys)+2))
 	pairs = append(pairs, "{{lang}}", string(i18n.Current()))
 	for _, k := range pageKeys {
-		pairs = append(pairs, "{{"+k+"}}", i18n.T(k))
+		pairs = append(pairs, "{{"+k+"}}", i18n.T(k, pageArgs[k]...))
 	}
 	textos := make(map[string]string, len(scriptKeys))
 	for _, k := range scriptKeys {
