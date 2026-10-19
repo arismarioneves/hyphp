@@ -25,24 +25,6 @@ func expandEnv(s string) string {
 // cliPathDir: quem entra no PATH é a pasta cli, com o atalho hyphp.
 func cliPathDir(string) string { return paths.Cli() }
 
-// addCLIToUserPath põe o atalho hyphp na pasta cli e registra a pasta no
-// PATH do sistema (senha só na primeira vez).
-func addCLIToUserPath(exe string) error {
-	if err := relink(filepath.Join(paths.Cli(), "hyphp"), exe); err != nil {
-		return err
-	}
-	return ensurePathsD()
-}
-
-// addPHPToUserPath aponta o php-bin para a pasta bin da série padrão. A partir
-// daí RefreshPathLinks o reaponta quando a série muda, sem senha.
-func addPHPToUserPath(inst runtime.Installed) error {
-	if err := relink(filepath.Join(paths.Cli(), paths.PhpBin), filepath.Join(inst.Dir, "bin")); err != nil {
-		return err
-	}
-	return ensurePathsD()
-}
-
 // relink aponta link para target, criando a pasta cli. Grava um link
 // temporário e renomeia por cima: um terminal aberto no meio nunca vê o
 // atalho faltando.

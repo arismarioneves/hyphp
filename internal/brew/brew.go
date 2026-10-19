@@ -1,6 +1,6 @@
-// Package brew instala, remove e encontra runtimes do Homebrew no macOS. A
-// tabela, a varredura de <prefix>/opt e o parser de saída são Go neutro,
-// testados nos dois SOs; só a execução do brew (exec_darwin.go) é do Mac.
+// Package brew instala, remove e encontra runtimes do Homebrew no macOS e no
+// Linux. A tabela, a varredura de <prefix>/opt e o parser de saída são Go
+// neutro, testados em todos os SOs; a execução do brew fica em exec_unix.go.
 //
 // O HyPHP nunca chama `brew link`/`brew unlink`, nunca usa `brew services` e
 // nunca roda o instalador do Homebrew: só mostra InstallCommand.
@@ -17,11 +17,6 @@ import (
 	"hyphp/internal/pkgmgr"
 	"hyphp/internal/runtime"
 )
-
-// InstallCommand é o comando oficial de instalação do Homebrew, exibido para o
-// usuário copiar. O HyPHP não o executa: pede senha de administrador e as
-// Command Line Tools do Xcode.
-const InstallCommand = `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 
 // ErrBusy: o brew segura travas globais ("Another active Homebrew process"),
 // então uma segunda operação simultânea falharia no meio; recusamos antes.
