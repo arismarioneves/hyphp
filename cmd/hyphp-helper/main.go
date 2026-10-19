@@ -1,3 +1,5 @@
+//go:build windows || darwin
+
 // Command hyphp-helper é o único binário do HyPHP que roda com privilégio de
 // administrador (spec §11). No Windows sobe pelo UAC e grava hosts, regra NRPT
 // e a CA do mkcert; no Mac sobe pelo osascript e grava a regra de DNS, o

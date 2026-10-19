@@ -1,3 +1,5 @@
+//go:build darwin || linux
+
 package services
 
 import (
@@ -5,9 +7,9 @@ import (
 	"testing"
 )
 
-// Caminho de editor copiado do Terminal costuma vir com ~ ou $HOME; sem
-// expandir, o open recebe um caminho que não existe.
-func TestExpandEnvNoMac(t *testing.T) {
+// Caminho de editor copiado do terminal costuma vir com ~ ou $HOME; sem
+// expandir, o editor recebe um caminho que não existe.
+func TestExpandEnvForaDoWindows(t *testing.T) {
 	t.Setenv("HOME", "/Users/teste")
 	t.Setenv("EDITOR_DIR", "/opt/editor")
 	casos := map[string]string{
