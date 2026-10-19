@@ -2,5 +2,6 @@
 
 package main
 
-// callerName fora do Windows fica vazio: o app só é empacotado para Windows.
+// callerName fora do Windows fica vazio: a aba CLI mostra a chamada sem o
+// programa que a fez.
 func callerName() string { return "" }
