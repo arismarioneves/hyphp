@@ -265,13 +265,7 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 
 	web := s.webServer(st.WebServer)
 	if web == nil {
-		warnings = append(warnings, Warning{
-			Code: "web-missing",
-			// O caminho completo é obrigatório na mensagem: "não está instalado
-			// em bin/" leva o usuário a olhar o bin/ errado quando existe outra
-			// ferramenta na máquina com um Apache próprio.
-			Message: i18n.T("warn.webMissing", st.WebServer, filepath.Join(paths.Bin(), string(st.WebServer))),
-		})
+		warnings = append(warnings, Warning{Code: "web-missing", Message: webMissingMessage(st.WebServer)})
 	}
 
 	tlsFn, tlsWarns := s.tlsIssuer()

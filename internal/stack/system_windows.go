@@ -9,6 +9,7 @@ import (
 	"hyphp/internal/i18n"
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
+	"hyphp/internal/state"
 )
 
 // manageHosts: no Windows o hosts é o caminho dos domínios .test (a regra
@@ -23,6 +24,14 @@ func mkcertMissingMessage() string {
 
 // mkcertMissingError: no Windows o texto cita bin/mkcert/mkcert.exe.
 func mkcertMissingError() error { return i18n.Errorf("err.stack.mkcertMissing") }
+
+// webMissingMessage: no Windows o web server é baixado ou importado para
+// bin/<nome>. O caminho completo é obrigatório na mensagem: "não está
+// instalado em bin/" leva o usuário a olhar o bin/ errado quando existe outra
+// ferramenta na máquina com um Apache próprio.
+func webMissingMessage(name state.WebServerName) string {
+	return i18n.T("warn.webMissing", name, filepath.Join(paths.Bin(), string(name)))
+}
 
 // trustCA instala a CA pelo helper elevado (mkcert -install sob UAC).
 func (s *Stack) trustCA(mk netcfg.Mkcert) error {
