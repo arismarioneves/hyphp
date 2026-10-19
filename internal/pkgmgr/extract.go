@@ -35,7 +35,9 @@ func zipRoot(r *zip.Reader) string {
 
 // extractZip extrai r em destDir. Entradas sob strip+"/" perdem esse prefixo; as
 // demais são extraídas como estão. Qualquer entrada que resolva fora de destDir
-// (zip-slip) aborta a extração.
+// (zip-slip) aborta a extração. Os .pdb ficam de fora: são símbolos de
+// depuração, que nenhum programa carrega para rodar, e só o zip do MySQL traz
+// quase 700 MB deles.
 func extractZip(r *zip.Reader, destDir, strip string) error {
 	destAbs, err := filepath.Abs(destDir)
 	if err != nil {
@@ -64,6 +66,9 @@ func extractZip(r *zip.Reader, destDir, strip string) error {
 			if err := os.MkdirAll(target, 0o755); err != nil {
 				return fmt.Errorf("extract: %w", err)
 			}
+			continue
+		}
+		if strings.EqualFold(filepath.Ext(name), ".pdb") {
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {

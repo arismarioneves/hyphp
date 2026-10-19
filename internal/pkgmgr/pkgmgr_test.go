@@ -93,10 +93,29 @@ func TestExtractZip(t *testing.T) {
 			t.Fatalf("ext/php_curl.dll = %q, %v", got, err)
 		}
 	})
+	t.Run("símbolos de depuração .pdb ficam de fora", func(t *testing.T) {
+		r := buildZip(t, map[string]string{
+			"mysql-8.4.11-winx64/bin/mysqld.exe":                  "MZ",
+			"mysql-8.4.11-winx64/bin/mysqld.pdb":                  "sym",
+			"mysql-8.4.11-winx64/lib/plugin/debug/ha_example.PDB": "sym",
+		})
+		dest := filepath.Join(t.TempDir(), "mysql-8.4.11-winx64")
+		if err := extractZip(r, dest, "mysql-8.4.11-winx64"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := os.Stat(filepath.Join(dest, "bin", "mysqld.exe")); err != nil {
+			t.Errorf("faltou bin/mysqld.exe: %v", err)
+		}
+		for _, p := range []string{"bin/mysqld.pdb", "lib/plugin/debug/ha_example.PDB"} {
+			if _, err := os.Stat(filepath.Join(dest, filepath.FromSlash(p))); err == nil {
+				t.Errorf("%s foi extraído", p)
+			}
+		}
+	})
 	t.Run("zip-slip rejeitado", func(t *testing.T) {
 		parent := t.TempDir()
 		dest := filepath.Join(parent, "dest")
-		for _, evil := range []string{"../evil.txt", "ok/../../evil.txt", `..\evil.txt`, "/abs/evil.txt"} {
+		for _, evil := range []string{"../evil.txt", "ok/../../evil.txt", `..\evil.txt`, "/abs/evil.txt", "../evil.pdb"} {
 			r := buildZip(t, map[string]string{"ok/fine.txt": "x", evil: "pwned"})
 			err := extractZip(r, dest, "")
 			if err == nil || !strings.Contains(err.Error(), "zip-slip") {
@@ -367,4 +386,3 @@ func TestIdleReaderRearmaSoComBytes(t *testing.T) {
 		}
 	}
 }
-
