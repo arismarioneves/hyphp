@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"strings"
 
 	"hyphp/internal/elevate"
@@ -17,18 +16,6 @@ import (
 // que permite conviver com quem já ocupa a 53 em outro endereço — o WARP da
 // Cloudflare escuta em 127.0.2.2/3, e o svchost em 0.0.0.0.
 const dnsAddr = "127.0.0.1:53"
-
-// wildcardDomains devolve os sufixos dos projetos com wildcard ligado.
-func wildcardDomains(projs []project.Project) []string {
-	var out []string
-	for _, p := range projs {
-		if p.Wildcard {
-			out = append(out, p.Domain)
-		}
-	}
-	sort.Strings(out)
-	return out
-}
 
 // syncWildcard sobe ou derruba o resolvedor local conforme haja projeto com
 // wildcard, e reporta se a regra NRPT ainda falta.
