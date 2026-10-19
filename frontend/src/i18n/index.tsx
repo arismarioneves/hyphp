@@ -22,7 +22,7 @@ function isLang(code: string): code is Lang {
   return LANGS.some((l) => l.code === code)
 }
 
-/** Preferência gravada, se for um idioma conhecido; senão o do Windows. */
+/** Preferência gravada, se for um idioma conhecido; senão o do sistema. */
 export function resolveLang(preference: string, system: string): Lang {
   if (isLang(preference)) return preference
   return isLang(system) ? system : 'en'
@@ -34,7 +34,7 @@ const I18nContext = createContext<Ctx>({ lang: 'pt-BR', system: 'pt-BR', message
 
 /**
  * Escolhe o idioma pela preferência de Configurações ou, sem ela, pelo que o
- * Go diz ser o do Windows — o mesmo critério dos textos que o Go desenha
+ * Go diz ser o do sistema — o mesmo critério dos textos que o Go desenha
  * (tray, avisos). Nada é renderizado antes de saber o idioma: a janela
  * piscaria em português antes de trocar para inglês.
  */
@@ -61,7 +61,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }
 
-/** Idioma atual e o do Windows, para Intl (datas, números) e para Configurações. */
+/** Idioma atual e o do sistema, para Intl (datas, números) e para Configurações. */
 export function useLang(): { lang: Lang; system: Lang } {
   const { lang, system } = useContext(I18nContext)
   return { lang, system }

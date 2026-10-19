@@ -23,6 +23,7 @@ export const app = {
   maximize: 'Maximizar',
   close: 'Fechar',
   closeTitle: 'Fechar (mantém no tray)',
+  closeTitleNoTray: 'Fechar (minimiza)',
   updateReady: 'pronto para instalar.',
   updateReadyHint: ' Os serviços param e o Windows pede permissão.',
   updateAndRestart: 'Atualizar e reiniciar',

@@ -7,6 +7,7 @@ import { TitleBar } from './components/TitleBar';
 import { UpdateBanner } from './components/UpdateBanner';
 import { type Screen, type ScreenProps } from './lib/screens';
 import { aggregateState, summarize } from './lib/status';
+import { usePlatform } from './lib/platform';
 import { useApplyTheme } from './lib/theme';
 import { useServices } from './lib/useServices';
 import { useSettings } from './lib/useSettings';
@@ -42,7 +43,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('dashboard');
   const { services } = useServices();
   const { settings } = useSettings();
-  useApplyTheme(settings?.theme);
+  useApplyTheme(settings?.theme, usePlatform());
 
   // O colapso mora no state.json, não no localStorage: o WebView pode ter o
   // armazenamento limpo entre execuções, e a preferência tem que sobreviver a

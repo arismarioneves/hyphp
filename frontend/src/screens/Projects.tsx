@@ -28,6 +28,7 @@ import { useRuntimes } from '../lib/useRuntimes'
 import { useServices } from '../lib/useServices'
 import { useSettings } from '../lib/useSettings'
 import { useT } from '../i18n'
+import { byOS, usePlatform } from '../lib/platform'
 import { errorText } from '../lib/errors'
 
 /** Valor sentinela do Select: não é uma versão, leva para a tela Runtimes. */
@@ -38,6 +39,7 @@ const SEPARATOR_OPTION = '__separator__'
 export function Projects({ onNavigate }: ScreenProps) {
   const t = useT('projects')
   const tc = useT('common')
+  const { os } = usePlatform()
   const { projects, loading } = useProjects()
   const { services } = useServices()
   const { installed } = useRuntimes()
@@ -95,7 +97,7 @@ export function Projects({ onNavigate }: ScreenProps) {
       <EmptyState
         icon={<FolderOpen size={32} />}
         title={t('noProjectsTitle')}
-        description={t('noProjectsDesc')}
+        description={t(os === 'windows' ? 'noProjectsDesc' : 'noProjectsDescUnix')}
         action={
           <Button variant="primary" icon={<FolderPlus size={16} />} onClick={() => void addRoot()} disabled={busy}>
             {t('addDirectory')}
@@ -270,7 +272,7 @@ export function Projects({ onNavigate }: ScreenProps) {
                   {t('wildcardLabel')} (*.{selected.domain})
                 </span>
                 <span className="text-xs text-fg-muted">
-                  {t('wildcardDesc')}
+                  {t(byOS(os, { windows: 'wildcardDesc', darwin: 'wildcardDescMac', linux: 'wildcardDescLinux' }))}
                 </span>
               </div>
               <Toggle

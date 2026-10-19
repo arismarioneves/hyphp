@@ -21,6 +21,7 @@ import { errorText } from '../lib/errors'
 import { mergeDraft } from '../lib/draft'
 import { LANGS, useLang, useT } from '../i18n'
 import { activeDbEngine, newestVersions } from '../lib/versions'
+import { byOS, usePlatform } from '../lib/platform'
 
 /** Códigos de `stack.Warning` que o card Permissões resolve (C18.42 e C18.45). */
 const HOSTS_PENDING = 'hosts-pending'
@@ -130,10 +131,11 @@ function ElevatedAction({ warning, label, run }: ElevatedActionProps) {
 }
 
 /**
- * Único ponto do produto que pede privilégio (UAC no Windows, senha no Mac).
- * O Reconcile nunca eleva — só reporta as pendências —, então o card aparece
- * com pendência ou, no Mac, com algo gravado no sistema para remover; sem
- * nenhum dos dois, some inteiro: botão que não faz nada é pior que nenhum.
+ * Único ponto do produto que pede privilégio (UAC no Windows, senha no Mac; no
+ * Linux as ações ainda respondem que não estão disponíveis). O Reconcile nunca
+ * eleva — só reporta as pendências —, então o card aparece com pendência ou,
+ * no Mac, com algo gravado no sistema para remover; sem nenhum dos dois, some
+ * inteiro.
  */
 function PermissionsCard({
   changes,
@@ -145,15 +147,17 @@ function PermissionsCard({
   onChanged: () => void
 }) {
   const t = useT('settings')
+  const { os } = usePlatform()
   const hosts = warnings.find((w) => w.code === HOSTS_PENDING)
   const ca = warnings.find((w) => w.code === CA_PENDING)
   const wildcard = warnings.find((w) => w.code === WILDCARD_PENDING)
-  const mac = changes?.supported === true
   const removable = changes !== null && changes.supported && (changes.dns || changes.path || changes.ca)
   if (!hosts && !ca && !wildcard && !removable) return null
   return (
     <Section label={t('permissions')}>
-      <p className="text-xs text-fg-faint">{mac ? t('permissionsHintMac') : t('permissionsHint')}</p>
+      <p className="text-xs text-fg-faint">
+        {t(byOS(os, { windows: 'permissionsHint', darwin: 'permissionsHintMac', linux: 'permissionsHintLinux' }))}
+      </p>
       {hosts && <ElevatedAction warning={hosts} label={t('applyHosts')} run={SettingsService.ApplyHosts} />}
       {ca && (
         <ElevatedAction
@@ -225,6 +229,7 @@ function RemoveSystemAction({ onDone }: { onDone: () => void }) {
 export function Settings({ onNavigate }: ScreenProps) {
   const t = useT('settings')
   const { system } = useLang()
+  const { os, tray } = usePlatform()
   const { settings, save } = useSettings()
   const { installed } = useRuntimes()
   const [draft, setDraft] = useState(settings)
@@ -280,8 +285,9 @@ export function Settings({ onNavigate }: ScreenProps) {
   const phpMajors = Object.keys(majorSeen).sort()
   const missingWebServer = WEB_SERVERS.some((w) => versions[w.name] === undefined)
   const activeDb = activeDbEngine(settings.dbEngine, versions)
-  // Mesmo critério do card Permissões: só o Mac grava mudanças no sistema.
-  const mac = changes?.supported === true
+  // Sem bandeja (GNOME sem a extensão AppIndicator), o login abre a janela
+  // minimizada em vez de escondida.
+  const autostartHidden = !tray ? 'autostartHiddenNoTray' : os === 'darwin' ? 'autostartHiddenMac' : 'autostartHidden'
 
   const doSave = async () => {
     setSaving(true)
@@ -351,7 +357,7 @@ export function Settings({ onNavigate }: ScreenProps) {
     setPathShadow('')
     try {
       await AppService.AddDefaultPHPToUserPath()
-      setPathMsg(changes?.supported ? t('pathAddedMac') : t('pathAdded'))
+      setPathMsg(t(byOS(os, { windows: 'pathAdded', darwin: 'pathAddedMac', linux: 'pathAddedLinux' })))
       setPathShadow(await AppService.ShadowingPHP())
       loadChanges()
     } catch (e) {
@@ -440,7 +446,7 @@ export function Settings({ onNavigate }: ScreenProps) {
       </Section>
 
       <Section label={t('pool')}>
-        <Row label={t('poolWorkers')} hint={t('poolWorkersHint')}>
+        <Row label={t(os === 'windows' ? 'poolWorkers' : 'poolWorkersFpm')} hint={t('poolWorkersHint')}>
           <Select
             aria-label={t('poolSizeAria')}
             value={String(draft.poolSize)}
@@ -493,16 +499,23 @@ export function Settings({ onNavigate }: ScreenProps) {
           <input
             value={draft.editor}
             aria-label={t('editor')}
-            placeholder="C:\Users\...\Code.exe"
+            placeholder={byOS(os, {
+              windows: 'C:\\Users\\...\\Code.exe',
+              darwin: 'Visual Studio Code.app',
+              linux: '/usr/bin/code',
+            })}
             onChange={(e) => set('editor', e.target.value)}
             className={`${inputClass} w-96`}
           />
         </Row>
-        <Row label={t('terminal')} hint={t('terminalHint')}>
+        <Row
+          label={t('terminal')}
+          hint={t(byOS(os, { windows: 'terminalHint', darwin: 'terminalHintMac', linux: 'terminalHintLinux' }))}
+        >
           <input
             value={draft.terminal}
             aria-label={t('terminal')}
-            placeholder="wt.exe"
+            placeholder={byOS(os, { windows: 'wt.exe', darwin: 'iTerm', linux: 'gnome-terminal' })}
             onChange={(e) => set('terminal', e.target.value)}
             className={`${inputClass} w-96`}
           />
@@ -515,21 +528,25 @@ export function Settings({ onNavigate }: ScreenProps) {
             {pathMsg && <span className="text-sm text-fg-muted">{pathMsg}</span>}
             {pathError && <span className="selectable text-sm text-err">{pathError}</span>}
             {pathShadow && (
-              <span className="selectable text-sm text-warn">{t('phpShadowed', { path: pathShadow })}</span>
+              <span className="selectable text-sm text-warn">
+                {t(os === 'linux' ? 'phpShadowedLinux' : 'phpShadowed', { path: pathShadow })}
+              </span>
             )}
           </div>
         </Row>
       </Section>
 
-      <Section label={mac ? t('autostartSectionMac') : t('autostartSection')}>
+      <Section
+        label={t(byOS(os, { windows: 'autostartSection', darwin: 'autostartSectionMac', linux: 'autostartSectionLinux' }))}
+      >
         <Row label={t('autostart')} hint={t('autostartHint')}>
           <Toggle checked={draft.autostart} label={t('autostart')} onChange={(on) => set('autostart', on)} />
         </Row>
-        <Row label={mac ? t('autostartHiddenMac') : t('autostartHidden')} hint={t('autostartHiddenHint')}>
+        <Row label={t(autostartHidden)} hint={t('autostartHiddenHint')}>
           <Toggle
             checked={draft.autostartHidden}
             disabled={!draft.autostart}
-            label={mac ? t('autostartHiddenMac') : t('autostartHidden')}
+            label={t(autostartHidden)}
             onChange={(on) => set('autostartHidden', on)}
           />
         </Row>
@@ -543,7 +560,10 @@ export function Settings({ onNavigate }: ScreenProps) {
             options={[
               { value: 'dark', label: t('themeDark') },
               { value: 'light', label: t('themeLight') },
-              { value: 'system', label: t('themeSystem') },
+              {
+                value: 'system',
+                label: t(byOS(os, { windows: 'themeSystem', darwin: 'themeSystemMac', linux: 'themeSystemLinux' })),
+              },
             ]}
             onChange={(v) => set('theme', v)}
             className="w-64"
@@ -556,7 +576,10 @@ export function Settings({ onNavigate }: ScreenProps) {
             options={[
               {
                 value: '',
-                label: t('languageSystem', { lang: LANGS.find((l) => l.code === system)?.label ?? system }),
+                label: t(
+                  byOS(os, { windows: 'languageSystem', darwin: 'languageSystemMac', linux: 'languageSystemLinux' }),
+                  { lang: LANGS.find((l) => l.code === system)?.label ?? system },
+                ),
               },
               ...LANGS.map((l) => ({ value: l.code, label: l.label })),
             ]}
@@ -567,7 +590,7 @@ export function Settings({ onNavigate }: ScreenProps) {
       </Section>
 
       <Section label={t('quitSection')}>
-        <Row label={t('quitLabel')} hint={t('quitHint')}>
+        <Row label={t('quitLabel')} hint={t(tray ? 'quitHint' : 'quitHintNoTray')}>
           <Button variant="danger" size="sm" onClick={() => void AppService.Quit()}>
             {t('quit')}
           </Button>

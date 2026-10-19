@@ -13,6 +13,7 @@ export const EVENTS = {
   settingsChanged: 'settings:changed',
   updateStatus: 'update:status',
   cliActivity: 'cli:activity',
+  platformChanged: 'platform:changed',
 } as const
 
 export type EventName = (typeof EVENTS)[keyof typeof EVENTS]

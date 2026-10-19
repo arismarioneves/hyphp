@@ -126,7 +126,7 @@ func (r *RuntimesService) Available() []pkgmgr.Package {
 }
 
 // BrewStatus diz à UI se a plataforma usa Homebrew e se ele foi encontrado.
-// Supported=false no Windows: é também o sinal de plataforma do frontend.
+// Supported=false no Windows, onde os runtimes vêm do catálogo.
 type BrewStatus struct {
 	Supported      bool   `json:"supported"`
 	Found          bool   `json:"found"`

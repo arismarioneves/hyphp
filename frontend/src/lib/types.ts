@@ -13,6 +13,7 @@ import type {
   Credentials as GeneratedCredentials,
   BrewStatus as GeneratedBrewStatus,
   About as GeneratedAbout,
+  Platform as GeneratedPlatform,
 } from '../../bindings/hyphp/services/models'
 
 export type ServiceStatus = Status
@@ -29,6 +30,7 @@ export type LogSource = GeneratedLogSource
 export type Credentials = GeneratedCredentials
 export type BrewStatus = GeneratedBrewStatus
 export type AboutInfo = GeneratedAbout
+export type Platform = GeneratedPlatform
 
 export type ProgressPhase = 'download' | 'verify' | 'extract' | 'done' | 'error' | 'canceled'
 
@@ -44,7 +46,7 @@ export type Progress = {
   total: number
   phase: ProgressPhase
   error: string
-  /** linha de saída do `brew install` (macOS); vazio nos downloads do catálogo */
+  /** linha de saída do `brew install` (Mac e Linux); vazio nos downloads do catálogo */
   message: string
 }
 

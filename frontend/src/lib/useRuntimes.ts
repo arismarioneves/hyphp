@@ -3,8 +3,8 @@ import { RuntimesService } from '../../bindings/hyphp/services'
 import { EVENTS, useEvent } from './events'
 import type { BrewStatus, Installed, Package, Progress } from './types'
 
-// Antes da primeira resposta assume Windows (supported=false): a UI do
-// Homebrew só aparece quando o Go confirma a plataforma, sem piscar no Windows.
+// Antes da primeira resposta, supported=false: o aviso de Homebrew ausente só
+// aparece quando o Go confirma que ele falta.
 const NO_BREW: BrewStatus = { supported: false, found: false, prefix: '', installCommand: '' }
 
 export function useRuntimes() {

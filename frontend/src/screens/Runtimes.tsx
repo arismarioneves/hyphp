@@ -17,6 +17,7 @@ import { useSettings } from '../lib/useSettings'
 import { errorText } from '../lib/errors'
 import { compareVersionDesc } from '../lib/versions'
 import { useT } from '../i18n'
+import { byOS, usePlatform } from '../lib/platform'
 import type { runtimes } from '../i18n/locales/pt-BR/runtimes'
 import { PhpIniPanel } from './PhpIniPanel'
 
@@ -59,7 +60,7 @@ function formatBytes(n: number): string {
 type InstalledCardProps = {
   inst: Installed
   isDefault: boolean
-  /** Mac com Homebrew: muda o texto das extensões (não há DLLs) */
+  /** Runtime do Homebrew: muda o texto das extensões (não há DLLs) */
   brew: boolean
   onError: (msg: string) => void
 }
@@ -231,7 +232,7 @@ function InstalledCard({ inst, isDefault, brew, onError }: InstalledCardProps) {
 type AvailableCardProps = {
   pkg: Package
   progress: Progress | undefined
-  /** Mac sem Homebrew: fórmulas não têm como ser instaladas */
+  /** Mac ou Linux sem Homebrew: fórmulas não têm como ser instaladas */
   brewMissing: boolean
   onError: (msg: string) => void
 }
@@ -346,6 +347,7 @@ function AvailableCard({ pkg, progress, brewMissing, onError }: AvailableCardPro
 export function Runtimes({ onNavigate }: ScreenProps) {
   const t = useT('runtimes')
   const { installed, available, progress, loading, homebrew, rescan } = useRuntimes()
+  const { os } = usePlatform()
   const { settings } = useSettings()
   const [tab, setTab] = useState<RuntimeKind>('php')
   const [error, setError] = useState<string | null>(null)
@@ -404,7 +406,7 @@ export function Runtimes({ onNavigate }: ScreenProps) {
         <Card>
           <div className="flex flex-col gap-2 text-sm">
             <span className="text-fg">{t('brewMissingTitle')}</span>
-            <span className="text-fg-muted">{t('brewMissingBody')}</span>
+            <span className="text-fg-muted">{t(os === 'linux' ? 'brewMissingBodyLinux' : 'brewMissingBody')}</span>
             <div className="flex items-center gap-2">
               <code className="selectable flex-1 truncate rounded-card bg-bg-card-hover px-2 py-1 font-mono text-xs text-fg">
                 {homebrew.installCommand}
@@ -432,9 +434,9 @@ export function Runtimes({ onNavigate }: ScreenProps) {
 
       {tab === 'php' && (
         <div className="flex items-center justify-between gap-2 text-sm text-fg-muted">
-          <span>{homebrew.supported ? t('phpHintBrew') : t('phpHint')}</span>
-          {/* no Mac o PHP vem do Homebrew: não há bin/php nem pasta a importar */}
-          {!homebrew.supported && (
+          <span>{t(byOS(os, { windows: 'phpHint', darwin: 'phpHintBrew', linux: 'phpHintBrewLinux' }))}</span>
+          {/* fora do Windows o PHP vem do Homebrew: não há bin/php nem pasta a importar */}
+          {os === 'windows' && (
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
