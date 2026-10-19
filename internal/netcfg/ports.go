@@ -165,7 +165,8 @@ func IPv6Loopback() bool {
 }
 
 // WhoHolds identifica o processo em LISTENING TCP na porta: PID e executável vêm de
-// listeningPorts/processImagePath, implementados por SO (netstat no Windows, lsof no macOS). Sem listener → ErrPortNotHeld.
+// listeningPorts/processImagePath, implementados por SO (netstat no Windows, lsof no macOS,
+// /proc no Linux). Sem listener → ErrPortNotHeld.
 // Se o PID existir mas o executável não puder ser consultado (ex.: PID 4 "System", ou
 // svchost de outro usuário), devolve pid com exe vazio e err nil.
 func WhoHolds(port int) (pid int, exe string, err error) {
