@@ -562,7 +562,7 @@ func (s *Stack) portConflicts(st state.State, webID string) []Warning {
 			continue
 		}
 		msg := i18n.T("warn.portBusy", port)
-		if pid, exe, err := netcfg.WhoHolds(port); err == nil {
+		if pid, exe, err := netcfg.WhoHolds(port); err == nil && pid > 0 {
 			msg = i18n.T("warn.portBusyBy", port, filepath.Base(exe), pid)
 		}
 		warns = append(warns, Warning{Code: "port-conflict", Message: msg})

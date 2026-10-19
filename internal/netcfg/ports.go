@@ -168,7 +168,8 @@ func IPv6Loopback() bool {
 // listeningPorts/processImagePath, implementados por SO (netstat no Windows, lsof no macOS,
 // /proc no Linux). Sem listener → ErrPortNotHeld.
 // Se o PID existir mas o executável não puder ser consultado (ex.: PID 4 "System", ou
-// svchost de outro usuário), devolve pid com exe vazio e err nil.
+// svchost de outro usuário), devolve pid com exe vazio e err nil. No Linux, listener de
+// outro usuário volta com pid 0: a porta está ocupada, mas o dono não é visível.
 func WhoHolds(port int) (pid int, exe string, err error) {
 	listening, err := listeningPorts()
 	if err != nil {
