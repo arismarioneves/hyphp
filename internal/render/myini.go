@@ -28,7 +28,7 @@ import (
 // socket é o socket Unix do HyPHP (MySQLSocketPath), o mesmo que o php.ini
 // usa nos *.default_socket; "" não emite a linha (Windows). Vai também em
 // [client] para o mysql do keg achar o servidor sem --socket. log-error e
-// open_files_limit dependem do SO (myini_windows.go / myini_darwin.go).
+// open_files_limit dependem do SO (myini_windows.go / myini_unix.go).
 func RenderMyIni(port int, baseDir, dataDir, logDir, socket string, ipv6Loopback, mariadb bool) []byte {
 	logName := "mysql.log"
 	if mariadb {

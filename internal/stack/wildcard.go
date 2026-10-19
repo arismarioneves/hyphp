@@ -14,7 +14,7 @@ const dnsSuffix = ".test"
 
 // ensureResolver sobe ou derruba o resolvedor local. want=false com ele no ar
 // o para e solta a porta; want=true sem ele tenta subir em dnsAddr, que é por
-// SO (wildcard_windows.go, wildcard_darwin.go).
+// SO (wildcard_windows.go, wildcard_darwin.go, wildcard_linux.go).
 func (s *Stack) ensureResolver(want bool) error {
 	if !want {
 		if s.resolver != nil {

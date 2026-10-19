@@ -493,7 +493,7 @@ func mysqlSpec(in desiredInput) (supervisor.Spec, bool) {
 		Group: "db",
 		Exe:   inst.Exe,
 		// --defaults-file primeiro (o mysqld só o aceita assim); o resto é
-		// por SO (mysqldExtraArgs em db_windows.go/db_darwin.go).
+		// por SO (mysqldExtraArgs em db_windows.go/db_unix.go).
 		Args:         append([]string{"--defaults-file=" + MyIniPath(in.EtcDir)}, mysqldExtraArgs...),
 		Dir:          inst.Dir,
 		Port:         in.State.MySQLPort,

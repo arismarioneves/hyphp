@@ -111,7 +111,7 @@ var dbInits = map[runtime.Kind]dbInit{
 	},
 	runtime.MariaDB: {
 		system: filepath.Join("mysql", "global_priv.frm"),
-		// O instalador e os argumentos são por SO (db_windows.go/db_darwin.go).
+		// O instalador e os argumentos são por SO (db_windows.go/db_unix.go).
 		cmd: func(inst runtime.Installed, _, data string) (string, []string) {
 			return mariadbInitCmd(inst, data)
 		},
