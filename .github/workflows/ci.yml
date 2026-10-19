@@ -1,7 +1,7 @@
 # Checagens do HyPHP. Só roda em push na main (depois do merge feito pelo dono)
 # e por disparo manual. Sem pull_request/pull_request_target: PR de terceiros
 # não executa nada. Sem segredos e sem artefatos: este workflow não gera build
-# de distribuição (isso é o workflow manual de release, na M3).
+# de distribuição (isso é o build.yml).
 name: ci
 
 on:
@@ -70,6 +70,35 @@ jobs:
       # O RemoveWildcardDNS do Mac sempre devolve erro (lá a regra de DNS sai
       # pelo "Remover do sistema"), então o `if err != nil` do SettingsService
       # é sempre verdadeiro no Mac.
+      - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks inherit,-SA4023 $PKGS
+      - run: go test -count=1 ./cmd/... ./services/... ./internal/...
+
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # O Wails compila contra o GTK4 e o WebKitGTK 6.0 no Linux.
+      - name: dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+      - run: go build $PKGS
+      - run: go vet $PKGS
+      # Como no Mac, o RemoveWildcardDNS do Linux sempre devolve erro, então o
+      # `if err != nil` do SettingsService é sempre verdadeiro.
       - run: go run honnef.co/go/tools/cmd/staticcheck@2026.2.1 -checks inherit,-SA4023 $PKGS
       - run: go test -count=1 ./cmd/... ./services/... ./internal/...
 

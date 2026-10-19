@@ -4,10 +4,10 @@ Valem para quem contribui e para agentes de código.
 
 ## O projeto
 
-- **App desktop:** Windows e macOS, em Go 1.26 com Wails v3 (`main.go`, `services/`, `internal/`) e interface em React com TypeScript (`frontend/`).
+- **App desktop:** Windows e macOS (Linux em desenvolvimento), em Go 1.26 com Wails v3 (`main.go`, `services/`, `internal/`) e interface em React com TypeScript (`frontend/`).
 - **CLI:** `cmd/hyphp`.
 - **Site:** `web/`, com regras próprias em [`web/README.pt-BR.md`](web/README.pt-BR.md).
-- **Código de um SO só:** fica em arquivos `_windows.go` e `_darwin.go`. O comportamento de um SO só muda de propósito, nunca como efeito colateral de mudar o outro.
+- **Código de um SO só:** fica em arquivos `_windows.go`, `_darwin.go` e `_linux.go`; o que o Mac e o Linux fazem igual fica em `_unix.go`, com `//go:build darwin || linux` (o sufixo `_unix` sozinho não restringe nada). O comportamento de um SO só muda de propósito, nunca como efeito colateral de mudar o outro.
 
 ## Comentários no código
 
@@ -51,10 +51,11 @@ npx --prefix frontend tsc --noEmit -p frontend
 npm --prefix frontend test
 ```
 
-- **No Windows:** confira também o código do macOS. O `main.go` e o `services/` precisam do Wails nativo e só compilam num Mac.
+- **No Windows:** confira também o código do macOS e do Linux. O `main.go` e o `services/` precisam do Wails nativo e só compilam no próprio sistema (no CI).
 
   ```sh
   GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go vet ./internal/... ./cmd/hyphp/ ./cmd/hyphp-release/ ./cmd/hyphp-helper/
+  GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go vet ./internal/... ./cmd/hyphp/ ./cmd/hyphp-release/ ./cmd/hyphp-helper/
   ```
 
 - **Site:** `node .github/scripts/site.mjs conferir`.
