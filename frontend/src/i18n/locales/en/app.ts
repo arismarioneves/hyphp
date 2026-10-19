@@ -23,6 +23,7 @@ export const app: typeof base = {
   maximize: 'Maximize',
   close: 'Close',
   closeTitle: 'Close (keeps running in the tray)',
+  closeTitleNoTray: 'Close (minimizes)',
   updateReady: 'ready to install.',
   updateReadyHint: ' Services will stop and Windows will ask for permission.',
   updateAndRestart: 'Update and restart',

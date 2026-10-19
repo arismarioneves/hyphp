@@ -35,10 +35,12 @@ export const runtimes: typeof base = {
   brewInstallCmd: 'brew install {formula}',
   brewMissingTitle: 'Homebrew not found',
   brewMissingBody: 'On the Mac, HyPHP installs PHP, servers and databases through Homebrew. Run the command below in Terminal, then click Check again.',
+  brewMissingBodyLinux: 'On Linux, HyPHP installs PHP, servers and databases through Homebrew. Run the command below in a terminal, then click Check again.',
   brewCopyAria: 'Copy Homebrew install command',
   brewCheckAgain: 'Check again',
   removeConfirmBrew: 'Run brew uninstall {formula}? Other tools that use this formula may stop working.',
   builtin: 'built-in',
   noModules: 'No loadable modules.',
   phpHintBrew: 'PHP versions come from Homebrew: install below or from Terminal and they show up here.',
+  phpHintBrewLinux: 'PHP versions come from Homebrew: install below or from a terminal and they show up here.',
 }

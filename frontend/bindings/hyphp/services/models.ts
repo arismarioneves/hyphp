@@ -39,7 +39,7 @@ export interface About {
 
 /**
  * BrewStatus diz à UI se a plataforma usa Homebrew e se ele foi encontrado.
- * Supported=false no Windows: é também o sinal de plataforma do frontend.
+ * Supported=false no Windows, onde os runtimes vêm do catálogo.
  */
 export interface BrewStatus {
     "supported": boolean;

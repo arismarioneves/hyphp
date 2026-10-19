@@ -2,6 +2,7 @@ import { Window } from '@wailsio/runtime';
 import { Minus, Square, X } from '@phosphor-icons/react';
 import { Logo } from './Logo';
 import { useT } from '../i18n';
+import { usePlatform } from '../lib/platform';
 
 async function toggleMaximise() {
   if (await Window.IsMaximised()) {
@@ -16,6 +17,7 @@ const BTN =
 
 export function TitleBar() {
   const t = useT('app');
+  const { tray } = usePlatform();
   return (
     <header
       className="drag flex h-10 shrink-0 items-center justify-between border-b border-border bg-bg-sidebar"
@@ -37,7 +39,7 @@ export function TitleBar() {
           type="button"
           className={`${BTN} hover:bg-err hover:text-white`}
           aria-label={t('close')}
-          title={t('closeTitle')}
+          title={tray ? t('closeTitle') : t('closeTitleNoTray')}
           onClick={() => Window.Close()}
         >
           <X size={16} />
