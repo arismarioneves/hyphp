@@ -1,0 +1,8 @@
+{
+  "pt": [
+    "Runtimes no Windows ocupam menos disco: os símbolos de depuração (.pdb) dos zips oficiais deixam de ser extraídos. O MySQL 8.4 cai de 1,2 GB para cerca de 510 MB e o MariaDB 11.4, de 290 MB para cerca de 220 MB. Vale para o que for instalado a partir desta versão; um runtime já instalado mantém os arquivos até ser reinstalado."
+  ],
+  "en": [
+    "Runtimes on Windows take less disk space: the debug symbols (.pdb) in the official zips are no longer extracted. MySQL 8.4 goes from 1.2 GB to about 510 MB and MariaDB 11.4 from 290 MB to about 220 MB. Applies to runtimes installed from this version on; a runtime already installed keeps the files until it is reinstalled."
+  ]
+}
