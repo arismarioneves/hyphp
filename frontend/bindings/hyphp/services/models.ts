@@ -139,3 +139,26 @@ export interface LogSource {
     "name": string;
     "group": string;
 }
+
+/**
+ * Platform é o sistema em que o app roda e o que a sessão gráfica oferece. A
+ * interface escolhe os textos por ele e o relê no evento platform:changed.
+ */
+export interface Platform {
+    /**
+     * runtime.GOOS: "windows", "darwin", "linux"
+     */
+    "os": string;
+
+    /**
+     * Tray: com bandeja, fechar esconde a janela; sem ela (GNOME sem a
+     * extensão AppIndicator), minimiza.
+     */
+    "tray": boolean;
+
+    /**
+     * Dark é o tema escuro do sistema. Só o Linux o usa: lá o WebView não o
+     * segue no prefers-color-scheme.
+     */
+    "dark": boolean;
+}

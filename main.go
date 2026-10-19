@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync/atomic"
 	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -122,8 +123,10 @@ func main() {
 		stk     *stack.Stack
 		watcher *project.Watcher
 		stopFwd func()
-		stopUpd context.CancelFunc
-		updItem *application.MenuItem
+		// stopBackground encerra o que roda desde o ApplicationStarted:
+		// updater, catálogo, vigias da bandeja e dos serviços.
+		stopBackground context.CancelFunc
+		updItem        *application.MenuItem
 		// relabelTray reescreve o menu no idioma atual; no-op até o tray existir.
 		relabelTray = func() {}
 	)
@@ -136,6 +139,13 @@ func main() {
 		},
 		Windows: application.WindowsOptions{
 			DisableQuitOnLastWindowClosed: true,
+		},
+		// O ApplicationID é o nome do .desktop (o do autostart também): é por
+		// ele que o painel acha o ícone e o nome da janela.
+		Linux: application.LinuxOptions{
+			DisableQuitOnLastWindowClosed: true,
+			ProgramName:                   "hyphp",
+			ApplicationID:                 "com.hyphp.app",
 		},
 		// No Mac fechar a janela só a esconde (o app segue na barra de menus),
 		// o mesmo comportamento da bandeja no Windows.
@@ -154,8 +164,8 @@ func main() {
 		},
 		OnShutdown: func() {
 			// hyphp: shutdown — ordem inversa do boot
-			if stopUpd != nil {
-				stopUpd()
+			if stopBackground != nil {
+				stopBackground()
 			}
 			if watcher != nil {
 				_ = watcher.Close()
@@ -357,9 +367,17 @@ func main() {
 		}
 	}
 	refreshPathLinks()
+	// A bandeja e o tema do sistema podem mudar com o app aberto (a extensão
+	// de bandeja desligada, o tema trocado); a interface relê no
+	// platform:changed.
+	var hasTray, dark atomic.Bool
+	hasTray.Store(trayHost())
+	dark.Store(systemDarkMode())
 	appSvc := services.NewAppService(services.AppDeps{
 		Quit: app.Quit, State: stk.State, Logger: logger,
 		DefaultPHP: defaultPHP,
+		Tray:       hasTray.Load,
+		Dark:       dark.Load,
 	})
 	svcSvc := services.NewServicesService(services.ServicesDeps{Sup: sup, Stack: stk, Logger: logger})
 	setSvc := services.NewSettingsService(stk, emit, func() { relabelTray() }, refreshPathLinks)
@@ -397,8 +415,14 @@ func main() {
 	stopFwd = services.ForwardServiceEvents(app, sup)
 
 	// janela (plano 01). Aberta pelo login com a opção ligada, nasce
-	// escondida e o app fica só na bandeja; clicar no ícone ou abrir o app de
-	// novo mostra a janela.
+	// escondida e o app fica só na bandeja; abrir pelo ícone ou abrir o app de
+	// novo mostra a janela. Sem bandeja nasce minimizada: escondida, ficaria
+	// inalcançável.
+	startHidden := autostart.Hidden(os.Args[1:], st.AutostartHidden)
+	startState := application.WindowStateNormal
+	if startHidden && !hasTray.Load() {
+		startHidden, startState = false, application.WindowStateMinimised
+	}
 	window = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Name:             "main",
 		Title:            "HyPHP",
@@ -407,13 +431,20 @@ func main() {
 		MinWidth:         960,
 		MinHeight:        600,
 		Frameless:        true,
-		Hidden:           autostart.Hidden(os.Args[1:], st.AutostartHidden),
-		BackgroundColour: windowBackground(st.Theme, systemDarkMode()),
+		Hidden:           startHidden,
+		StartState:       startState,
+		BackgroundColour: windowBackground(st.Theme, dark.Load()),
 		URL:              "/",
 	})
+	// Fechar não encerra o app: com bandeja a janela some e o app segue no
+	// ícone; sem bandeja ela minimiza.
 	window.RegisterHook(events.Common.WindowClosing, func(e *application.WindowEvent) {
 		e.Cancel()
-		window.Hide()
+		if hasTray.Load() {
+			window.Hide()
+		} else {
+			window.Minimise()
+		}
 	})
 
 	// tray (plano 01 + itens "Iniciar tudo"/"Parar tudo" deste plano)
@@ -425,9 +456,7 @@ func main() {
 		window.Restore()
 		window.Focus()
 	}
-	// Clique esquerdo abre o app, como em todo ícone de bandeja do Windows; o
-	// padrão do Wails era não fazer nada, e só o menu do clique direito abria.
-	tray.OnClick(showWindow)
+	prepareTray(tray, showWindow)
 	menu := app.NewMenu()
 	openItem := menu.Add(i18n.T("tray.open")).OnClick(func(*application.Context) { showWindow() })
 	startItem := menu.Add(i18n.T("tray.startAll")).OnClick(func(*application.Context) { // hyphp: 06
@@ -449,18 +478,16 @@ func main() {
 		}()
 	})
 	// Só a ação que faz sentido agora: com algo rodando, Parar; com tudo
-	// parado, Iniciar. Decide na hora de abrir o menu, que é quando o estado
-	// importa, sem assinar cada transição dos serviços.
+	// parado, Iniciar. Segue cada transição dos serviços (assinada no
+	// ApplicationStarted), porque no Linux o painel abre o menu sozinho, sem
+	// avisar o app antes.
 	syncStartStop := func() {
 		running := anyRunning(sup.List())
 		startItem.SetHidden(running)
 		stopItem.SetHidden(!running)
 	}
 	syncStartStop()
-	tray.OnRightClick(func() {
-		syncStartStop()
-		tray.OpenMenu()
-	})
+	tray.OnRightClick(tray.OpenMenu)
 	// Oculto até haver versão pronta; syncUpdateItem mostra e rotula.
 	updItem = menu.Add(i18n.T("tray.update")).SetHidden(true).OnClick(func(*application.Context) {
 		go func() {
@@ -498,17 +525,19 @@ func main() {
 	// O updater só começa depois que o Wails sobe: o primeiro OnStatus pode
 	// sair já no Start (resultado do update anterior), e syncUpdateItem usa
 	// InvokeAsync, que antes de app.Run() desreferencia um impl nil e derruba
-	// o processo — exatamente no boot que vem logo depois de um update.
-	updCtx, cancelUpd := context.WithCancel(context.Background())
-	stopUpd = cancelUpd
+	// o processo — exatamente no boot que vem logo depois de um update. Os
+	// vigias da bandeja e dos serviços também mexem na janela e no menu, e
+	// esperam pelo mesmo motivo.
+	bgCtx, cancelBg := context.WithCancel(context.Background())
+	stopBackground = cancelBg
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(*application.ApplicationEvent) {
-		upd.Start(updCtx)
+		upd.Start(bgCtx)
 		catalogURL, err := pkgmgr.DefaultCatalogURL()
 		if err != nil {
 			logger.Warn("URL do catálogo", "err", err)
 			catalogURL = pkgmgr.CatalogURL
 		}
-		catalogSrc.Run(updCtx, pkgmgr.RemoteConfig{
+		catalogSrc.Run(bgCtx, pkgmgr.RemoteConfig{
 			URL:    catalogURL,
 			Client: &http.Client{Timeout: 30 * time.Second},
 			Logger: logger,
@@ -521,6 +550,44 @@ func main() {
 				}
 			},
 		})
+
+		svcEvents, unsubscribe := sup.Subscribe()
+		go func() {
+			defer unsubscribe()
+			for {
+				select {
+				case <-bgCtx.Done():
+					return
+				case <-svcEvents:
+					application.InvokeAsync(syncStartStop)
+				}
+			}
+		}()
+		// O boot pode ter subido serviços antes da assinatura.
+		application.InvokeAsync(syncStartStop)
+
+		// O vigia avisa o estado logo ao começar, que pode ter mudado desde a
+		// leitura do boot, e depois cada mudança. Sem bandeja, a janela
+		// escondida ficaria inalcançável: ela volta, minimizada.
+		onTray := func(present bool) {
+			if hasTray.Swap(present) == present {
+				return
+			}
+			emit("platform:changed", appSvc.Platform())
+			if !present && !window.IsVisible() {
+				window.Show()
+				window.Minimise()
+			}
+		}
+		if err := watchTrayHost(bgCtx, onTray); err != nil {
+			logger.Warn("vigiar a bandeja", "err", err)
+		}
+	})
+	// O WebView do Linux não repassa o tema do sistema ao CSS; a interface
+	// usa o Platform.Dark.
+	app.Event.OnApplicationEvent(events.Common.ThemeChanged, func(*application.ApplicationEvent) {
+		dark.Store(systemDarkMode())
+		emit("platform:changed", appSvc.Platform())
 	})
 
 	if err := app.Run(); err != nil {
