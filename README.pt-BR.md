@@ -159,7 +159,7 @@ saída é `0` ok, `1` erro do app, `2` uso errado, `3` app fechado.
 | Assinatura | ainda não (aviso do SmartScreen) | ad hoc, sem notarização (aviso do Gatekeeper na primeira abertura) |
 
 `HYPHP_ROOT` sobrescreve a raiz de dados nos dois. O código de um SO só fica em arquivos
-`_windows.go` e `_darwin.go`.
+`_windows.go`, `_darwin.go` e `_linux.go`; o comum ao macOS e ao Linux, em arquivos `_unix.go`.
 
 ## Stack
 

@@ -158,8 +158,8 @@ For scripts and AI agents: every command accepts `--json` (errors too), and the 
 | Data root | next to the executable if writable, otherwise `%LOCALAPPDATA%\HyPHP` | `~/Library/Application Support/HyPHP` |
 | Signature | none yet (SmartScreen warning) | ad hoc, not notarized (Gatekeeper warning on the first launch) |
 
-`HYPHP_ROOT` overrides the data root on both. OS-specific code lives in `_windows.go` and
-`_darwin.go` files.
+`HYPHP_ROOT` overrides the data root on both. OS-specific code lives in `_windows.go`,
+`_darwin.go` and `_linux.go` files; code shared by macOS and Linux lives in `_unix.go` files.
 
 ## Stack
 

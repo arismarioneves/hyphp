@@ -9,9 +9,6 @@
 # Há duas aprovações: no job verificar, antes de compilar, e no job publicar,
 # com os dois instaladores prontos. Só o publicar usa segredos e só ele
 # escreve no GitHub. Sem gatilho de pull request.
-#
-# verificar e publicar rodam no Windows: o hyphp-release importa o
-# internal/update, que só compila no Windows e no Mac.
 name: build
 
 on:
