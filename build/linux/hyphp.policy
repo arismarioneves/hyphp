@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Action do polkit para o helper do HyPHP: com ela, a janela de senha do
+  pkexec diz que é o HyPHP, em vez do texto genérico. A mensagem é a mesma do
+  elevate.prompt dos catálogos (internal/i18n).
+
+  @ID@ e @HELPER@ são o id da action e o caminho do hyphp-helper, trocados por
+  quem instala (`wails3 task linux:polkit` para o build local). auth_admin pede
+  a senha a cada ação, como o Mac e o UAC.
+-->
+<policyconfig>
+  <vendor>HyPHP</vendor>
+  <action id="@ID@">
+    <description>Change the system configuration for HyPHP</description>
+    <description xml:lang="pt_BR">Alterar a configuração do sistema para o HyPHP</description>
+    <message>HyPHP needs administrator permission to change the system configuration.</message>
+    <message xml:lang="pt_BR">O HyPHP precisa de permissão de administrador para alterar a configuração do sistema.</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">@HELPER@</annotate>
+  </action>
+</policyconfig>

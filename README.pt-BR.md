@@ -243,12 +243,15 @@ wails3 dev        # desenvolvimento com hot reload
 wails3 build      # binário em bin/
 ```
 
-No Linux, o build vai para `bin/hyphp`, com a CLI em `bin/cli/hyphp`. No Ubuntu 24.04 e
-derivados, o AppArmor só deixa o WebKit isolar a página da interface com um perfil; sem ele, o
-app cai ao abrir a janela. Instale o perfil do build local uma vez (pede sudo):
+No Linux, o build vai para `bin/hyphp`, com a CLI em `bin/cli/hyphp` e o helper em
+`bin/hyphp-helper`. No Ubuntu 24.04 e derivados, o AppArmor só deixa o WebKit isolar a página
+da interface com um perfil; sem ele, o app cai ao abrir a janela. As ações que pedem senha
+passam pelo `pkexec`; com a action do polkit, a janela de senha diz que é o HyPHP. Instale os
+dois uma vez (pedem sudo):
 
 ```bash
-wails3 task linux:apparmor
+wails3 task linux:apparmor   # Ubuntu 24.04 e derivados
+wails3 task linux:polkit
 ```
 
 Empacotar:
