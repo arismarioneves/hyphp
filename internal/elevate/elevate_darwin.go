@@ -3,7 +3,6 @@ package elevate
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,10 +13,6 @@ import (
 
 	"hyphp/internal/i18n"
 )
-
-// helperTimeout é o prazo do Windows (helperTimeoutMS): uma janela de senha
-// esquecida aberta não prende a ação para sempre.
-const helperTimeout = 120 * time.Second
 
 // adminScript recebe em argv o texto da janela, o helper e os argumentos, e
 // cita cada um com `quoted form of`: nada de fora vira código de shell. O
@@ -94,14 +89,7 @@ func helperResult(out string) error {
 	if code == 0 {
 		return nil
 	}
-	body := strings.TrimSpace(out[:i])
-	var res struct {
-		Error string `json:"error"`
-	}
-	if json.Unmarshal([]byte(body), &res) == nil && res.Error != "" {
-		return &HelperError{ExitCode: code, Message: res.Error}
-	}
-	return &HelperError{ExitCode: code, Message: body}
+	return helperFailure(code, out[:i])
 }
 
 // HelperPath devolve o hyphp-helper do bundle em execução.

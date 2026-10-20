@@ -33,6 +33,16 @@ func webMissingMessage(name state.WebServerName) string {
 	return i18n.T("warn.webMissing", name, filepath.Join(paths.Bin(), string(name)))
 }
 
+// hostsCancelled: no Windows a gravação do hosts sobe pelo UAC.
+func hostsCancelled(change string) error { return i18n.Errorf("err.stack.hostsCancelled", change) }
+
+// portsBelowLimit: o Windows abre as portas baixas sem administrador.
+func portsBelowLimit(state.State) []Warning { return nil }
+
+// ApplyPorts: no Windows as portas baixas abrem sem UAC, então não há limite
+// a liberar.
+func (s *Stack) ApplyPorts(context.Context) error { return nil }
+
 // trustCA instala a CA pelo helper elevado (mkcert -install sob UAC).
 func (s *Stack) trustCA(mk netcfg.Mkcert) error {
 	helper, herr := elevate.HelperPath()

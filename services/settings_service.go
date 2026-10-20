@@ -109,18 +109,32 @@ func (s *SettingsService) RemoveWildcardDNS() error {
 	return nil
 }
 
-// SystemChanges diz o que o HyPHP gravou no sistema (só no Mac), para o card
-// Permissões oferecer o "Remover do sistema".
+// SystemChanges diz o que o HyPHP gravou no sistema (no Mac e no Linux), para
+// o card Permissões oferecer o "Remover do sistema".
 func (s *SettingsService) SystemChanges() stack.SystemChanges {
 	return s.stk.SystemChanges()
 }
 
-// RemoveSystemChanges desfaz a regra de DNS, o PATH e a confiança na CA com
-// uma senha. Ação explícita, como as outras que pedem senha.
+// RemoveSystemChanges desfaz com uma senha o que o HyPHP gravou no sistema
+// (regra de DNS, PATH, confiança na CA e, no Linux, o bloco do hosts e o
+// limite das portas). Ação explícita, como as outras que pedem senha.
 func (s *SettingsService) RemoveSystemChanges() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 	if err := s.stk.RemoveSystemChanges(ctx); err != nil {
+		return err
+	}
+	s.emit("stack:warnings", s.stk.Warnings())
+	return nil
+}
+
+// ApplyPorts libera, no Linux, as portas baixas que a stack usa (80 e 443 por
+// padrão). Pede senha, por isso é ação explícita: o Reconcile apenas reporta
+// "ports-pending".
+func (s *SettingsService) ApplyPorts() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	if err := s.stk.ApplyPorts(ctx); err != nil {
 		return err
 	}
 	s.emit("stack:warnings", s.stk.Warnings())

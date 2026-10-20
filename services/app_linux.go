@@ -2,12 +2,15 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"hyphp/internal/elevate"
 	"hyphp/internal/i18n"
 	"hyphp/internal/paths"
 	"hyphp/internal/runtime"
@@ -66,15 +69,51 @@ func readUserPath() (string, error) {
 	return out[strings.LastIndexByte(out, '\n')+1:], nil
 }
 
-// ensurePathsD: o HyPHP ainda não grava o PATH do sistema no Linux.
-func ensurePathsD() error { return i18n.Errorf("err.linux.unavailable") }
+// addCLIToUserPath põe o atalho hyphp na pasta cli e registra a pasta no
+// /etc/profile.d (senha só na primeira vez).
+func addCLIToUserPath(exe string) error {
+	if err := relink(filepath.Join(paths.Cli(), "hyphp"), exe); err != nil {
+		return err
+	}
+	return ensureProfileD()
+}
 
-// addCLIToUserPath: idem ensurePathsD. Falha antes de criar a pasta cli, para
-// não deixar um atalho que nenhum PATH alcança.
-func addCLIToUserPath(string) error { return ensurePathsD() }
+// addPHPToUserPath aponta o php-bin para a pasta bin da série padrão. A partir
+// daí RefreshPathLinks o reaponta quando a série muda, sem senha.
+func addPHPToUserPath(inst runtime.Installed) error {
+	if err := relink(filepath.Join(paths.Cli(), paths.PhpBin), filepath.Join(inst.Dir, "bin")); err != nil {
+		return err
+	}
+	return ensureProfileD()
+}
 
-// addPHPToUserPath: idem addCLIToUserPath.
-func addPHPToUserPath(runtime.Installed) error { return ensurePathsD() }
+// ensureProfileD pede a senha só quando o /etc/profile.d/hyphp.sh ainda não
+// tem a pasta cli deste usuário. Depois confere se o shell de login dele lê o
+// arquivo: o bash e o dash leem pelo /etc/profile, o zsh e o fish não, e sem o
+// aviso o botão pareceria não ter feito nada.
+func ensureProfileD() error {
+	if !paths.ProfileDRegistered() {
+		helper, err := elevate.HelperPath()
+		if err != nil {
+			return i18n.Errorf("err.stack.helperUnavailable", err)
+		}
+		switch err := elevate.RunElevated(helper, []string{"profile-write", "--dir", paths.Cli()}); {
+		case errors.Is(err, elevate.ErrElevationDenied):
+			return errors.New(i18n.T("err.path.cancelled"))
+		case err != nil:
+			return fmt.Errorf("helper profile-write: %w", err)
+		}
+	}
+	current, err := readUserPath()
+	if err != nil {
+		// Sem o PATH do shell não há como conferir; o arquivo está gravado.
+		return nil
+	}
+	if _, missing := pathComDir(current, paths.Cli()); missing {
+		return errors.New(i18n.T("err.path.shellNoProfile", paths.ProfileDFile, loginShellPath(), paths.ProfileDFile))
+	}
+	return nil
+}
 
 // shadowingPHP pergunta ao shell de login qual php ele acha. Sem php nenhum,
 // nada a avisar.
@@ -87,13 +126,18 @@ func shadowingPHP() (string, error) {
 	return phpShadow(strings.TrimSpace(lines[len(lines)-1]), paths.Cli()), nil
 }
 
-// loginShell roda script no shell do usuário ($SHELL, ou /bin/sh) como shell
-// de login, que lê os mesmos arquivos de perfil que o terminal.
-func loginShell(script string) (string, error) {
-	sh := os.Getenv("SHELL")
-	if sh == "" {
-		sh = "/bin/sh"
+// loginShellPath é o shell do usuário ($SHELL, ou /bin/sh).
+func loginShellPath() string {
+	if sh := os.Getenv("SHELL"); sh != "" {
+		return sh
 	}
+	return "/bin/sh"
+}
+
+// loginShell roda script no shell do usuário como shell de login, que lê os
+// mesmos arquivos de perfil que o terminal.
+func loginShell(script string) (string, error) {
+	sh := loginShellPath()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	out, err := exec.CommandContext(ctx, sh, "-lc", script).Output()

@@ -267,6 +267,9 @@ func (s *Stack) reconcileLocked(ctx context.Context) ([]Warning, error) {
 	if web == nil {
 		warnings = append(warnings, Warning{Code: "web-missing", Message: webMissingMessage(st.WebServer)})
 	}
+	// Portas abaixo do limite sem root (só o Linux tem um): o serviço cairia
+	// ao subir, e o aviso leva ao botão que baixa o limite.
+	warnings = append(warnings, portsBelowLimit(st)...)
 
 	tlsFn, tlsWarns := s.tlsIssuer()
 	warnings = append(warnings, tlsWarns...)
@@ -754,12 +757,13 @@ func (s *Stack) syncHosts(sites []webserver.Site) ([]Warning, error) {
 	}}, nil
 }
 
-// ApplyHosts grava o bloco do hosts pelo helper elevado. É a ÚNICA porta que
-// dispara UAC por causa de domínios, e só é chamada por ação explícita do
+// ApplyHosts grava o bloco do hosts pelo helper elevado (UAC no Windows, a
+// senha do polkit no Linux sem systemd-resolved). É a ÚNICA porta que pede
+// privilégio por causa de domínios, e só é chamada por ação explícita do
 // usuário (SettingsService.ApplyHosts → botão na UI).
 func (s *Stack) ApplyHosts(ctx context.Context) error {
 	if !manageHosts() {
-		return errors.New(i18n.T("err.stack.hostsMac"))
+		return errors.New(i18n.T("err.stack.hostsByDNS"))
 	}
 	s.lock()
 	sites := append([]webserver.Site(nil), s.lastSites...)
@@ -785,7 +789,7 @@ func (s *Stack) ApplyHosts(ctx context.Context) error {
 	}
 	switch err := elevate.RunElevated(helper, []string{"hosts-write", "--from", tmp}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return i18n.Errorf("err.stack.hostsCancelled", hostsChange(have, want))
+		return hostsCancelled(hostsChange(have, want))
 	case err != nil:
 		return fmt.Errorf("stack: helper hosts-write: %w", err)
 	}
