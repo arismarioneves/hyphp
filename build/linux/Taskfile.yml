@@ -30,6 +30,16 @@ tasks:
       - sed -e 's|@NOME@|hyphp-dev|g' -e 's|@EXE@|{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}|g' build/linux/hyphp.apparmor | sudo tee /etc/apparmor.d/hyphp-dev >/dev/null
       - sudo apparmor_parser -r /etc/apparmor.d/hyphp-dev
 
+  polkit:
+    summary: Installs the polkit action that names HyPHP in the local build's password prompt (asks for sudo)
+    preconditions:
+      - sh: test -d /usr/share/polkit-1/actions
+        msg: "/usr/share/polkit-1/actions not found: install polkit and pkexec"
+    cmds:
+      # Action com id próprio, presa ao caminho do bin/hyphp-helper deste
+      # repositório. O polkit relê a pasta sozinho.
+      - sed -e 's|@ID@|com.hyphp.app.dev.helper|g' -e 's|@HELPER@|{{.ROOT_DIR}}/{{.BIN_DIR}}/hyphp-helper|g' build/linux/hyphp.policy | sudo tee /usr/share/polkit-1/actions/com.hyphp.app.dev.policy >/dev/null
+
   build:
     summary: Builds the application for Linux
     cmds:

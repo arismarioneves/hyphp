@@ -243,12 +243,15 @@ wails3 dev        # development with hot reload
 wails3 build      # binary in bin/
 ```
 
-On Linux, the build goes to `bin/hyphp`, with the CLI in `bin/cli/hyphp`. On Ubuntu 24.04 and
-derivatives, AppArmor only lets WebKit sandbox the interface page with a profile; without it,
-the app crashes when the window opens. Install the local build's profile once (asks for sudo):
+On Linux, the build goes to `bin/hyphp`, with the CLI in `bin/cli/hyphp` and the helper in
+`bin/hyphp-helper`. On Ubuntu 24.04 and derivatives, AppArmor only lets WebKit sandbox the
+interface page with a profile; without it, the app crashes when the window opens. Actions that
+ask for a password go through `pkexec`; with the polkit action, the password prompt says it is
+HyPHP. Install both once (they ask for sudo):
 
 ```bash
-wails3 task linux:apparmor
+wails3 task linux:apparmor   # Ubuntu 24.04 and derivatives
+wails3 task linux:polkit
 ```
 
 Packaging:
