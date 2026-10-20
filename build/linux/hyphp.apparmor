@@ -1,0 +1,17 @@
+# Perfil do AppArmor do HyPHP. No Ubuntu 24.04 e derivados, o AppArmor só
+# deixa criar user namespaces quem tem perfil com `userns`. O WebKitGTK isola a
+# página da interface com o bwrap, que precisa disso; sem o perfil, o app cai
+# ao abrir a janela. O perfil não restringe mais nada (unconfined), e os
+# processos que o app inicia, o bwrap entre eles, herdam o perfil.
+#
+# @NOME@ e @EXE@ são o nome do perfil e o caminho do executável, trocados por
+# quem instala (`wails3 task linux:apparmor` para o build local).
+
+abi <abi/4.0>,
+include <tunables/global>
+
+profile @NOME@ "@EXE@" flags=(unconfined) {
+  userns,
+
+  include if exists <local/@NOME@>
+}

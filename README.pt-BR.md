@@ -243,6 +243,14 @@ wails3 dev        # desenvolvimento com hot reload
 wails3 build      # binário em bin/
 ```
 
+No Linux, o build vai para `bin/hyphp`, com a CLI em `bin/cli/hyphp`. No Ubuntu 24.04 e
+derivados, o AppArmor só deixa o WebKit isolar a página da interface com um perfil; sem ele, o
+app cai ao abrir a janela. Instale o perfil do build local uma vez (pede sudo):
+
+```bash
+wails3 task linux:apparmor
+```
+
 Empacotar:
 
 ```powershell

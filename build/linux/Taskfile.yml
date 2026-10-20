@@ -19,6 +19,17 @@ tasks:
     cmds:
       - task: build:cli
 
+  apparmor:
+    summary: Installs the AppArmor profile that lets the local build's WebKit sandbox the page (Ubuntu 24.04 and derivatives; asks for sudo)
+    preconditions:
+      - sh: command -v apparmor_parser >/dev/null 2>&1
+        msg: "apparmor_parser not found: this system does not use AppArmor, and the profile is not needed"
+    cmds:
+      # Perfil com nome próprio, preso ao caminho do bin/hyphp deste
+      # repositório.
+      - sed -e 's|@NOME@|hyphp-dev|g' -e 's|@EXE@|{{.ROOT_DIR}}/{{.BIN_DIR}}/{{.APP_NAME}}|g' build/linux/hyphp.apparmor | sudo tee /etc/apparmor.d/hyphp-dev >/dev/null
+      - sudo apparmor_parser -r /etc/apparmor.d/hyphp-dev
+
   build:
     summary: Builds the application for Linux
     cmds:
