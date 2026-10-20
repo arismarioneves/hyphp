@@ -59,11 +59,13 @@ ao_sair() {
 	# O WebKitGTK isola o processo da página com o bwrap, que depende de user
 	# namespaces sem privilégio.
 	sysctl kernel.apparmor_restrict_unprivileged_userns kernel.unprivileged_userns_clone || true
-	# Num crash, o motivo fica no começo da saída e os registradores no fim.
+	if bwrap --unshare-user --ro-bind / / true; then echo "bwrap com user namespace: ok"; fi
+	# Num crash do Go, o motivo vem na linha do sinal ou do fatal error, e o
+	# que o GTK ou o WebKit escreveu vem logo antes dela.
+	echo "--- saída do app (motivo do fim)"
+	grep -v -E 'xdg-desktop-portal|^$' "$SAIDA_APP" | grep -m 1 -B 25 -A 6 -E '^(SIG[A-Z]+|fatal error|panic):' || true
 	echo "--- saída do app (começo)"
-	head -n 120 "$SAIDA_APP" || true
-	echo "--- saída do app (fim)"
-	tail -n 40 "$SAIDA_APP" || true
+	head -n 40 "$SAIDA_APP" || true
 	for f in "$ROOT"/log/*.log; do
 		[ -f "$f" ] || continue
 		echo "--- $f"
@@ -86,8 +88,9 @@ get() {
 }
 
 # abrir_app abre o app como a sessão gráfica abriria, num Xvfb e com um D-Bus
-# de sessão próprio, que o SingleInstance exige. Ninguém nesse bus mostra
-# ícones de bandeja: o app se comporta como no GNOME sem a extensão
+# de sessão próprio, que o SingleInstance exige; o bus nasce dentro do Xvfb
+# para os serviços que ele ativa (o portal) terem a tela. Ninguém nesse bus
+# mostra ícones de bandeja: o app se comporta como no GNOME sem a extensão
 # AppIndicator. O ambiente é o de uma sessão sem o shellenv do Homebrew, como
 # a do app aberto pelo menu: ele acha o Homebrew sozinho no prefixo padrão. A
 # tela padrão do xvfb-run tem 8 bits de cor, que o GTK4 não usa; e o Xvfb não
@@ -95,7 +98,7 @@ get() {
 abrir_app() {
 	env -u HOMEBREW_PREFIX -u HOMEBREW_CELLAR -u HOMEBREW_REPOSITORY PATH="$PATH_SEM_BREW" \
 		GSK_RENDERER=cairo WEBKIT_DISABLE_DMABUF_RENDERER=1 \
-		dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" "$MAIN" >>"$SAIDA_APP" 2>&1 &
+		xvfb-run -a -s "-screen 0 1920x1080x24" dbus-run-session -- "$MAIN" >>"$SAIDA_APP" 2>&1 &
 }
 
 # app_pid acha o processo do app pela linha de comando exata: o xvfb-run e o
