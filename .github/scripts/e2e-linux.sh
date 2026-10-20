@@ -56,8 +56,14 @@ ao_sair() {
 	ss -ltnp || true
 	pgrep -fa 'hyphp|httpd|nginx|php-fpm|mysqld|mariadbd|mailpit|Xvfb|dbus-daemon' || true
 	ls -la "$ROOT/var/run/procs" || true
-	echo "--- saída do app"
-	tail -n 80 "$SAIDA_APP" || true
+	# O WebKitGTK isola o processo da página com o bwrap, que depende de user
+	# namespaces sem privilégio.
+	sysctl kernel.apparmor_restrict_unprivileged_userns kernel.unprivileged_userns_clone || true
+	# Num crash, o motivo fica no começo da saída e os registradores no fim.
+	echo "--- saída do app (começo)"
+	head -n 120 "$SAIDA_APP" || true
+	echo "--- saída do app (fim)"
+	tail -n 40 "$SAIDA_APP" || true
 	for f in "$ROOT"/log/*.log; do
 		[ -f "$f" ] || continue
 		echo "--- $f"
@@ -83,12 +89,13 @@ get() {
 # de sessão próprio, que o SingleInstance exige. Ninguém nesse bus mostra
 # ícones de bandeja: o app se comporta como no GNOME sem a extensão
 # AppIndicator. O ambiente é o de uma sessão sem o shellenv do Homebrew, como
-# a do app aberto pelo menu: ele acha o Homebrew sozinho no prefixo padrão. O
-# Xvfb não tem GPU, então o GTK e o WebKit desenham sem ela.
+# a do app aberto pelo menu: ele acha o Homebrew sozinho no prefixo padrão. A
+# tela padrão do xvfb-run tem 8 bits de cor, que o GTK4 não usa; e o Xvfb não
+# tem GPU, então o GTK e o WebKit desenham sem ela.
 abrir_app() {
 	env -u HOMEBREW_PREFIX -u HOMEBREW_CELLAR -u HOMEBREW_REPOSITORY PATH="$PATH_SEM_BREW" \
 		GSK_RENDERER=cairo WEBKIT_DISABLE_DMABUF_RENDERER=1 \
-		dbus-run-session -- xvfb-run -a "$MAIN" >>"$SAIDA_APP" 2>&1 &
+		dbus-run-session -- xvfb-run -a -s "-screen 0 1920x1080x24" "$MAIN" >>"$SAIDA_APP" 2>&1 &
 }
 
 # app_pid acha o processo do app pela linha de comando exata: o xvfb-run e o
@@ -99,13 +106,18 @@ app_pid() {
 
 # esperar_pronto espera a CLI responder com todos os serviços prontos e os
 # quatro grupos do roteiro presentes. Antes disso o socket pode nem existir.
+# Um app que morreu não fica pronto: depois de ele ter tido tempo de abrir, a
+# espera acaba na hora.
 esperar_pronto() {
-	local limite=$((SECONDS + $1)) s
+	local inicio=$SECONDS limite=$((SECONDS + $1)) s
 	while [ "$SECONDS" -lt "$limite" ]; do
 		if s=$("$CLI" services --json 2>/dev/null) &&
 			jq -e 'length > 0 and all(.[]; .state == "ready")
 				and ([.[].group] | contains(["web", "php", "db", "mail"]))' <<<"$s" >/dev/null; then
 			return 0
+		fi
+		if [ $((SECONDS - inicio)) -gt 15 ] && ! app_pid >/dev/null; then
+			falha "o app terminou antes de os serviços ficarem prontos"
 		fi
 		sleep 3
 	done
