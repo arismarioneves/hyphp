@@ -160,5 +160,9 @@ jobs:
         run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
       - name: build
         run: wails3 task linux:build
+      # O runner restringe user namespaces como o Ubuntu desktop: sem o perfil,
+      # o WebKit não isola a página e o app cai ao abrir a janela.
+      - name: perfil do AppArmor
+        run: wails3 task linux:apparmor
       - name: e2e
         run: bash .github/scripts/e2e-linux.sh

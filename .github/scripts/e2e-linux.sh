@@ -15,7 +15,8 @@
 # As portas 80 e 443, o hosts, a CA e o PATH pedem privilégio de administrador
 # e ficam de fora: o site responde na 8080, pelo cabeçalho Host.
 #
-# Uso: e2e-linux.sh, depois do `wails3 task linux:build`
+# Uso: e2e-linux.sh, depois do `wails3 task linux:build` e do
+# `wails3 task linux:apparmor`
 set -euo pipefail
 
 if [ -z "${CI:-}" ]; then
@@ -56,10 +57,10 @@ ao_sair() {
 	ss -ltnp || true
 	pgrep -fa 'hyphp|httpd|nginx|php-fpm|mysqld|mariadbd|mailpit|Xvfb|dbus-daemon' || true
 	ls -la "$ROOT/var/run/procs" || true
-	# O WebKitGTK isola o processo da página com o bwrap, que depende de user
-	# namespaces sem privilégio.
-	sysctl kernel.apparmor_restrict_unprivileged_userns kernel.unprivileged_userns_clone || true
-	if bwrap --unshare-user --ro-bind / / true; then echo "bwrap com user namespace: ok"; fi
+	# O WebKitGTK isola a página com o bwrap, que só cria user namespaces com o
+	# perfil do AppArmor carregado onde o sistema os restringe.
+	sysctl kernel.apparmor_restrict_unprivileged_userns || true
+	grep -F hyphp-dev /sys/kernel/security/apparmor/profiles || true
 	# Num crash do Go, o motivo vem na linha do sinal ou do fatal error, e o
 	# que o GTK ou o WebKit escreveu vem logo antes dela.
 	echo "--- saída do app (motivo do fim)"
