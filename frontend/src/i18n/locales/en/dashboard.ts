@@ -17,6 +17,7 @@ export const dashboard: typeof base = {
   fixInstallWeb: 'Install web server',
   fixInstallMkcert: 'Install mkcert',
   fixInstallPhp: 'Install PHP',
+  fixApplyPorts: 'Unlock low ports',
   fixApplyHosts: 'Apply domains',
   fixInstallCa: 'Install certificate',
   fixRegisterDns: 'Register DNS rule',

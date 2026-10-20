@@ -15,6 +15,7 @@ export const dashboard = {
   fixInstallWeb: 'Instalar web server',
   fixInstallMkcert: 'Instalar mkcert',
   fixInstallPhp: 'Instalar PHP',
+  fixApplyPorts: 'Liberar portas baixas',
   fixApplyHosts: 'Aplicar domínios',
   fixInstallCa: 'Instalar certificado',
   fixRegisterDns: 'Registrar regra de DNS',

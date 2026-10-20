@@ -38,6 +38,7 @@ const ONDE_RESOLVER: Record<string, { tela?: Screen; run?: () => Promise<void>; 
   'web-missing': { tela: 'runtimes', acao: 'fixInstallWeb' },
   'tls-unavailable': { tela: 'runtimes', acao: 'fixInstallMkcert' },
   'php-missing': { tela: 'runtimes', acao: 'fixInstallPhp' },
+  'ports-pending': { run: SettingsService.ApplyPorts, acao: 'fixApplyPorts' },
   'hosts-pending': { run: SettingsService.ApplyHosts, acao: 'fixApplyHosts' },
   'ca-pending': { run: SettingsService.InstallCA, acao: 'fixInstallCa' },
   'wildcard-pending': { run: SettingsService.ApplyWildcardDNS, acao: 'fixRegisterDns' },

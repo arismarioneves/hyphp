@@ -29,6 +29,15 @@ export function ApplyHosts(): $CancellablePromise<void> {
 }
 
 /**
+ * ApplyPorts libera, no Linux, as portas baixas que a stack usa (80 e 443 por
+ * padrão). Pede senha, por isso é ação explícita: o Reconcile apenas reporta
+ * "ports-pending".
+ */
+export function ApplyPorts(): $CancellablePromise<void> {
+    return $Call.ByID(1387960369);
+}
+
+/**
  * ApplyWildcardDNS registra a regra de DNS que faz *.dominio.test resolver.
  * Pede UAC, por isso é ação explícita: o Reconcile apenas reporta
  * "wildcard-pending".
@@ -57,8 +66,9 @@ export function Languages(): $CancellablePromise<string[] | null> {
 }
 
 /**
- * RemoveSystemChanges desfaz a regra de DNS, o PATH e a confiança na CA com
- * uma senha. Ação explícita, como as outras que pedem senha.
+ * RemoveSystemChanges desfaz com uma senha o que o HyPHP gravou no sistema
+ * (regra de DNS, PATH, confiança na CA e, no Linux, o bloco do hosts e o
+ * limite das portas). Ação explícita, como as outras que pedem senha.
  */
 export function RemoveSystemChanges(): $CancellablePromise<void> {
     return $Call.ByID(445007977);
@@ -120,8 +130,8 @@ export function SwitchWebServer(name: string): $CancellablePromise<void> {
 }
 
 /**
- * SystemChanges diz o que o HyPHP gravou no sistema (só no Mac), para o card
- * Permissões oferecer o "Remover do sistema".
+ * SystemChanges diz o que o HyPHP gravou no sistema (no Mac e no Linux), para
+ * o card Permissões oferecer o "Remover do sistema".
  */
 export function SystemChanges(): $CancellablePromise<stack$0.SystemChanges> {
     return $Call.ByID(4078907833);

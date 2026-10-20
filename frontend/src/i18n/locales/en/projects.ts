@@ -24,7 +24,8 @@ export const projects: typeof base = {
   network: 'NETWORK',
   wildcardDesc: 'Starts the local resolver on 127.0.0.1:53 and registers an NRPT rule (UAC).',
   wildcardDescMac: 'Starts the local resolver on 127.0.0.1:15353 and registers the rule in /etc/resolver (administrator password).',
-  wildcardDescLinux: 'Subdomains depend on the .test DNS rule, which HyPHP does not register on Linux yet.',
+  wildcardDescLinux:
+    'Starts the local resolver on 127.0.0.1:15353 and registers the .test DNS rule in systemd-resolved (administrator password). Without systemd-resolved, subdomains do not resolve.',
   processes: 'PROCESSES',
   noProcesses: 'No processes declared under `processes:` in hyphp.yaml.',
   restarts: ' · {count} restarts',
