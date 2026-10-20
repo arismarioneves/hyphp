@@ -88,7 +88,7 @@ func TestResolvedorNoMacComPortaOcupada(t *testing.T) {
 // gravado, e a ação devolve o motivo em vez de pedir senha.
 func TestAplicarHostsNoMac(t *testing.T) {
 	s := &Stack{}
-	if err := s.ApplyHosts(t.Context()); err == nil || err.Error() != i18n.T("err.stack.hostsMac") {
+	if err := s.ApplyHosts(t.Context()); err == nil || err.Error() != i18n.T("err.stack.hostsByDNS") {
 		t.Fatalf("ApplyHosts = %v", err)
 	}
 }

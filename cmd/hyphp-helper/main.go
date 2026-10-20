@@ -1,9 +1,9 @@
-//go:build windows || darwin
-
 // Command hyphp-helper é o único binário do HyPHP que roda com privilégio de
 // administrador (spec §11). No Windows sobe pelo UAC e grava hosts, regra NRPT
 // e a CA do mkcert; no Mac sobe pelo osascript e grava a regra de DNS, o
-// /etc/paths.d e a confiança na CA. Nada além disso: o conteúdo é montado ou
+// /etc/paths.d e a confiança na CA; no Linux sobe pelo pkexec e grava a regra
+// de DNS do systemd-resolved ou o hosts, o /etc/profile.d, a confiança na CA e
+// o limite das portas baixas. Nada além disso: o conteúdo é montado ou
 // validado aqui, a partir de flags simples.
 //
 // Saída: uma linha de JSON em stdout ({"ok":true} | {"ok":false,"error":"..."}).

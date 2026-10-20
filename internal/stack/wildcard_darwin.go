@@ -74,7 +74,7 @@ func (s *Stack) ApplyWildcardDNS(ctx context.Context) error {
 	ativo := s.resolver != nil
 	s.unlock()
 	if !ativo {
-		return errors.New(i18n.T("err.stack.resolverDownMac", dnsAddr))
+		return errors.New(i18n.T("err.stack.resolverDownLocal", dnsAddr))
 	}
 	helper, err := elevate.HelperPath()
 	if err != nil {
@@ -82,7 +82,7 @@ func (s *Stack) ApplyWildcardDNS(ctx context.Context) error {
 	}
 	switch err := elevate.RunElevated(helper, []string{"resolver-write", "--port", strconv.Itoa(resolverPort)}); {
 	case errors.Is(err, elevate.ErrElevationDenied):
-		return errors.New(i18n.T("err.stack.dnsAddCancelledMac"))
+		return errors.New(i18n.T("err.stack.dnsRuleCancelled"))
 	case err != nil:
 		return fmt.Errorf("helper resolver-write: %w", err)
 	}
