@@ -22,7 +22,8 @@ export const projects = {
   network: 'REDE',
   wildcardDesc: 'Sobe o resolvedor local em 127.0.0.1:53 e registra regra NRPT (UAC).',
   wildcardDescMac: 'Sobe o resolvedor local em 127.0.0.1:15353 e registra a regra em /etc/resolver (senha de administrador).',
-  wildcardDescLinux: 'Os subdomínios dependem da regra de DNS do .test, que o HyPHP ainda não registra no Linux.',
+  wildcardDescLinux:
+    'Sobe o resolvedor local em 127.0.0.1:15353 e registra a regra de DNS do .test no systemd-resolved (senha de administrador). Sem o systemd-resolved, os subdomínios não resolvem.',
   processes: 'PROCESSOS',
   noProcesses: 'Nenhum processo declarado em `processes:` no hyphp.yaml.',
   restarts: ' · {count} restarts',

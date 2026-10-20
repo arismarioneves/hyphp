@@ -27,6 +27,7 @@ import { byOS, usePlatform } from '../lib/platform'
 const HOSTS_PENDING = 'hosts-pending'
 const CA_PENDING = 'ca-pending'
 const WILDCARD_PENDING = 'wildcard-pending'
+const PORTS_PENDING = 'ports-pending'
 
 const WEB_SERVERS: Array<{ name: WebServerName; label: string }> = [
   { name: WebServerName.Apache, label: 'Apache' },
@@ -131,11 +132,10 @@ function ElevatedAction({ warning, label, run }: ElevatedActionProps) {
 }
 
 /**
- * Único ponto do produto que pede privilégio (UAC no Windows, senha no Mac; no
- * Linux as ações ainda respondem que não estão disponíveis). O Reconcile nunca
- * eleva — só reporta as pendências —, então o card aparece com pendência ou,
- * no Mac, com algo gravado no sistema para remover; sem nenhum dos dois, some
- * inteiro.
+ * Único ponto do produto que pede privilégio (UAC no Windows, senha no Mac e,
+ * pelo polkit, no Linux). O Reconcile nunca eleva — só reporta as
+ * pendências —, então o card aparece com pendência ou, no Mac e no Linux, com
+ * algo gravado no sistema para remover; sem nenhum dos dois, some inteiro.
  */
 function PermissionsCard({
   changes,
@@ -151,13 +151,24 @@ function PermissionsCard({
   const hosts = warnings.find((w) => w.code === HOSTS_PENDING)
   const ca = warnings.find((w) => w.code === CA_PENDING)
   const wildcard = warnings.find((w) => w.code === WILDCARD_PENDING)
-  const removable = changes !== null && changes.supported && (changes.dns || changes.path || changes.ca)
-  if (!hosts && !ca && !wildcard && !removable) return null
+  const ports = warnings.find((w) => w.code === PORTS_PENDING)
+  const removable =
+    changes !== null &&
+    changes.supported &&
+    (changes.dns || changes.path || changes.ca || changes.ports || changes.hosts)
+  if (!hosts && !ca && !wildcard && !ports && !removable) return null
   return (
     <Section label={t('permissions')}>
       <p className="text-xs text-fg-faint">
         {t(byOS(os, { windows: 'permissionsHint', darwin: 'permissionsHintMac', linux: 'permissionsHintLinux' }))}
       </p>
+      {ports && (
+        <ElevatedAction
+          warning={ports}
+          label={t('applyPorts')}
+          run={() => SettingsService.ApplyPorts().then(onChanged)}
+        />
+      )}
       {hosts && <ElevatedAction warning={hosts} label={t('applyHosts')} run={SettingsService.ApplyHosts} />}
       {ca && (
         <ElevatedAction
@@ -179,12 +190,13 @@ function PermissionsCard({
 }
 
 /**
- * "Remover do sistema" (só no Mac): uma senha desfaz a regra de DNS, o PATH e
- * a confiança no certificado. Pede confirmação porque os sites deixam de abrir
- * pelo nome até registrar de novo.
+ * "Remover do sistema" (Mac e Linux): uma senha desfaz o que o HyPHP gravou
+ * fora da pasta dele. Pede confirmação porque os sites deixam de abrir pelo
+ * nome até registrar de novo.
  */
 function RemoveSystemAction({ onDone }: { onDone: () => void }) {
   const t = useT('settings')
+  const { os } = usePlatform()
   const [confirming, setConfirming] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -203,7 +215,7 @@ function RemoveSystemAction({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-fg-muted">{t('removeSystemHint')}</p>
+      <p className="text-sm text-fg-muted">{t(os === 'linux' ? 'removeSystemHintLinux' : 'removeSystemHint')}</p>
       {error !== '' && <p className="selectable text-sm text-err">{error}</p>}
       <div className="flex items-center gap-2">
         {confirming ? (

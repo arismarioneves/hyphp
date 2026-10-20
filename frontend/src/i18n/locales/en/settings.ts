@@ -22,17 +22,21 @@ export const settings: typeof base = {
     'These actions require administrator rights and ask for Windows confirmation. No other part of HyPHP elevates privileges.',
   permissionsHintMac:
     'These actions ask for the Mac administrator password. No other part of HyPHP elevates privileges.',
-  permissionsHintLinux: 'These actions are not available on Linux yet.',
+  permissionsHintLinux:
+    'These actions ask for the system administrator password. No other part of HyPHP elevates privileges.',
   removeSystem: 'Remove from system',
   removeSystemHint: 'Undoes the DNS rule, the PATH and the certificate trust written by HyPHP.',
+  removeSystemHintLinux:
+    'Undoes the DNS rule or the domains in hosts, the PATH, the certificate trust and the low-port unlock written by HyPHP.',
   removeSystemConfirm: 'Remove? HyPHP data stays; sites stop opening by name until you register again.',
   cancel: 'Cancel',
+  applyPorts: 'Unlock low ports',
   applyHosts: 'Apply domains',
   installCA: 'Install certificate',
   applyWildcardDNS: 'Register DNS rule',
   pathAdded: "PHP added to the user PATH. Open a new terminal for it to take effect.",
   pathAddedMac: 'PHP on PATH. Open a new Terminal for it to take effect.',
-  pathAddedLinux: 'PHP on PATH. Open a new terminal for it to take effect.',
+  pathAddedLinux: 'PHP on PATH for login shells. In the session’s terminals, it takes effect after logging out and back in.',
   phpShadowed: 'Terminal finds {path} before HyPHP’s PHP.',
   phpShadowedLinux: 'The terminal finds {path} before HyPHP’s PHP.',
   webServer: 'WEB SERVER',
