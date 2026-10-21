@@ -240,16 +240,20 @@ export function About() {
             </ExternalLink>
           </div>
         </Row>
-        <div className="flex flex-col gap-2 text-sm">
-          <span className="text-fg">{t('contributors', { count: contributors.length })}</span>
-          <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {contributors.map((login) => (
-              <ExternalLink key={login} href={`https://github.com/${login}`} onError={setError}>
-                @{login}
-              </ExternalLink>
-            ))}
+        {/* A lista já traz o autor, que está em "Feito por": sozinho, ele
+            apareceria duas vezes. */}
+        {contributors.length > 1 && (
+          <div className="flex flex-col gap-2 text-sm">
+            <span className="text-fg">{t('contributors', { count: contributors.length })}</span>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {contributors.map((login) => (
+                <ExternalLink key={login} href={`https://github.com/${login}`} onError={setError}>
+                  @{login}
+                </ExternalLink>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
         <Row label={t('support')}>
           <ExternalLink href={about.support} onError={setError}>
             {about.support.replace(/^https:\/\//, '')}
