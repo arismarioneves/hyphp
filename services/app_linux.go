@@ -21,41 +21,82 @@ import (
 func shellOpen(target string) error { return start(exec.Command("xdg-open", target)) }
 
 // openInEditor executa o editor configurado com a pasta; vazio cai no VS
-// Code (`code` no PATH), como no Windows.
+// Code (`code` no PATH), como no Windows. Sem o programa, o erro diz onde
+// escolher outro: o do exec só falaria em $PATH.
 func (a *AppService) openInEditor(path string) error {
 	editor := expandEnv(strings.TrimSpace(a.d.State().Editor))
 	if editor == "" {
+		if _, err := exec.LookPath("code"); err != nil {
+			return i18n.Errorf("err.app.noEditor")
+		}
 		editor = "code"
+	}
+	if _, err := exec.LookPath(editor); err != nil {
+		return i18n.Errorf("err.app.editorNotFound", editor)
 	}
 	return start(exec.Command(editor, path))
 }
 
-// terminais são os emuladores tentados quando o usuário não configurou um,
-// com a opção que abre já na pasta. x-terminal-emulator é o padrão do
-// Debian e derivados; os outros cobrem GNOME, KDE e Xfce.
-var terminais = []struct{ exe, dirFlag string }{
-	{"x-terminal-emulator", "--working-directory"},
-	{"gnome-terminal", "--working-directory"},
-	{"konsole", "--workdir"},
-	{"xfce4-terminal", "--working-directory"},
+// terminais são os emuladores tentados quando o usuário não configurou um.
+// x-terminal-emulator é o terminal preferido do Debian e derivados; os outros
+// cobrem o GNOME (o Ptyxis do Ubuntu 25.10 em diante, o Terminal e o Console),
+// o KDE e o Xfce.
+var terminais = []string{"x-terminal-emulator", "ptyxis", "gnome-terminal", "kgx", "konsole", "xfce4-terminal"}
+
+// terminalArgs é a opção que abre o terminal name já na pasta dir. Os que não
+// estão aqui abrem no diretório de trabalho do processo, que já é dir.
+func terminalArgs(name, dir string) []string {
+	switch name {
+	case "ptyxis":
+		// Sem --new-window o Ptyxis só traz para a frente a janela que já
+		// está aberta, na pasta dela.
+		return []string{"--new-window", "--working-directory=" + dir}
+	case "konsole":
+		return []string{"--workdir", dir}
+	case "gnome-terminal", "kgx", "xfce4-terminal", "mate-terminal", "tilix":
+		return []string{"--working-directory=" + dir}
+	}
+	return nil
 }
 
-// openTerminal abre o terminal já na pasta. O configurado roda com a pasta
-// como diretório de trabalho; vazio usa o primeiro da lista que existir.
+// terminalName é o terminal de verdade por trás de exe: o x-terminal-emulator
+// é um link (pelas alternativas do Debian) para o preferido, e o do GNOME
+// Terminal é o gnome-terminal.wrapper.
+func terminalName(exe string) string {
+	if real, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = real
+	}
+	return strings.TrimSuffix(filepath.Base(exe), ".wrapper")
+}
+
+// openTerminal abre o terminal já na pasta: o configurado ou, vazio, o
+// primeiro da lista que existir.
 func (a *AppService) openTerminal(path string) error {
 	if term := expandEnv(strings.TrimSpace(a.d.State().Terminal)); term != "" {
-		cmd := exec.Command(term)
+		exe, err := exec.LookPath(term)
+		if err != nil {
+			return i18n.Errorf("err.app.terminalNotFound", term)
+		}
+		cmd := exec.Command(exe, terminalArgs(terminalName(exe), path)...)
 		cmd.Dir = path
 		return start(cmd)
 	}
 	for _, t := range terminais {
-		if exe, err := exec.LookPath(t.exe); err == nil {
-			cmd := exec.Command(exe, t.dirFlag+"="+path)
-			cmd.Dir = path
-			return start(cmd)
+		exe, err := exec.LookPath(t)
+		if err != nil {
+			continue
 		}
+		name := terminalName(exe)
+		// O wrapper do GNOME Terminal traduz as opções do xterm, não as dele:
+		// a pasta vai direto para o gnome-terminal.
+		if real, err := exec.LookPath(name); err == nil {
+			exe = real
+		}
+		cmd := exec.Command(exe, terminalArgs(name, path)...)
+		cmd.Dir = path
+		return start(cmd)
 	}
-	return start(exec.Command("x-terminal-emulator"))
+	return i18n.Errorf("err.app.noTerminal", strings.Join(terminais, ", "))
 }
 
 // readUserPath pergunta ao shell de login do usuário o PATH dele: o app

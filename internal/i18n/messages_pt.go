@@ -86,6 +86,10 @@ var messagesPT = map[string]string{
 
 	// Erros dos services devolvidos à UI.
 	"err.app.noPHP":                 "nenhuma versão de PHP instalada",
+	"err.app.noEditor":              "nenhum editor configurado, e o VS Code (code) não está instalado; escolha o editor em Configurações > Ferramentas",
+	"err.app.editorNotFound":        "o editor %q não foi encontrado; confira em Configurações > Ferramentas",
+	"err.app.noTerminal":            "nenhum terminal encontrado (%s); escolha o terminal em Configurações > Ferramentas",
+	"err.app.terminalNotFound":      "o terminal %q não foi encontrado; confira em Configurações > Ferramentas",
 	"err.db.mysqlDown":              "services: MySQL não está rodando",
 	"err.dialog":                    "diálogo de pasta: %w",
 	"err.projects.resolve":          "resolver %q: %w",

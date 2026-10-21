@@ -69,7 +69,8 @@ export const settings: typeof base = {
   terminal: 'Terminal',
   terminalHint: 'Empty = wt.exe if present, otherwise cmd.',
   terminalHintMac: 'Empty = Terminal.',
-  terminalHintLinux: 'Empty = the first one found: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal.',
+  terminalHintLinux:
+    'Empty = the first one found: x-terminal-emulator, ptyxis, gnome-terminal, kgx, konsole, xfce4-terminal.',
   phpInPath: 'PHP on PATH',
   phpInPathHint: 'Keeps the terminal’s `php` and `composer` on the same version HyPHP serves.',
   addPhpToPath: 'Add PHP to PATH',
