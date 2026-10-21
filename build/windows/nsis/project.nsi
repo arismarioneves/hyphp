@@ -119,7 +119,14 @@ Section "uninstall"
 
     RMDir /r "$AppData\${PRODUCT_EXECUTABLE}" # Remove the WebView2 DataPath
 
-    RMDir /r $INSTDIR
+    ; Sai so o que o instalador pos. Numa pasta gravavel a raiz de dados (bin,
+    ; etc, var com os bancos, log) fica ao lado do executavel, e apagar a pasta
+    ; inteira levaria os runtimes e os bancos do usuario junto. A pasta so sai
+    ; se ficar vazia.
+    Delete "$INSTDIR\${PRODUCT_EXECUTABLE}"
+    Delete "$INSTDIR\hyphp-helper.exe"
+    Delete "$INSTDIR\cli\hyphp.exe"
+    RMDir "$INSTDIR\cli"
 
     Delete "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk"
     Delete "$DESKTOP\${INFO_PRODUCTNAME}.lnk"
@@ -128,4 +135,6 @@ Section "uninstall"
     !insertmacro wails.unassociateCustomProtocols
 
     !insertmacro wails.deleteUninstaller
+
+    RMDir $INSTDIR
 SectionEnd
