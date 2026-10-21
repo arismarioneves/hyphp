@@ -21,6 +21,18 @@ import (
 // o resolved pode ser ligado ou desligado com o app aberto.
 func manageHosts() bool { return !netcfg.ResolvedStub() }
 
+// syncBrowserTrust põe a CA, já confiada pelo sistema, nos navegadores que
+// têm store próprio (Firefox, inclusive o do Snap, Chrome e Chromium), como o
+// InstallCA faz. Roda uma vez por sessão do app: um perfil criado depois de
+// instalar a CA (o Firefox aberto pela primeira vez, um Chrome instalado
+// depois) ficaria sem ela, e o sistema não teria o que avisar. Não pede
+// senha; o navegador aberto só vê a CA ao reiniciar.
+func (s *Stack) syncBrowserTrust(mk netcfg.Mkcert) {
+	if err := mk.CreateCA(); err != nil {
+		s.d.Logger.Warn("stack: CA nos navegadores", "err", err)
+	}
+}
+
 // SystemChanges lê, sem senha, o que o HyPHP gravou no sistema. Erro ao
 // conferir a CA conta como não instalada: não há o que remover que se saiba.
 func (s *Stack) SystemChanges() SystemChanges {

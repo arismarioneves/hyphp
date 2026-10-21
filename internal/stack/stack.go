@@ -417,6 +417,7 @@ func (s *Stack) tlsIssuer() (func([]string) (string, string, error), []Warning) 
 			}}
 		}
 		s.caReady = true
+		s.syncBrowserTrust(mk)
 	}
 	return mk.IssueCert, nil
 }
