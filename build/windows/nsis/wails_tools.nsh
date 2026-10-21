@@ -122,6 +122,13 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
 !macro wails.writeUninstaller
     WriteUninstaller "$INSTDIR\uninstall.exe"
 
+    # EstimatedSize e o tamanho que o painel do Windows mostra para o app: o que
+    # este instalador poe na pasta, que o NSIS soma na compilacao (a secao 0 e a
+    # unica do instalador). Os runtimes e os bancos que o app baixa e cria na
+    # mesma pasta ficam fora: sao dados do usuario, e a desinstalacao os mantem.
+    SectionGetSize 0 $0
+    IntFmt $0 "0x%08X" $0
+
     SetRegView 64
     !if "${WAILS_INSTALL_SCOPE}" == "user"
         WriteRegStr HKCU "${UNINST_KEY}" "Publisher" "${INFO_COMPANYNAME}"
@@ -131,8 +138,6 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
         WriteRegStr HKCU "${UNINST_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
         WriteRegStr HKCU "${UNINST_KEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
 
-        ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
-        IntFmt $0 "0x%08X" $0
         WriteRegDWORD HKCU "${UNINST_KEY}" "EstimatedSize" "$0"
     !else
         WriteRegStr HKLM "${UNINST_KEY}" "Publisher" "${INFO_COMPANYNAME}"
@@ -142,8 +147,6 @@ RequestExecutionLevel "${REQUEST_EXECUTION_LEVEL}"
         WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
         WriteRegStr HKLM "${UNINST_KEY}" "QuietUninstallString" "$\"$INSTDIR\uninstall.exe$\" /S"
 
-        ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
-        IntFmt $0 "0x%08X" $0
         WriteRegDWORD HKLM "${UNINST_KEY}" "EstimatedSize" "$0"
     !endif
 !macroend
