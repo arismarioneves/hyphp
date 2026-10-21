@@ -43,6 +43,9 @@ func portsBelowLimit(state.State) []Warning { return nil }
 // a liberar.
 func (s *Stack) ApplyPorts(context.Context) error { return nil }
 
+// syncBrowserTrust: no Windows a CA vai para os navegadores só no InstallCA.
+func (s *Stack) syncBrowserTrust(netcfg.Mkcert) {}
+
 // trustCA instala a CA pelo helper elevado (mkcert -install sob UAC).
 func (s *Stack) trustCA(mk netcfg.Mkcert) error {
 	helper, herr := elevate.HelperPath()

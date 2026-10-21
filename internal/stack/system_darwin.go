@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
 	"hyphp/internal/state"
 )
@@ -56,3 +57,6 @@ func portsBelowLimit(state.State) []Warning { return nil }
 // ApplyPorts: o macOS abre as portas baixas sem senha, então não há limite a
 // liberar.
 func (s *Stack) ApplyPorts(context.Context) error { return nil }
+
+// syncBrowserTrust: no Mac a CA vai para os navegadores só no InstallCA.
+func (s *Stack) syncBrowserTrust(netcfg.Mkcert) {}
