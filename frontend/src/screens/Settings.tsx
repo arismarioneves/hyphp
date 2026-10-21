@@ -215,7 +215,7 @@ function RemoveSystemAction({ onDone }: { onDone: () => void }) {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-fg-muted">{t(os === 'linux' ? 'removeSystemHintLinux' : 'removeSystemHint')}</p>
+      <p className="text-xs text-fg-muted">{t(os === 'linux' ? 'removeSystemHintLinux' : 'removeSystemHint')}</p>
       {error !== '' && <p className="selectable text-sm text-err">{error}</p>}
       <div className="flex items-center gap-2">
         {confirming ? (
