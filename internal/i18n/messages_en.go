@@ -81,6 +81,10 @@ var messagesEN = map[string]string{
 	"err.stack.nrptDelCancelled":  "DNS rule not removed (UAC cancelled)",
 
 	"err.app.noPHP":                 "no PHP version installed",
+	"err.app.noEditor":              "no editor configured, and VS Code (code) is not installed; choose the editor in Settings > Tools",
+	"err.app.editorNotFound":        "the editor %q was not found; check it in Settings > Tools",
+	"err.app.noTerminal":            "no terminal found (%s); choose the terminal in Settings > Tools",
+	"err.app.terminalNotFound":      "the terminal %q was not found; check it in Settings > Tools",
 	"err.db.mysqlDown":              "services: MySQL is not running",
 	"err.dialog":                    "folder dialog: %w",
 	"err.projects.resolve":          "resolve %q: %w",

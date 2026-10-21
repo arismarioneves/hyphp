@@ -67,7 +67,8 @@ export const settings = {
   terminal: 'Terminal',
   terminalHint: 'Vazio = wt.exe se existir, senão cmd.',
   terminalHintMac: 'Vazio = Terminal.',
-  terminalHintLinux: 'Vazio = o primeiro que existir: x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal.',
+  terminalHintLinux:
+    'Vazio = o primeiro que existir: x-terminal-emulator, ptyxis, gnome-terminal, kgx, konsole, xfce4-terminal.',
   phpInPath: 'PHP no PATH',
   phpInPathHint: 'Deixa `php` e `composer` do terminal na mesma versão que o HyPHP serve.',
   addPhpToPath: 'Adicionar PHP ao PATH',
