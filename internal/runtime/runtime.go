@@ -52,8 +52,13 @@ type Installed struct {
 	Prefix string `json:"prefix,omitempty"`
 }
 
-// detectTimeout limita cada execução de binário durante a detecção.
-const detectTimeout = 5 * time.Second
+// detectTimeout limita cada execução de binário durante a detecção, e
+// slowDetectTimeout a segunda tentativa, quando a primeira passou do prazo.
+// Variáveis: os testes usam prazos curtos.
+var (
+	detectTimeout     = 5 * time.Second
+	slowDetectTimeout = 30 * time.Second
+)
 
 // ExtFile é o nome do arquivo da extensão name na pasta ext/ do PHP (regra por
 // SO em names_*.go). Exportado para o render escrever o php.ini com a mesma
@@ -121,22 +126,7 @@ func Detect(kind Kind, dir string) (Installed, error) {
 	if _, err := os.Stat(exe); err != nil {
 		return Installed{}, fmt.Errorf("runtime: %w", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), detectTimeout)
-	defer cancel()
-	switch kind {
-	case PHP:
-		return detectPHP(ctx, abs, exe)
-	case Apache:
-		return detectApache(ctx, abs, exe)
-	case Nginx:
-		return detectNginx(ctx, abs, exe)
-	case MySQL:
-		return detectMySQL(ctx, abs, exe)
-	case MariaDB:
-		return detectMariaDB(ctx, abs, exe)
-	case Mailpit:
-		return detectMailpit(ctx, abs, exe)
-	case PhpMyAdmin:
+	if kind == PhpMyAdmin {
 		// Sem processo: o "exe" aqui é o index.php, que só serve de prova de
 		// presença. A versão sai de um arquivo de texto da própria árvore.
 		inst, ok := detectPhpMyAdmin(abs)
@@ -144,9 +134,39 @@ func Detect(kind Kind, dir string) (Installed, error) {
 			return Installed{}, fmt.Errorf("runtime: %s tem index.php mas não é uma árvore do phpMyAdmin", abs)
 		}
 		return inst, nil
-	default:
-		return detectMkcert(ctx, abs, exe)
 	}
+	inst, late, err := detectWithin(kind, abs, exe, detectTimeout)
+	if late {
+		// O primeiro uso de um binário depois do boot, com a máquina ocupada
+		// subindo a sessão, pode passar do prazo só por carregar o binário e
+		// as bibliotecas do disco. A segunda tentativa já os acha no cache;
+		// sem ela, o PHP sumia da lista até a próxima varredura.
+		inst, _, err = detectWithin(kind, abs, exe, slowDetectTimeout)
+	}
+	return inst, err
+}
+
+// detectWithin roda a detecção do kind com prazo d; late diz se o prazo venceu.
+func detectWithin(kind Kind, abs, exe string, d time.Duration) (inst Installed, late bool, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), d)
+	defer cancel()
+	switch kind {
+	case PHP:
+		inst, err = detectPHP(ctx, abs, exe)
+	case Apache:
+		inst, err = detectApache(ctx, abs, exe)
+	case Nginx:
+		inst, err = detectNginx(ctx, abs, exe)
+	case MySQL:
+		inst, err = detectMySQL(ctx, abs, exe)
+	case MariaDB:
+		inst, err = detectMariaDB(ctx, abs, exe)
+	case Mailpit:
+		inst, err = detectMailpit(ctx, abs, exe)
+	default:
+		inst, err = detectMkcert(ctx, abs, exe)
+	}
+	return inst, err != nil && ctx.Err() != nil, err
 }
 
 // ByKind filtra list por k preservando a ordem.
