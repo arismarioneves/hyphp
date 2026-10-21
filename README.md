@@ -201,10 +201,12 @@ The installer ships `hyphp.exe` and `hyphp-helper.exe`. The helper performs the 
 need administrator rights (writing to `hosts`, installing the local root certificate, the
 `.test` DNS rule, installing an update); each one asks for UAC only when you click it.
 
-Uninstalling removes the installation directory but does **not** undo what you applied to the
-system: remove the `hosts` block, the `.test` DNS rule and the autostart entry from
-**Settings** (the **Permissions** card and the **Start with Windows** switch) before
-uninstalling.
+Uninstalling removes the app, the CLI and the helper. The data root stays, whether it is in the
+installation directory or in `%LOCALAPPDATA%\HyPHP`: the downloaded runtimes (`bin/`) and the
+databases (`var/`) are picked up again if you reinstall; to free the space, delete the folder
+afterwards. Uninstalling also does **not** undo what you applied to the system: remove the
+`hosts` block, the `.test` DNS rule and the autostart entry from **Settings** (the
+**Permissions** card and the **Start with Windows** switch) before uninstalling.
 
 ### macOS
 

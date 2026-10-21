@@ -201,10 +201,12 @@ O instalador traz `hyphp.exe` e `hyphp-helper.exe`. O helper faz as ações que 
 administrador (gravar o `hosts`, instalar o certificado raiz local, a regra de DNS do `.test`,
 instalar uma atualização); cada uma pede UAC só quando você clica nela.
 
-Desinstalar remove a pasta da instalação, mas **não** desfaz o que você aplicou ao sistema:
-tire o bloco do `hosts`, a regra de DNS do `.test` e a entrada de início automático em
-**Configurações** (o card **Permissões** e o interruptor **Iniciar com o Windows**) antes de
-desinstalar.
+Desinstalar remove o app, a CLI e o helper. A raiz de dados fica, esteja ela na pasta da
+instalação ou em `%LOCALAPPDATA%\HyPHP`: os runtimes baixados (`bin/`) e os bancos (`var/`)
+voltam a valer se você reinstalar; para liberar o espaço, apague a pasta depois. Desinstalar
+também **não** desfaz o que você aplicou ao sistema: tire o bloco do `hosts`, a regra de DNS do
+`.test` e a entrada de início automático em **Configurações** (o card **Permissões** e o
+interruptor **Iniciar com o Windows**) antes de desinstalar.
 
 ### macOS
 
