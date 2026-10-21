@@ -63,8 +63,7 @@ func (r *RuntimesService) remove(inst runtime.Installed) error {
 	return r.d.Manager.Remove(inst)
 }
 
-// Homebrew: no Windows não há Homebrew; Supported=false também serve de
-// sinal de plataforma para a UI.
+// Homebrew: no Windows não há Homebrew; os runtimes vêm do catálogo.
 func (r *RuntimesService) Homebrew() BrewStatus {
 	return BrewStatus{}
 }
