@@ -59,7 +59,6 @@ var messagesPT = map[string]string{
 	"err.stack.mkcertMissing":     "mkcert não encontrado em bin/mkcert/mkcert.exe",
 	"err.stack.caCheck":           "verificar CA do mkcert: %w",
 	"err.mac.unavailable":         "ainda não disponível no macOS",
-	"err.linux.unavailable":       "ainda não disponível no Linux",
 	"elevate.prompt":              "O HyPHP precisa de permissão de administrador para alterar a configuração do sistema.",
 	"err.stack.helperUnavailable": "helper elevado indisponível: %w",
 	"err.stack.dnsRuleCancelled":  "regra de DNS não registrada (cancelado); os domínios .test seguem sem resolver",
@@ -133,6 +132,8 @@ var messagesPT = map[string]string{
 	"update.done":              "HyPHP atualizado para a versão %s.",
 	"update.installerMismatch": "o instalador da %s terminou, mas o HyPHP em execução ainda é a %s",
 	"update.semEscrita":        "sem permissão para trocar o app em %s; atualize pelo Terminal: %s",
+	"update.semPacote":         "o update automático só funciona no HyPHP instalado pelo pacote .deb, em /usr/lib/hyphp; baixe a versão nova em %s",
+	"update.cancelado":         "atualização cancelada: a senha de administrador não foi informada",
 
 	// Página do host default (default-index.html). Os textos são HTML confiável.
 	"page.title":          "HyPHP — nenhum projeto para este host",

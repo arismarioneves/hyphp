@@ -55,7 +55,6 @@ var messagesEN = map[string]string{
 	"err.stack.mkcertMissing":     "mkcert not found in bin/mkcert/mkcert.exe",
 	"err.stack.caCheck":           "check mkcert CA: %w",
 	"err.mac.unavailable":         "not available on macOS yet",
-	"err.linux.unavailable":       "not available on Linux yet",
 	"elevate.prompt":              "HyPHP needs administrator permission to change the system configuration.",
 	"err.stack.helperUnavailable": "elevated helper unavailable: %w",
 	"err.stack.dnsRuleCancelled":  "DNS rule not registered (cancelled); .test domains still do not resolve",
@@ -126,6 +125,8 @@ var messagesEN = map[string]string{
 	"update.done":              "HyPHP updated to version %s.",
 	"update.installerMismatch": "the %s installer finished, but the running HyPHP is still %s",
 	"update.semEscrita":        "no permission to replace the app in %s; update from Terminal: %s",
+	"update.semPacote":         "automatic update only works for HyPHP installed from the .deb package, in /usr/lib/hyphp; download the new version at %s",
+	"update.cancelado":         "update cancelled: the administrator password was not entered",
 
 	"page.title":          "HyPHP — no project for this host",
 	"page.sub":            "host without project",

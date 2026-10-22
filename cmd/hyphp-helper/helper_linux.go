@@ -36,13 +36,6 @@ const maxHostsSize = 1 << 20
 // dezenas de MiB, e a cópia vai para uma pasta do root.
 const maxDebSize = 512 << 20
 
-// Limites do manifesto e da assinatura que o install-update lê da pasta do
-// usuário, os mesmos do download pelo app.
-const (
-	maxManifestSize = 1 << 20
-	maxSigSize      = 4 << 10
-)
-
 // aptTailLines é quanto da saída do apt-get vai no erro: ela tem centenas de
 // linhas, e o motivo da falha fica no fim.
 const aptTailLines = 15
@@ -348,11 +341,11 @@ func installUpdate(argv []string) (int, error) {
 // antigo, legítimo e assinado, não serve para voltar a uma versão com falhas
 // já corrigidas.
 func signedRelease(manifest, sig string) (update.Release, *update.Artifact, error) {
-	body, err := readOwnFile("--manifesto", manifest, maxManifestSize)
+	body, err := readOwnFile("--manifesto", manifest, update.ManifestLimit)
 	if err != nil {
 		return update.Release{}, nil, err
 	}
-	raw, err := readOwnFile("--assinatura", sig, maxSigSize)
+	raw, err := readOwnFile("--assinatura", sig, update.SigLimit)
 	if err != nil {
 		return update.Release{}, nil, err
 	}

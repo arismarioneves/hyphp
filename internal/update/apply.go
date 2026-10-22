@@ -10,25 +10,31 @@ import (
 	"path/filepath"
 	"strconv"
 	"time"
+
+	"hyphp/internal/i18n"
 )
 
 // ApplyFlag é o primeiro argumento do modo que aplica o update. main.go o
 // trata antes de tudo: nesse modo não há log em paths.Log(), nem Wails, nem
-// paths.Root() — a cópia roda de var/update/, e a raiz calculada a partir
-// dela seria a pasta errada.
+// paths.Root() — no Windows e no Mac a cópia roda de var/update/, e a raiz
+// calculada a partir dela seria a pasta errada.
 const ApplyFlag = "--aplicar-update"
 
 // ApplyRequest é tudo o que o atualizador precisa, passado por argumento.
 type ApplyRequest struct {
 	PID       int    // processo do app que vai sair
-	Installer string // pacote já verificado: o instalador no Windows, o dmg no Mac
+	Installer string // pacote já verificado: o instalador no Windows, o dmg no Mac, o .deb no Linux
 	SHA256    string // hash esperado do pacote, reconferido logo antes de usar
 	Size      int64  // tamanho esperado do pacote
 	Dir       string // pasta do executável atual (no Mac, Contents/MacOS do bundle)
 	Exe       string // nome do executável em Dir
 	Result    string // onde gravar o Result
-	From, To  string // versões; no Mac, To é também a que o dmg tem de trazer
+	From, To  string // versões; no Mac e no Linux, To é também a que o pacote tem de trazer
+	Lang      string // idioma do app, para as mensagens do catálogo saírem iguais às da tela
 }
+
+// appExitTimeout é quanto o atualizador espera o app fechar.
+const appExitTimeout = 60 * time.Second
 
 // Result é o que o app lê no boot seguinte (var/update/resultado.json).
 type Result struct {
@@ -51,6 +57,7 @@ func (r ApplyRequest) args() []string {
 		"--resultado", r.Result,
 		"--de", r.From,
 		"--para", r.To,
+		"--idioma", r.Lang,
 	}
 }
 
@@ -66,6 +73,7 @@ func parseApplyArgs(args []string) (ApplyRequest, error) {
 	fs.StringVar(&req.Result, "resultado", "", "")
 	fs.StringVar(&req.From, "de", "", "")
 	fs.StringVar(&req.To, "para", "", "")
+	fs.StringVar(&req.Lang, "idioma", "", "")
 	fs.SetOutput(io.Discard)
 	if err := fs.Parse(args); err != nil {
 		return ApplyRequest{}, err
@@ -85,6 +93,11 @@ func RunApply(args []string) int {
 		return 2
 	}
 	logf := openApplyLog(filepath.Join(filepath.Dir(req.Result), "aplicar.log"))
+	// O atualizador não lê o state do app: o idioma vem por argumento, e o
+	// erro gravado no resultado.json aparece na tela no idioma escolhido.
+	if req.Lang != "" && i18n.Valid(req.Lang) {
+		i18n.SetCurrent(i18n.Lang(req.Lang))
+	}
 
 	res := Result{From: req.From, To: req.To}
 	err = apply(req, logf)
