@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // pkexecFalso põe no PATH um pkexec que confere o --disable-internal-agent e
@@ -88,6 +89,21 @@ func TestRunElevatedSemPkexecNoSistema(t *testing.T) {
 	var he *HelperError
 	if err == nil || errors.As(err, &he) || errors.Is(err, ErrElevationDenied) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// A janela de senha esquecida aberta: o pkexec, ainda do usuário, é
+// encerrado no prazo, sem esperar o resto.
+func TestRunElevatedJanelaEsquecidaPassaDoPrazo(t *testing.T) {
+	dir := t.TempDir()
+	escreverExe(t, filepath.Join(dir, "pkexec"), "#!/bin/sh\nexec sleep 30\n")
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	inicio := time.Now()
+	if err := runElevated("/bin/true", nil, 200*time.Millisecond); !errors.Is(err, ErrHelperTimeout) {
+		t.Fatalf("err = %v, quer ErrHelperTimeout", err)
+	}
+	if d := time.Since(inicio); d > 10*time.Second {
+		t.Fatalf("levou %s para desistir", d)
 	}
 }
 

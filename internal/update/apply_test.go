@@ -10,7 +10,7 @@ import (
 func TestApplyArgsIdaEVolta(t *testing.T) {
 	req := ApplyRequest{
 		PID: 1234, Installer: `C:\HyPHP\var\update\3.1.0\setup.exe`, SHA256: strings.Repeat("a", 64), Size: 4096,
-		Dir: `C:\Program Files\HyPHP`, Exe: "hyphp.exe", Result: `C:\HyPHP\var\update\resultado.json`, From: "3.0.0", To: "3.1.0",
+		Dir: `C:\Program Files\HyPHP`, Exe: "hyphp.exe", Result: `C:\HyPHP\var\update\resultado.json`, From: "3.0.0", To: "3.1.0", Lang: "en",
 	}
 	got, err := parseApplyArgs(req.args())
 	if err != nil {

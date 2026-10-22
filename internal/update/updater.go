@@ -90,11 +90,14 @@ type Updater struct {
 	checking sync.Mutex // um Check por vez; o laço e o botão "Verificar atualizações" disputam
 }
 
+// ManifestLimit e SigLimit são os tamanhos máximos do latest.json e da
+// assinatura, no download pelo app e na leitura pelo helper do Linux.
 const (
-	manifestLimit = 1 << 20
-	sigLimit      = 4 << 10
-	resultFile    = "resultado.json"
+	ManifestLimit = 1 << 20
+	SigLimit      = 4 << 10
 )
+
+const resultFile = "resultado.json"
 
 // DefaultURL devolve EnvURL ou ManifestURL. Fora do loopback exige HTTPS.
 func DefaultURL() (string, error) {
@@ -197,7 +200,7 @@ func (u *Updater) Check(ctx context.Context) error {
 	}
 
 	u.set(func(s *Status) { s.State, s.Error = StateChecking, "" })
-	l, err := u.fetchLatest(ctx)
+	l, body, sig, err := u.fetchLatest(ctx)
 	if err != nil {
 		return u.fail(err)
 	}
@@ -231,6 +234,9 @@ func (u *Updater) Check(ctx context.Context) error {
 			return u.fail(err)
 		}
 	}
+	if err := saveManifest(filepath.Dir(final), body, sig); err != nil {
+		return u.fail(fmt.Errorf("update: guardar o manifesto: %w", err))
+	}
 	u.mu.Lock()
 	u.latest = &l
 	u.mu.Unlock()
@@ -239,21 +245,24 @@ func (u *Updater) Check(ctx context.Context) error {
 	return nil
 }
 
-func (u *Updater) fetchLatest(ctx context.Context) (Latest, error) {
-	body, err := u.get(ctx, u.c.URL, manifestLimit)
+// fetchLatest devolve o manifesto já conferido e os bytes dele e da
+// assinatura, que o Linux guarda para o helper conferir de novo.
+func (u *Updater) fetchLatest(ctx context.Context) (l Latest, body, sig []byte, err error) {
+	body, err = u.get(ctx, u.c.URL, ManifestLimit)
 	if err != nil {
-		return Latest{}, err
+		return Latest{}, nil, nil, err
 	}
-	sig, err := u.get(ctx, u.c.URL+".sig", sigLimit)
+	sig, err = u.get(ctx, u.c.URL+".sig", SigLimit)
 	if err != nil {
-		return Latest{}, err
+		return Latest{}, nil, nil, err
 	}
 	// Assinatura antes de interpretar qualquer campo: manifesto não assinado
 	// não decide nem o que baixar.
 	if err := Verify(u.c.Key, body, sig); err != nil {
-		return Latest{}, err
+		return Latest{}, nil, nil, err
 	}
-	return ParseLatest(body)
+	l, err = ParseLatest(body)
+	return l, body, sig, err
 }
 
 func (u *Updater) get(ctx context.Context, rawURL string, limit int64) ([]byte, error) {
@@ -388,6 +397,7 @@ func (u *Updater) Prepare() (ApplyRequest, error) {
 		Result:    filepath.Join(u.c.Dir, resultFile),
 		From:      u.c.Current,
 		To:        l.Version,
+		Lang:      string(i18n.Current()),
 	}, nil
 }
 

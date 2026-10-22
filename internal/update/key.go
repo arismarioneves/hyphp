@@ -9,15 +9,19 @@ import (
 //
 // A privada correspondente fica fora dos repositórios e assina o latest.json
 // na publicação (cmd/hyphp-release); foi gerada uma única vez por
-// `go run ./cmd/hyphp-release -gerar-chave`. Trocar esta
-// constante deixa todo app já instalado sem aceitar nenhum manifesto novo: a
-// saída passa a ser o usuário reinstalar à mão.
-const publicKeyHex = "ca9f906be2fcd20120291290e72cc114e2bdd2e724d663e0dc25dc8fc4961d79"
+// `go run ./cmd/hyphp-release -gerar-chave`. Trocar este valor deixa todo app
+// já instalado sem aceitar nenhum manifesto novo: a saída passa a ser o
+// usuário reinstalar à mão.
+//
+// É variável, e não constante, para o e2e do Linux compilar um helper com uma
+// chave de teste (`-ldflags -X hyphp/internal/update.publicKeyHex=…`) e
+// assinar um manifesto próprio. Os builds de release não passam -X.
+var publicKeyHex = "ca9f906be2fcd20120291290e72cc114e2bdd2e724d663e0dc25dc8fc4961d79"
 
 // PublicKey é publicKeyHex decodificada.
 var PublicKey = mustKey(publicKeyHex)
 
-// mustKey entra em pânico com chave malformada: é constante do build, e um
+// mustKey entra em pânico com chave malformada: ela vem fixa no build, e um
 // binário que não consegue validar manifesto nenhum não deve sair do forno.
 func mustKey(h string) ed25519.PublicKey {
 	raw, err := hex.DecodeString(h)

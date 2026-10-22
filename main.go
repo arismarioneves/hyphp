@@ -42,9 +42,10 @@ var trayIcon []byte
 const opTimeout = 60 * time.Second
 
 func main() {
-	// Modo do atualizador (spec do update §3): roda de uma cópia em
-	// var/update/, antes de log, paths e Wails. Tratado aqui em cima porque
-	// qualquer uma dessas coisas calcularia a raiz a partir da pasta da cópia.
+	// Modo do atualizador (spec do update §3): no Windows e no Mac roda de uma
+	// cópia em var/update/, no Linux do próprio app instalado; antes de log,
+	// paths e Wails. Tratado aqui em cima porque qualquer uma dessas coisas
+	// calcularia a raiz a partir da pasta do executável.
 	if len(os.Args) > 1 && os.Args[1] == update.ApplyFlag {
 		os.Exit(update.RunApply(os.Args[2:]))
 	}

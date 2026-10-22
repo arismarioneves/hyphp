@@ -6,11 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"time"
 )
-
-// appExitTimeout é quanto o atualizador espera o app fechar.
-const appExitTimeout = 60 * time.Second
 
 // copyExe copia o executável do app para o atualizador rodar de um arquivo
 // que a instalação não vai substituir.
