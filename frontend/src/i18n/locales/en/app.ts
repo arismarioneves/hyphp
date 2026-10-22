@@ -26,6 +26,8 @@ export const app: typeof base = {
   closeTitleNoTray: 'Close (minimizes)',
   updateReady: 'ready to install.',
   updateReadyHint: ' Services will stop and Windows will ask for permission.',
+  updateReadyHintMac: ' Services will stop and HyPHP will reopen by itself.',
+  updateReadyHintLinux: ' Services will stop and the system will ask for the administrator password.',
   updateAndRestart: 'Update and restart',
   dismiss: 'Dismiss',
   logFilterPlaceholder: 'filter…',

@@ -3,12 +3,14 @@ import { ArrowCircleUp, CheckCircle, X } from '@phosphor-icons/react'
 import { Button } from './Button'
 import { useUpdate } from '../lib/useUpdate'
 import { useT } from '../i18n'
+import { byOS, usePlatform } from '../lib/platform'
 
 // Faixa acima do conteúdo, em qualquer tela: versão pronta para instalar, ou
 // o resultado do update que acabou de ser aplicado.
 export function UpdateBanner() {
   const t = useT('app')
   const { status, busy, error, apply } = useUpdate()
+  const { os } = usePlatform()
   const [dismissed, setDismissed] = useState(false)
   if (!status) return null
 
@@ -19,7 +21,9 @@ export function UpdateBanner() {
         <ArrowCircleUp size={18} className="shrink-0 text-accent-fg" />
         <span className="text-fg">
           HyPHP <span className="font-mono">{status.available}</span> {t('updateReady')}
-          <span className="text-fg-muted">{t('updateReadyHint')}</span>
+          <span className="text-fg-muted">
+            {t(byOS(os, { windows: 'updateReadyHint', darwin: 'updateReadyHintMac', linux: 'updateReadyHintLinux' }))}
+          </span>
         </span>
         {(error || status.error) && <span className="selectable text-err">{error || status.error}</span>}
         <Button
