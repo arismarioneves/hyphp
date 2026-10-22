@@ -1,24 +1,28 @@
 #!/bin/bash
 # Teste de ponta a ponta do HyPHP no Linux, rodado pelo job linux-e2e do ci.yml
-# num runner ubuntu-24.04 (Homebrew instalado, systemd-resolved, sudo sem
-# senha, sem sessão gráfica).
+# num runner ubuntu-24.04 (Homebrew instalado, systemd-resolved, AppArmor, sudo
+# sem senha, sem sessão gráfica).
 #
 # Repete sem ninguém na tela o roteiro manual:
+#   - o app instalado pelo .deb do build com o apt-get, que carrega o perfil do
+#     AppArmor e registra a action do polkit;
 #   - runtimes instalados pelo Homebrew fora do app;
 #   - um projeto em ~/Code;
-#   - o app do build local (bin/hyphp, com a CLI em bin/cli/hyphp) num Xvfb,
-#     com um D-Bus de sessão só dele;
+#   - o app aberto num Xvfb, com um D-Bus de sessão só do teste;
 #   - as portas 80 e 443, a regra de DNS do .test no systemd-resolved, a
 #     confiança na CA e o PATH pelo helper, com o sudo do runner no lugar da
 #     janela de senha do pkexec;
 #   - checagens pelo curl e pela CLI, o projeto em HTTPS confiado pelo sistema;
 #   - o app morto por kill -9 e reaberto, que é o caminho da limpeza de órfãos;
 #   - nginx e MariaDB instalados com o app aberto;
-#   - o app fechado normalmente e as mudanças removidas do sistema;
-#   - o hosts, o caminho do Linux sem systemd-resolved, pelo helper.
+#   - um update aplicado pelo atualizador do app, com o mesmo .deb reinstalado
+#     pelo pkexec, sem desfazer o que o helper gravou no sistema;
+#   - o app fechado e o pacote removido pelo apt-get, que desfaz as mudanças no
+#     sistema e mantém os dados, e depois o purge;
+#   - o pacote reinstalado e o hosts, o caminho do Linux sem systemd-resolved,
+#     pelo helper.
 #
-# Uso: e2e-linux.sh, depois do `wails3 task linux:build` e do
-# `wails3 task linux:apparmor`
+# Uso: e2e-linux.sh <caminho do hyphp.deb>
 set -euo pipefail
 
 if [ -z "${CI:-}" ]; then
@@ -28,10 +32,13 @@ if [ -z "${CI:-}" ]; then
 	exit 2
 fi
 
+DEB=$(cd "$(dirname "${1:?uso: e2e-linux.sh <hyphp.deb>}")" && pwd)/$(basename "$1")
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
-MAIN="$REPO/bin/hyphp"
-CLI="$REPO/bin/cli/hyphp"
-HELPER="$REPO/bin/hyphp-helper"
+# O layout do pacote. A CLI vai pelo link /usr/bin/hyphp, como o usuário a
+# chama: o app é achado a partir do link resolvido.
+MAIN=/usr/lib/hyphp/hyphp
+CLI=/usr/bin/hyphp
+HELPER=/usr/lib/hyphp/hyphp-helper
 ROOT="$HOME/.local/share/HyPHP"
 CODE="$HOME/Code"
 SITE="http://127.0.0.1"
@@ -49,6 +56,14 @@ DROPIN=/etc/systemd/resolved.conf.d/hyphp.conf
 PROFILED=/etc/profile.d/hyphp.sh
 ANCORA=/usr/local/share/ca-certificates/hyphp-mkcert.crt
 SYSCTLD=/etc/sysctl.d/60-hyphp.conf
+# Os arquivos do pacote fora de /usr/lib/hyphp que o teste confere.
+POLICY=/usr/share/polkit-1/actions/com.hyphp.app.helper.policy
+PERFIL=/etc/apparmor.d/hyphp
+# A regra que faz o papel da janela de senha do pkexec no update.
+REGRA_POLKIT=/etc/polkit-1/rules.d/49-hyphp-e2e.rules
+# A tela e o bus de sessão do teste, derrubados na saída.
+XVFB_PID=
+BUS_PID=
 
 passo() { printf '\n==> %s\n' "$*"; }
 
@@ -57,24 +72,27 @@ falha() {
 	exit 1
 }
 
-# ao_sair despeja o estado do app e os logs quando o script falha: o ci.yml não
-# guarda artefatos, então o log do job é tudo o que sobra para investigar.
-ao_sair() {
-	local status=$?
-	[ "$status" -eq 0 ] && return
+# diagnostico despeja o estado do app e os logs: o ci.yml não guarda
+# artefatos, então o log do job é tudo o que sobra para investigar.
+diagnostico() {
 	echo "::group::diagnóstico"
 	"$CLI" status --json || true
 	"$CLI" services --json || true
 	"$CLI" warnings --json || true
 	ss -ltnup || true
-	pgrep -fa 'hyphp|httpd|nginx|php-fpm|mysqld|mariadbd|mailpit|Xvfb|dbus-daemon' || true
+	pgrep -fa 'hyphp|httpd|nginx|php-fpm|mysqld|mariadbd|mailpit|Xvfb|dbus-daemon|pkexec|apt-get|dpkg' || true
 	ls -la "$ROOT/var/run/procs" || true
 	sysctl net.ipv4.ip_unprivileged_port_start kernel.apparmor_restrict_unprivileged_userns || true
-	grep -F hyphp-dev /sys/kernel/security/apparmor/profiles || true
+	sudo grep -E '^hyphp ' /sys/kernel/security/apparmor/profiles || true
+	dpkg-query -W hyphp || true
 	resolvectl status || true
 	for f in "$DROPIN" "$PROFILED" "$SYSCTLD"; do
 		[ -f "$f" ] && echo "--- $f" && cat "$f"
 	done
+	echo "--- $ROOT/var/update/aplicar.log"
+	cat "$ROOT/var/update/aplicar.log" || true
+	echo "--- /var/log/apt/term.log (fim)"
+	sudo tail -n 60 /var/log/apt/term.log || true
 	# Num crash do Go, o motivo vem na linha do sinal ou do fatal error, e o
 	# que o GTK ou o WebKit escreveu vem logo antes dela.
 	echo "--- saída do app (motivo do fim)"
@@ -87,6 +105,17 @@ ao_sair() {
 		tail -n 80 "$f"
 	done
 	echo "::endgroup::"
+}
+
+# ao_sair despeja o diagnóstico quando o script falha e só depois derruba o
+# bus e a tela do teste, de que o app ainda depende durante o diagnóstico.
+ao_sair() {
+	local status=$?
+	if [ "$status" -ne 0 ]; then
+		diagnostico
+	fi
+	[ -z "$BUS_PID" ] || kill "$BUS_PID" 2>/dev/null || true
+	[ -z "$XVFB_PID" ] || kill "$XVFB_PID" 2>/dev/null || true
 }
 trap ao_sair EXIT
 
@@ -102,22 +131,25 @@ get() {
 	fi
 }
 
-# abrir_app abre o app como a sessão gráfica abriria, num Xvfb e com um D-Bus
-# de sessão próprio, que o SingleInstance exige; o bus nasce dentro do Xvfb
-# para os serviços que ele ativa (o portal) terem a tela. Ninguém nesse bus
-# mostra ícones de bandeja: o app se comporta como no GNOME sem a extensão
-# AppIndicator. O ambiente é o de uma sessão sem o shellenv do Homebrew, como
-# a do app aberto pelo menu: ele acha o Homebrew sozinho no prefixo padrão. A
-# tela padrão do xvfb-run tem 8 bits de cor, que o GTK4 não usa; e o Xvfb não
-# tem GPU, então o GTK e o WebKit desenham sem ela.
-abrir_app() {
+# como_app roda um comando no ambiente de uma sessão gráfica sem o shellenv do
+# Homebrew, como a do app aberto pelo menu: ele acha o Homebrew sozinho no
+# prefixo padrão. O Xvfb não tem GPU, então o GTK e o WebKit desenham sem ela.
+# O atualizador também roda assim, porque o app que ele reabre herda o
+# ambiente dele.
+como_app() {
 	env -u HOMEBREW_PREFIX -u HOMEBREW_CELLAR -u HOMEBREW_REPOSITORY PATH="$PATH_SEM_BREW" \
-		GSK_RENDERER=cairo WEBKIT_DISABLE_DMABUF_RENDERER=1 \
-		xvfb-run -a -s "-screen 0 1920x1080x24" dbus-run-session -- "$MAIN" >>"$SAIDA_APP" 2>&1 &
+		GSK_RENDERER=cairo WEBKIT_DISABLE_DMABUF_RENDERER=1 "$@"
 }
 
-# app_pid acha o processo do app pela linha de comando exata: o xvfb-run e o
-# dbus-run-session também a citam, mas com mais palavras.
+# abrir_app abre o app na tela e no bus do teste. Ninguém nesse bus mostra
+# ícones de bandeja: o app se comporta como no GNOME sem a extensão
+# AppIndicator.
+abrir_app() {
+	como_app "$MAIN" >>"$SAIDA_APP" 2>&1 &
+}
+
+# app_pid acha o processo do app pela linha de comando exata: o atualizador
+# roda o mesmo executável, mas com argumentos.
 app_pid() {
 	pgrep -f "^$MAIN\$"
 }
@@ -247,6 +279,16 @@ folha() {
 		"$OPENSSL" x509 >"$CORPO.leaf"
 }
 
+# perfil_carregado diz se o kernel tem o perfil hyphp do AppArmor.
+perfil_carregado() {
+	sudo grep -qE '^hyphp \(' /sys/kernel/security/apparmor/profiles
+}
+
+# versao_instalada é o Version do pacote hyphp instalado.
+versao_instalada() {
+	dpkg-query -W -f="\${Version}" hyphp
+}
+
 passo "systemd-resolved no runner"
 # O roteiro é o do Ubuntu desktop, em que o primeiro nameserver do resolv.conf
 # é o stub do resolved; sem isso o app vai pelo caminho do hosts e os avisos
@@ -261,6 +303,58 @@ fi
 getent ahosts github.com >/dev/null || falha "o runner não resolve nomes pelo stub do resolved"
 porta_original=$(sysctl -n net.ipv4.ip_unprivileged_port_start)
 echo "limite das portas sem root: $porta_original"
+
+passo "instalar pelo .deb"
+# O apt-get instala o arquivo local com as dependências. O postinst carrega o
+# perfil do AppArmor: o runner restringe user namespaces como o Ubuntu desktop,
+# e sem o perfil o WebKit não isola a página e o app cai ao abrir a janela.
+VERSAO=$(dpkg-deb -f "$DEB" Version)
+sudo apt-get install -y "$DEB"
+for f in "$MAIN" "$HELPER" /usr/lib/hyphp/cli/hyphp; do
+	if [ ! -f "$f" ] || [ ! -x "$f" ]; then
+		falha "$f não foi instalado como executável"
+	fi
+done
+[ "$(readlink /usr/bin/hyphp)" = /usr/lib/hyphp/cli/hyphp ] || falha "o /usr/bin/hyphp não aponta para a CLI do pacote"
+grep -qF '<action id="com.hyphp.app.helper">' "$POLICY" || falha "a action do polkit não é com.hyphp.app.helper"
+grep -qF '<annotate key="org.freedesktop.policykit.exec.path">/usr/lib/hyphp/hyphp-helper</annotate>' "$POLICY" ||
+	falha "a action do polkit não aponta para o helper do pacote"
+[ -f "$PERFIL" ] || falha "o pacote não instalou o $PERFIL"
+perfil_carregado || falha "o postinst não carregou o perfil hyphp do AppArmor"
+[ "$(versao_instalada)" = "$VERSAO" ] || falha "o pacote instalado não está na versão $VERSAO do .deb"
+
+passo "tela e D-Bus de sessão"
+# Uma tela e um bus de sessão para o script todo, como numa sessão gráfica: o
+# atualizador reabre o app depois que o antigo sai, e um xvfb-run ou um
+# dbus-run-session por abertura derrubaria a tela e o bus junto com o app. O
+# SingleInstance do app exige o bus, que nasce com o DISPLAY para os serviços
+# que ele ativa (o portal) terem a tela. A tela tem 24 bits de cor, que o GTK4
+# usa. O -displayfd escolhe uma tela livre e só a escreve quando ela já aceita
+# conexões.
+Xvfb -displayfd 3 -screen 0 1920x1080x24 3>"$CORPO.tela" >"$CORPO.xvfb" 2>&1 &
+XVFB_PID=$!
+for _ in $(seq 50); do
+	[ -s "$CORPO.tela" ] && break
+	sleep 0.2
+done
+if [ ! -s "$CORPO.tela" ]; then
+	cat "$CORPO.xvfb"
+	falha "o Xvfb não abriu a tela"
+fi
+DISPLAY=:$(<"$CORPO.tela")
+export DISPLAY
+dbus-daemon --session --fork --print-address=3 --print-pid=4 3>"$CORPO.bus" 4>"$CORPO.bus-pid"
+for _ in $(seq 50); do
+	[ -s "$CORPO.bus" ] && [ -s "$CORPO.bus-pid" ] && break
+	sleep 0.2
+done
+if [ ! -s "$CORPO.bus" ] || [ ! -s "$CORPO.bus-pid" ]; then
+	falha "o dbus-daemon não abriu o bus de sessão"
+fi
+DBUS_SESSION_BUS_ADDRESS=$(<"$CORPO.bus")
+BUS_PID=$(<"$CORPO.bus-pid")
+export DBUS_SESSION_BUS_ADDRESS
+echo "tela $DISPLAY, bus $DBUS_SESSION_BUS_ADDRESS"
 
 passo "runtimes pelo Homebrew"
 # O Homebrew do runner fica fora do PATH; o shellenv vale só para o script.
@@ -444,8 +538,15 @@ get "https://teste.test/"
 grep -q '^php=8\.3\.' "$CORPO" || falha "teste.test não respondeu em HTTPS"
 folha
 "$OPENSSL" verify -CAfile /etc/ssl/certs/ca-certificates.crt "$CORPO.leaf" || falha "o sistema não confia no certificado de teste.test"
-achado=$(bash -lc 'command -v hyphp' | tail -n 1) || true
-[ "$achado" = "$ROOT/cli/hyphp" ] || falha "o bash de login acha $achado, não o hyphp da pasta cli"
+# O profile.d põe a pasta cli do HyPHP no PATH do bash de login, atrás do
+# /usr/bin, que já tem o hyphp do pacote; o atalho da pasta leva à mesma CLI.
+caminhos=$(bash -lc 'printenv PATH' | tail -n 1)
+case ":$caminhos:" in
+*":$ROOT/cli:"*) ;;
+*) falha "o PATH do bash de login não tem $ROOT/cli: $caminhos" ;;
+esac
+[ "$(readlink -f "$ROOT/cli/hyphp")" = /usr/lib/hyphp/cli/hyphp ] ||
+	falha "o atalho $ROOT/cli/hyphp não leva à CLI do pacote"
 bash -lc 'hyphp version'
 
 passo "nginx e MariaDB instalados com o app aberto"
@@ -479,14 +580,99 @@ grep -q '^mysql=.*MariaDB' "$CORPO" || falha "o PHP não conectou no MariaDB pel
 get "http://127.0.0.1:8036/index.php?route=/server/databases"
 grep -q 'hyphp_e2e' "$CORPO" || falha "o phpMyAdmin pelo nginx não listou o banco do MariaDB"
 
+passo "update aplicado pelo atualizador"
+# O pedido que o Launch do app monta (internal/update/apply_linux.go): o .deb
+# baixado em var/update/<versão>, com o latest.json e a assinatura ao lado,
+# conferido por tamanho e sha256, e o app instalado como atualizador. O mesmo
+# .deb faz o papel da versão nova: o helper o reinstala, e o dpkg roda os
+# scripts de upgrade como numa versão maior. O app sai pelo SIGTERM, que cai no
+# mesmo app.Quit que o Launch chama; o atualizador roda o install-update do
+# helper pelo pkexec e reabre o app.
+#
+# A regra do polkit faz o papel da janela de senha, como o sudo faz para o
+# helper no resto do roteiro: com a autorização dada pela regra, o pkexec não
+# precisa de agente de autenticação.
+sudo mkdir -p "$(dirname "$REGRA_POLKIT")"
+sudo tee "$REGRA_POLKIT" >/dev/null <<EOF
+polkit.addRule(function (action, subject) {
+	if (action.id == "com.hyphp.app.helper" && subject.user == "$(id -un)") {
+		return polkit.Result.YES;
+	}
+});
+EOF
+UPD="$ROOT/var/update"
+BAIXADO="$UPD/$VERSAO/hyphp-$VERSAO-linux-amd64.deb"
+mkdir -p "$UPD/$VERSAO"
+cp "$DEB" "$BAIXADO"
+SHA=$(sha256sum "$BAIXADO" | cut -d ' ' -f 1)
+TAM=$(stat -c %s "$BAIXADO")
+# O install-update só instala o pacote que um latest.json assinado descreve. O
+# CI não tem a chave das releases: o manifesto é assinado com uma chave de
+# teste, e o helper do pacote dá lugar a um compilado com a pública dela
+# (internal/update/key.go). A reinstalação devolve o helper do pacote.
+CHAVE="$CORPO.chave"
+"$OPENSSL" genpkey -algorithm ed25519 -out "$CHAVE"
+publica=$("$OPENSSL" pkey -in "$CHAVE" -pubout -outform DER | tail -c 32 | od -An -v -tx1 | tr -d ' \n')
+zeros=$(printf '0%.0s' $(seq 64))
+jq -n --arg v "$VERSAO" --arg data "$(date +%F)" --arg deb "$(basename "$BAIXADO")" \
+	--arg sha "$SHA" --argjson tam "$TAM" --arg zeros "$zeros" \
+	'{schema: 1, version: $v, date: $data, notes: ["e2e"],
+	  windows_amd64: {path: "hyphp-\($v)-windows-amd64-setup.exe", size: 1, sha256: $zeros},
+	  linux_amd64: {path: $deb, size: $tam, sha256: $sha}}' >"$UPD/$VERSAO/latest.json"
+"$OPENSSL" pkeyutl -sign -inkey "$CHAVE" -rawin -in "$UPD/$VERSAO/latest.json" | base64 -w0 >"$UPD/$VERSAO/latest.json.sig"
+(cd "$REPO" && CGO_ENABLED=0 go build -trimpath -ldflags "-X hyphp/internal/update.publicKeyHex=$publica" \
+	-o "$CORPO.helper" ./cmd/hyphp-helper)
+sudo install -m 0755 "$CORPO.helper" "$HELPER"
+# O dpkg grava cada arquivo num inode novo: o mesmo inode depois do update quer
+# dizer que o pacote não foi reinstalado.
+inode_antes=$(stat -c %i "$MAIN")
+pid_antigo=$(app_pid)
+como_app "$MAIN" --aplicar-update --pid "$pid_antigo" --instalador "$BAIXADO" \
+	--sha256 "$SHA" --tamanho "$TAM" --dir /usr/lib/hyphp --exe hyphp \
+	--resultado "$UPD/resultado.json" --de 0.0.0 --para "$VERSAO" --idioma en >>"$SAIDA_APP" 2>&1 &
+atualizador=$!
+pkill -TERM -f "^$MAIN\$"
+status_atualizador=0
+wait "$atualizador" || status_atualizador=$?
+sudo rm -f "$REGRA_POLKIT"
+cat "$UPD/aplicar.log" || true
+[ "$status_atualizador" -eq 0 ] || falha "o atualizador terminou com erro ($status_atualizador)"
+grep -q 'resultado: ok=true' "$UPD/aplicar.log" || falha "o atualizador não registrou sucesso"
+[ "$(versao_instalada)" = "$VERSAO" ] || falha "o pacote não está na versão $VERSAO depois do update"
+[ "$(stat -c %i "$MAIN")" != "$inode_antes" ] || falha "o update não reinstalou o pacote"
+if cmp -s "$CORPO.helper" "$HELPER"; then
+	falha "o helper de teste ficou no lugar do helper do pacote"
+fi
+# No upgrade o prerm não desfaz o que o helper gravou no sistema, e o postinst
+# recarrega o perfil.
+for f in "$DROPIN" "$PROFILED" "$ANCORA" "$SYSCTLD"; do
+	[ -e "$f" ] || falha "$f sumiu no update"
+done
+[ "$(sysctl -n net.ipv4.ip_unprivileged_port_start)" = 80 ] || falha "o limite das portas mudou no update"
+perfil_carregado || falha "o perfil hyphp do AppArmor saiu do kernel no update"
+esperar_pronto 300
+# O app reaberto lê o resultado.json no Start, que pode vir depois dos
+# serviços prontos.
+leu=
+for _ in $(seq 30); do
+	if grep -F 'resultado do último update' "$ROOT/log/hyphp.log" | grep -q 'ok=true'; then
+		leu=1
+		break
+	fi
+	sleep 1
+done
+[ -n "$leu" ] || falha "o app reaberto não leu o resultado do update"
+
 passo "fechar o app"
 fechar_app
 medir_dns "app fechado, regra de DNS no lugar"
 
-passo "remover do sistema pelo helper"
-helper uninstall
+passo "remover o pacote pelo apt-get"
+# Com o app fechado, o prerm desfaz pelo helper o que ele gravou no sistema e
+# tira o perfil do kernel; os dados do usuário ficam.
+sudo apt-get remove -y hyphp
 for f in "$DROPIN" "$PROFILED" "$ANCORA" "$SYSCTLD"; do
-	[ ! -e "$f" ] || falha "$f ficou depois do uninstall"
+	[ ! -e "$f" ] || falha "$f ficou depois do apt-get remove"
 done
 [ "$(sysctl -n net.ipv4.ip_unprivileged_port_start)" = "$porta_original" ] ||
 	falha "o limite das portas não voltou para $porta_original"
@@ -497,6 +683,22 @@ if getent hosts teste.test; then
 	falha "teste.test ainda resolve sem a regra de DNS"
 fi
 medir_dns "sem a regra de DNS"
+[ ! -e /usr/lib/hyphp ] || falha "o /usr/lib/hyphp ficou depois do apt-get remove"
+if [ -e /usr/bin/hyphp ] || [ -L /usr/bin/hyphp ]; then
+	falha "o /usr/bin/hyphp ficou depois do apt-get remove"
+fi
+[ ! -e "$PERFIL" ] || falha "o $PERFIL ficou depois do apt-get remove"
+if perfil_carregado; then
+	falha "o perfil hyphp do AppArmor ficou no kernel"
+fi
+[ ! -e "$POLICY" ] || falha "a action do polkit ficou depois do apt-get remove"
+[ -f "$ROOT/var/state.json" ] || falha "o apt-get remove apagou os dados do usuário"
+sudo apt-get purge -y hyphp
+[ ! -e /var/cache/hyphp ] || falha "o /var/cache/hyphp ficou depois do purge"
+
+passo "reinstalar pelo .deb"
+sudo apt-get install -y "$DEB"
+perfil_carregado || falha "o postinst não carregou o perfil hyphp do AppArmor"
 
 passo "reabrir sem as mudanças no sistema"
 abrir_app

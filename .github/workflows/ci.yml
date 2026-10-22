@@ -133,12 +133,14 @@ jobs:
       - name: e2e
         run: bash .github/scripts/e2e-macos.sh bin/HyPHP.dmg
 
-  # O roteiro do Linux sem tela num runner ubuntu-24.04: runtimes do Homebrew,
-  # o app do build local num Xvfb, as portas 80 e 443, a regra de DNS no
-  # systemd-resolved, a CA e o PATH pelo helper (o sudo do runner faz o papel
-  # da janela de senha do pkexec), projeto em HTTPS, banco, e-mail,
-  # phpMyAdmin, a limpeza de órfãos depois de um kill -9, nginx e MariaDB
-  # instalados com o app aberto, a remoção do sistema e o hosts pelo helper.
+  # O roteiro do Linux sem tela num runner ubuntu-24.04: o .deb do build
+  # instalado pelo apt-get, runtimes do Homebrew, o app num Xvfb, as portas 80
+  # e 443, a regra de DNS no systemd-resolved, a CA e o PATH pelo helper (o
+  # sudo do runner faz o papel da janela de senha do pkexec), projeto em HTTPS,
+  # banco, e-mail, phpMyAdmin, a limpeza de órfãos depois de um kill -9, nginx
+  # e MariaDB instalados com o app aberto, um update aplicado pelo atualizador,
+  # a remoção e o purge pelo apt-get e o hosts pelo helper. O .deb não sai do
+  # job.
   linux-e2e:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -155,15 +157,11 @@ jobs:
       - name: dependências
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev xvfb xauth libnss3-tools
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev xvfb libnss3-tools
       # O wails3 da mesma versão do go.mod, como no build.yml.
       - name: wails3
         run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
-      - name: build
-        run: wails3 task linux:build
-      # O runner restringe user namespaces como o Ubuntu desktop: sem o perfil,
-      # o WebKit não isola a página e o app cai ao abrir a janela.
-      - name: perfil do AppArmor
-        run: wails3 task linux:apparmor
+      - name: package
+        run: wails3 task linux:package
       - name: e2e
-        run: bash .github/scripts/e2e-linux.sh
+        run: bash .github/scripts/e2e-linux.sh bin/hyphp.deb
