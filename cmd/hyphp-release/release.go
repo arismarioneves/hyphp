@@ -30,6 +30,7 @@ import (
 type Files struct {
 	Installer string // instalador NSIS (bin/hyphp-amd64-installer.exe)
 	DMG       string // dmg do Mac (bin/HyPHP.dmg)
+	Deb       string // pacote do Linux (bin/hyphp.deb)
 	Install   string // build/darwin/install.sh
 	Uninstall string // build/darwin/uninstall.sh
 }
@@ -59,6 +60,7 @@ type Options struct {
 const (
 	windowsAMD64 = "windows_amd64"
 	darwinARM64  = "darwin_arm64"
+	linuxAMD64   = "linux_amd64"
 )
 
 // assetName é o nome do instalador de cada plataforma na release. É também o
@@ -70,11 +72,13 @@ func assetName(version, platform string) string {
 		return "hyphp-" + version + "-windows-amd64-setup.exe"
 	case darwinARM64:
 		return "hyphp-" + version + "-darwin-arm64.dmg"
+	case linuxAMD64:
+		return "hyphp-" + version + "-linux-amd64.deb"
 	}
 	panic("assetName: plataforma desconhecida " + platform)
 }
 
-// Publish cria a release v<versão> no GitHub com seis assets — os dois
+// Publish cria a release v<versão> no GitHub com sete assets — os três
 // instaladores, install.sh, uninstall.sh, latest.json e latest.json.sig — e
 // só então acrescenta a versão ao index.json e ao releases.js do site.
 //
@@ -188,7 +192,7 @@ func checkNoRelease(gh func(args ...string) ([]byte, error), repo, tag string) e
 	return nil
 }
 
-// buildRelease monta o Release com os dois instaladores, passando pela mesma
+// buildRelease monta o Release com os três instaladores, passando pela mesma
 // validação que o app faz: nunca publicar o que ele recusaria.
 func buildRelease(version, date string, notes Notes, f Files) (update.Release, error) {
 	rel := update.Release{Version: version, Date: date, Notes: slices.Clone(notes.PT), NotesEN: slices.Clone(notes.EN)}
@@ -198,6 +202,7 @@ func buildRelease(version, date string, notes Notes, f Files) (update.Release, e
 	}{
 		{f.Installer, windowsAMD64, &rel.WindowsAMD64},
 		{f.DMG, darwinARM64, &rel.DarwinARM64},
+		{f.Deb, linuxAMD64, &rel.LinuxAMD64},
 	} {
 		size, sum, err := hashFile(a.file)
 		if err != nil {
@@ -222,13 +227,14 @@ func signLatest(rel update.Release, key ed25519.PrivateKey) (latest, sig []byte,
 	return latest, sig, nil
 }
 
-// stageAssets monta em dir os seis arquivos da release com os nomes que ficam
+// stageAssets monta em dir os sete arquivos da release com os nomes que ficam
 // no GitHub e devolve os caminhos na ordem em que vão para o gh.
 func stageAssets(dir string, f Files, rel update.Release, key ed25519.PrivateKey) ([]string, error) {
 	var out []string
 	for _, c := range []struct{ src, name string }{
 		{f.Installer, rel.WindowsAMD64.Path},
 		{f.DMG, rel.DarwinARM64.Path},
+		{f.Deb, rel.LinuxAMD64.Path},
 		{f.Install, "install.sh"},
 		{f.Uninstall, "uninstall.sh"},
 	} {
@@ -253,7 +259,7 @@ func stageAssets(dir string, f Files, rel update.Release, key ed25519.PrivateKey
 }
 
 // checkDigests compara o digest que o GitHub calculou de cada asset com o
-// sha256 do arquivo enviado. Os dois instaladores têm o sha256 também no
+// sha256 do arquivo enviado. Os três instaladores têm o sha256 também no
 // latest.json, e o app confere contra ele: se o GitHub guardou outros bytes,
 // todo app recusaria o update. A release ainda é draft aqui, invisível.
 func checkDigests(view []byte, assets []string, rel update.Release) error {
@@ -273,6 +279,7 @@ func checkDigests(view []byte, assets []string, rel update.Release) error {
 	inLatest := map[string]string{
 		rel.WindowsAMD64.Path: rel.WindowsAMD64.SHA256,
 		rel.DarwinARM64.Path:  rel.DarwinARM64.SHA256,
+		rel.LinuxAMD64.Path:   rel.LinuxAMD64.SHA256,
 	}
 	for _, p := range assets {
 		name := filepath.Base(p)
@@ -597,7 +604,8 @@ func plistString(plist []byte, chave string) string {
 // entra em loop de update. O wails_tools.nsh entra na conta porque é dele que
 // sai a versão do instalador e o "DisplayVersion" em Aplicativos instalados,
 // e nenhuma task o regenera no empacotamento. O build/darwin/Info.plist também:
-// o macOS mostra essa versão em "Sobre" e o update da M3 compara com ela.
+// o macOS mostra essa versão em "Sobre" e o update da M3 compara com ela. O
+// nfpm.yaml dá o Version do .deb, que o install-update do helper confere.
 func checkVersions(repo, current string) error {
 	raw, err := os.ReadFile(filepath.Join(repo, "build", "config.yml"))
 	if err != nil {
@@ -638,6 +646,16 @@ func checkVersions(repo, current string) error {
 	if err != nil {
 		return err
 	}
+	raw, err = os.ReadFile(filepath.Join(repo, "build", "linux", "nfpm", "nfpm.yaml"))
+	if err != nil {
+		return err
+	}
+	var nfpm struct {
+		Version string `yaml:"version"`
+	}
+	if err := yaml.Unmarshal(raw, &nfpm); err != nil {
+		return fmt.Errorf("build/linux/nfpm/nfpm.yaml: %w", err)
+	}
 	fontes := map[string]string{
 		"build/config.yml info.version":                          cfg.Info.Version,
 		"build/windows/info.json fixed.file_version":             info.Fixed.FileVersion,
@@ -645,6 +663,7 @@ func checkVersions(repo, current string) error {
 		"build/windows/nsis/wails_tools.nsh INFO_PRODUCTVERSION": nshVersion,
 		"build/darwin/Info.plist CFBundleShortVersionString":     plistString(plist, "CFBundleShortVersionString"),
 		"build/darwin/Info.plist CFBundleVersion":                plistString(plist, "CFBundleVersion"),
+		"build/linux/nfpm/nfpm.yaml version":                     nfpm.Version,
 	}
 	for onde, v := range fontes {
 		if v != current {

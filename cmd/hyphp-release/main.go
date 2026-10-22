@@ -1,12 +1,12 @@
 // Command hyphp-release é a ferramenta dos jobs do .github/workflows/build.yml:
 // confere a versão antes de compilar, confere o instalador do Windows,
-// publica a release no GitHub com os dois instaladores e registra a versão no
-// histórico do site (releases/index.json e releases.js).
+// publica a release no GitHub com os três instaladores (Windows, Mac e Linux)
+// e registra a versão no histórico do site (releases/index.json e releases.js).
 //
 //	go run ./cmd/hyphp-release -verificar -tag v3.1.0     (-tag "" no ensaio)
 //	go run ./cmd/hyphp-release -conferir-instalador bin/hyphp-amd64-installer.exe
-//	go run ./cmd/hyphp-release -publicar -tag v3.1.0 -instalador … -dmg … -install … -uninstall … -web web
-//	go run ./cmd/hyphp-release -ensaio -instalador … -dmg …
+//	go run ./cmd/hyphp-release -publicar -tag v3.1.0 -instalador … -dmg … -deb … -install … -uninstall … -web web
+//	go run ./cmd/hyphp-release -ensaio -instalador … -dmg … -deb …
 //	go run ./cmd/hyphp-release -gerar-chave
 //	go run ./cmd/hyphp-release -gerar-chave-catalogo
 //	go run ./cmd/hyphp-release -catalogo -web <checkout do site>
@@ -62,6 +62,7 @@ func run() error {
 		web           = flag.String("web", "", "checkout do repositório do site")
 		inst          = flag.String("instalador", "", "instalador do Windows (bin/hyphp-amd64-installer.exe)")
 		dmg           = flag.String("dmg", "", "dmg do Mac (bin/HyPHP.dmg)")
+		deb           = flag.String("deb", "", "pacote do Linux (bin/hyphp.deb)")
 		install       = flag.String("install", "", "build/darwin/install.sh")
 		uninstall     = flag.String("uninstall", "", "build/darwin/uninstall.sh")
 		data          = flag.String("data", time.Now().Format(time.DateOnly), "data da publicação (AAAA-MM-DD)")
@@ -77,7 +78,7 @@ func run() error {
 	if modos != 1 {
 		return errors.New("escolha um modo: -verificar, -conferir-instalador, -publicar, -ensaio, -catalogo, -checar-catalogo, -contribuidores, -gerar-chave, -gerar-chave-catalogo ou -so-js")
 	}
-	files := Files{Installer: *inst, DMG: *dmg, Install: *install, Uninstall: *uninstall}
+	files := Files{Installer: *inst, DMG: *dmg, Deb: *deb, Install: *install, Uninstall: *uninstall}
 
 	switch {
 	case *contrib:
@@ -114,8 +115,8 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("ensaio ok: latest.json da %s assinado e conferido com a chave do app; nada publicado\n  %s, %d bytes\n  %s, %d bytes\n",
-			l.Version, l.WindowsAMD64.Path, l.WindowsAMD64.Size, l.DarwinARM64.Path, l.DarwinARM64.Size)
+		fmt.Printf("ensaio ok: latest.json da %s assinado e conferido com a chave do app; nada publicado\n  %s, %d bytes\n  %s, %d bytes\n  %s, %d bytes\n",
+			l.Version, l.WindowsAMD64.Path, l.WindowsAMD64.Size, l.DarwinARM64.Path, l.DarwinARM64.Size, l.LinuxAMD64.Path, l.LinuxAMD64.Size)
 		return nil
 	case *checar:
 		reserva, err := pkgmgr.LoadEmbedded()
@@ -182,7 +183,7 @@ func run() error {
 		return err
 	}
 	fmt.Printf("publicada %s em https://github.com/%s/releases/tag/v%s\n", rel.Version, update.GitHubRepo, rel.Version)
-	for _, a := range []*update.Artifact{rel.WindowsAMD64, rel.DarwinARM64} {
+	for _, a := range []*update.Artifact{rel.WindowsAMD64, rel.DarwinARM64, rel.LinuxAMD64} {
 		fmt.Printf("  %s, %d bytes, sha256 %s\n", a.Path, a.Size, a.SHA256)
 	}
 	return nil
