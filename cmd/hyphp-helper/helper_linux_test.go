@@ -1,14 +1,25 @@
 package main
 
 import (
+	"crypto/ed25519"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
 	"hyphp/internal/netcfg"
 	"hyphp/internal/paths"
+	"hyphp/internal/update"
+	"hyphp/internal/version"
 )
 
 // sistemaFalso aponta os arquivos de sistema para uma pasta temporária e
@@ -247,5 +258,234 @@ func TestUninstallPreservaArquivosDeOutroPrograma(t *testing.T) {
 	}
 	if len(*rodados) != 0 {
 		t.Fatalf("comandos = %q", *rodados)
+	}
+}
+
+// pacoteFalso é um .deb de mentira na pasta do usuário, com o manifesto
+// assinado ao lado e a pasta do root do update numa temporária. O dpkg-deb
+// falso responde com campos; o apt-get falso guarda o conteúdo da cópia que
+// recebeu e devolve aptOut e aptErr.
+type pacoteFalso struct {
+	deb        string
+	rel        update.Latest
+	chave      ed25519.PrivateKey // assina o manifesto
+	adultera   bool               // muda o manifesto depois de assinado
+	campos     string
+	aptOut     []byte
+	aptErr     error
+	chamadas   [][]string
+	copiaNoApt string
+}
+
+// A versão do pacote é a deste helper: o install-update recusa versão mais
+// velha que a instalada, e o teste segue valendo quando a versão sobe.
+func novoPacoteFalso(t *testing.T) *pacoteFalso {
+	t.Helper()
+	pub, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conteudo := "!<arch>\nconteúdo do pacote\n"
+	soma := sha256.Sum256([]byte(conteudo))
+	v := version.Current
+	p := &pacoteFalso{
+		deb:    filepath.Join(t.TempDir(), "hyphp-"+v+"-linux-amd64.deb"),
+		chave:  priv,
+		campos: "Package: hyphp\nVersion: " + v + "\nArchitecture: " + runtime.GOARCH + "\n",
+	}
+	p.rel = update.Latest{Schema: update.SchemaVersion, Release: update.Release{
+		Version: v, Date: "2026-10-22", Notes: []string{"nota"},
+		WindowsAMD64: &update.Artifact{Path: "hyphp-" + v + "-windows-amd64-setup.exe", Size: 1, SHA256: strings.Repeat("0", 64)},
+		LinuxAMD64:   &update.Artifact{Path: filepath.Base(p.deb), Size: int64(len(conteudo)), SHA256: hex.EncodeToString(soma[:])},
+	}}
+	escrever(t, p.deb, conteudo)
+	cache := filepath.Join(t.TempDir(), "var", "cache")
+	if err := os.MkdirAll(cache, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	salvaDir, salvaCmd, salvaChave := updateCacheDir, commandOutput, updateKey
+	updateCacheDir, updateKey = filepath.Join(cache, "hyphp"), pub
+	commandOutput = func(name string, args ...string) ([]byte, error) {
+		p.chamadas = append(p.chamadas, append([]string{name}, args...))
+		switch name {
+		case "dpkg-deb":
+			return []byte(p.campos), nil
+		case "env":
+			raw, err := os.ReadFile(args[len(args)-1])
+			if err != nil {
+				t.Errorf("cópia ausente na hora do apt-get: %v", err)
+			}
+			p.copiaNoApt = string(raw)
+			return p.aptOut, p.aptErr
+		}
+		t.Errorf("comando inesperado: %s", name)
+		return nil, errors.New("comando inesperado")
+	}
+	t.Setenv("PKEXEC_UID", strconv.Itoa(os.Getuid()))
+	t.Cleanup(func() { updateCacheDir, commandOutput, updateKey = salvaDir, salvaCmd, salvaChave })
+	return p
+}
+
+// args grava o manifesto e a assinatura como estão em p, ao lado do pacote, e
+// devolve o pedido.
+func (p *pacoteFalso) args(t *testing.T) []string {
+	t.Helper()
+	body, err := json.Marshal(p.rel)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sig := base64.StdEncoding.EncodeToString(ed25519.Sign(p.chave, body)) + "\n"
+	if p.adultera {
+		body = append(body, ' ')
+	}
+	manifesto := filepath.Join(t.TempDir(), "latest.json")
+	escrever(t, manifesto, string(body))
+	escrever(t, manifesto+".sig", sig)
+	return []string{"install-update", "--deb", p.deb, "--manifesto", manifesto, "--assinatura", manifesto + ".sig"}
+}
+
+func TestInstallUpdateInstalaPeloAptGetACopiaConferida(t *testing.T) {
+	p := novoPacoteFalso(t)
+	if code, err := run(p.args(t)); code != exitOK {
+		t.Fatalf("code = %d, err = %v", code, err)
+	}
+	var apt []string
+	for _, c := range p.chamadas {
+		if slices.Contains(c, "apt-get") {
+			apt = c
+		}
+	}
+	if apt == nil {
+		t.Fatalf("o apt-get não rodou: %q", p.chamadas)
+	}
+	if copia := apt[len(apt)-1]; filepath.Dir(copia) != updateCacheDir {
+		t.Fatalf("o apt-get recebeu %s, fora da pasta do root", copia)
+	}
+	// O mesmo pacote de novo (o e2e) precisa ser reinstalado, e sem terminal
+	// uma pergunta do debconf travaria a instalação.
+	if !slices.Contains(apt, "--reinstall") || !slices.Contains(apt, "DEBIAN_FRONTEND=noninteractive") {
+		t.Fatalf("apt-get = %q", apt)
+	}
+	if p.copiaNoApt != ler(t, p.deb) {
+		t.Fatal("a cópia instalada difere do pacote conferido")
+	}
+	if existe(updateCacheDir) {
+		t.Fatal("a cópia ficou na pasta do root")
+	}
+}
+
+// Nada chega ao dpkg-deb nem ao apt-get sem que o manifesto tenha a
+// assinatura da chave das releases e o arquivo seja do usuário que pediu e
+// bata com o manifesto.
+func TestInstallUpdateRecusaPacoteQueNaoConfere(t *testing.T) {
+	casos := []struct {
+		nome string
+		mexe func(t *testing.T, p *pacoteFalso)
+	}{
+		{"assinatura de outra chave", func(t *testing.T, p *pacoteFalso) {
+			_, outra, err := ed25519.GenerateKey(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.chave = outra
+		}},
+		{"manifesto mexido depois de assinado", func(_ *testing.T, p *pacoteFalso) { p.adultera = true }},
+		{"sha256 diferente do manifesto", func(_ *testing.T, p *pacoteFalso) { p.rel.LinuxAMD64.SHA256 = strings.Repeat("0", 64) }},
+		{"tamanho diferente do manifesto", func(_ *testing.T, p *pacoteFalso) { p.rel.LinuxAMD64.Size = 3 }},
+		{"pacote acima do limite", func(_ *testing.T, p *pacoteFalso) { p.rel.LinuxAMD64.Size = maxDebSize + 1 }},
+		{"manifesto sem pacote do Linux", func(_ *testing.T, p *pacoteFalso) { p.rel.LinuxAMD64 = nil }},
+		{"versão mais velha que a instalada", func(_ *testing.T, p *pacoteFalso) { p.rel.Version = "0.1.0" }},
+		{"caminho relativo", func(_ *testing.T, p *pacoteFalso) { p.deb = filepath.Base(p.deb) }},
+		{"link", func(t *testing.T, p *pacoteFalso) {
+			link := filepath.Join(t.TempDir(), "hyphp.deb")
+			if err := os.Symlink(p.deb, link); err != nil {
+				t.Fatal(err)
+			}
+			p.deb = link
+		}},
+		{"arquivo de outro usuário", func(t *testing.T, _ *pacoteFalso) {
+			t.Setenv("PKEXEC_UID", strconv.Itoa(os.Getuid()+1))
+		}},
+	}
+	for _, c := range casos {
+		t.Run(c.nome, func(t *testing.T) {
+			p := novoPacoteFalso(t)
+			c.mexe(t, p)
+			if code, err := run(p.args(t)); code != exitUsage {
+				t.Fatalf("code = %d, quer %d (err = %v)", code, exitUsage, err)
+			}
+			if len(p.chamadas) != 0 {
+				t.Fatalf("comandos = %q", p.chamadas)
+			}
+			if existe(updateCacheDir) {
+				t.Fatal("a cópia ficou na pasta do root")
+			}
+		})
+	}
+}
+
+// Um control de outro pacote, de outra versão que a do manifesto ou de outra
+// arquitetura para antes do apt-get.
+func TestInstallUpdateRecusaControlDiferenteDoEsperado(t *testing.T) {
+	v := version.Current
+	casos := map[string]string{
+		"outro pacote":      "Package: outro\nVersion: " + v + "\nArchitecture: " + runtime.GOARCH + "\n",
+		"outra versão":      "Package: hyphp\nVersion: 0.0.1\nArchitecture: " + runtime.GOARCH + "\n",
+		"outra arquitetura": "Package: hyphp\nVersion: " + v + "\nArchitecture: all\n",
+		"campo ausente":     "Package: hyphp\nVersion: " + v + "\n",
+	}
+	for nome, campos := range casos {
+		t.Run(nome, func(t *testing.T) {
+			p := novoPacoteFalso(t)
+			p.campos = campos
+			if code, err := run(p.args(t)); code != exitUsage {
+				t.Fatalf("code = %d, quer %d (err = %v)", code, exitUsage, err)
+			}
+			if len(p.chamadas) != 1 || p.chamadas[0][0] != "dpkg-deb" {
+				t.Fatalf("comandos = %q, quer só o dpkg-deb", p.chamadas)
+			}
+			if existe(updateCacheDir) {
+				t.Fatal("a cópia ficou na pasta do root")
+			}
+		})
+	}
+}
+
+// O erro leva só o fim da saída do apt-get, onde fica o motivo.
+func TestInstallUpdateFalhaDoAptGetDevolveOFimDaSaida(t *testing.T) {
+	p := novoPacoteFalso(t)
+	var saida strings.Builder
+	for i := range 40 {
+		fmt.Fprintf(&saida, "linha %02d\n", i+1)
+	}
+	p.aptOut, p.aptErr = []byte(saida.String()), errors.New("exit status 100")
+	code, err := run(p.args(t))
+	if code != exitIO {
+		t.Fatalf("code = %d, quer %d", code, exitIO)
+	}
+	if msg := fmt.Sprint(err); !strings.Contains(msg, "linha 26") || !strings.Contains(msg, "linha 40") || strings.Contains(msg, "linha 25") {
+		t.Fatalf("erro = %q, quer as linhas 26 a 40", msg)
+	}
+	if existe(updateCacheDir) {
+		t.Fatal("a cópia ficou na pasta do root")
+	}
+}
+
+// Um link no lugar da pasta do root levaria a cópia para onde o usuário
+// alcança.
+func TestInstallUpdateRecusaPastaDoRootQueELink(t *testing.T) {
+	p := novoPacoteFalso(t)
+	alvo := t.TempDir()
+	if err := os.Symlink(alvo, updateCacheDir); err != nil {
+		t.Fatal(err)
+	}
+	if code, err := run(p.args(t)); code != exitIO {
+		t.Fatalf("code = %d, quer %d (err = %v)", code, exitIO, err)
+	}
+	if len(p.chamadas) != 0 {
+		t.Fatalf("comandos = %q", p.chamadas)
+	}
+	if entradas, _ := os.ReadDir(alvo); len(entradas) != 0 {
+		t.Fatalf("a cópia foi parar no alvo do link: %v", entradas)
 	}
 }
