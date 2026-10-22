@@ -248,9 +248,17 @@ folha() {
 }
 
 passo "systemd-resolved no runner"
-# O roteiro é o do Ubuntu com o resolved: sem o stub no resolv.conf, o app
-# cairia no caminho do hosts e os avisos seriam outros.
-grep -q '^nameserver 127\.0\.0\.53' /etc/resolv.conf || falha "o resolv.conf do runner não aponta para o stub do resolved"
+# O roteiro é o do Ubuntu desktop, em que o primeiro nameserver do resolv.conf
+# é o stub do resolved; sem isso o app vai pelo caminho do hosts e os avisos
+# são outros. Há imagens do runner com o resolv.conf entregue a outro programa
+# (o modo "foreign" do resolved), e aí ele volta ao padrão do Ubuntu.
+primeiro_nameserver() { awk '$1 == "nameserver" { print $2; exit }' /etc/resolv.conf; }
+cat /etc/resolv.conf
+if [ "$(primeiro_nameserver)" != 127.0.0.53 ]; then
+	sudo ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+fi
+[ "$(primeiro_nameserver)" = 127.0.0.53 ] || falha "o resolv.conf do runner não aponta para o stub do resolved"
+getent ahosts github.com >/dev/null || falha "o runner não resolve nomes pelo stub do resolved"
 porta_original=$(sysctl -n net.ipv4.ip_unprivileged_port_start)
 echo "limite das portas sem root: $porta_original"
 
