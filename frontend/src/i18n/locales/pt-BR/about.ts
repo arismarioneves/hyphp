@@ -1,5 +1,5 @@
 export const about = {
-  tagline: 'Ambiente de desenvolvimento PHP para Windows e macOS.',
+  tagline: 'Ambiente de desenvolvimento PHP para Windows, macOS e Linux.',
   version: 'Versão',
   updateInactive: 'Desligado em builds de desenvolvimento.',
   updateIdle: 'A primeira verificação acontece um minuto depois de abrir.',
