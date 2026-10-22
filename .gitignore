@@ -6,8 +6,6 @@
 bin/
 *.exe
 *.syso
-build/linux/appimage/build
-build/linux/hyphp.desktop
 build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 # Mobile generated (per-machine; overlays hold absolute paths)
 build/ios/xcode/overlay.json
