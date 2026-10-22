@@ -26,6 +26,8 @@ export const app = {
   closeTitleNoTray: 'Fechar (minimiza)',
   updateReady: 'pronto para instalar.',
   updateReadyHint: ' Os serviços param e o Windows pede permissão.',
+  updateReadyHintMac: ' Os serviços param e o HyPHP reabre sozinho.',
+  updateReadyHintLinux: ' Os serviços param e o sistema pede a senha de administrador.',
   updateAndRestart: 'Atualizar e reiniciar',
   dismiss: 'Dispensar',
   logFilterPlaceholder: 'filtrar…',
