@@ -32,12 +32,14 @@ func ambiente(t *testing.T) (web string, f Files, pub ed25519.PublicKey, priv ed
 	f = Files{
 		Installer: filepath.Join(dir, "hyphp-amd64-installer.exe"),
 		DMG:       filepath.Join(dir, "HyPHP.dmg"),
+		Deb:       filepath.Join(dir, "hyphp.deb"),
 		Install:   filepath.Join(dir, "install.sh"),
 		Uninstall: filepath.Join(dir, "uninstall.sh"),
 	}
 	for p, conteudo := range map[string]string{
 		f.Installer: "instalador de teste",
 		f.DMG:       "dmg de teste",
+		f.Deb:       "deb de teste",
 		f.Install:   "#!/bin/sh\n# install\n",
 		f.Uninstall: "#!/bin/sh\n# uninstall\n",
 	} {
@@ -147,9 +149,9 @@ func lerIndice(t *testing.T, web string) update.Index {
 }
 
 // escreverVersoes grava os arquivos de versão que checkVersions lê.
-func escreverVersoes(t *testing.T, root, cfg, info, nsh, plist string) {
+func escreverVersoes(t *testing.T, root, cfg, info, nsh, plist, nfpm string) {
 	t.Helper()
-	for _, dir := range []string{filepath.Join(root, "build", "windows", "nsis"), filepath.Join(root, "build", "darwin")} {
+	for _, dir := range []string{filepath.Join(root, "build", "windows", "nsis"), filepath.Join(root, "build", "darwin"), filepath.Join(root, "build", "linux", "nfpm")} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -159,6 +161,7 @@ func escreverVersoes(t *testing.T, root, cfg, info, nsh, plist string) {
 		filepath.Join(root, "build", "windows", "info.json"):               `{"fixed":{"file_version":"` + info + `"},"info":{"0000":{"ProductVersion":"` + info + `"}}}`,
 		filepath.Join(root, "build", "windows", "nsis", "wails_tools.nsh"): "!ifndef INFO_PRODUCTVERSION\n    !define INFO_PRODUCTVERSION \"" + nsh + "\"\n!endif\n",
 		filepath.Join(root, "build", "darwin", "Info.plist"):               "<plist version=\"1.0\">\n\t<dict>\n\t\t<key>CFBundleShortVersionString</key>\n\t\t<string>" + plist + "</string>\n\t\t<key>CFBundleVersion</key>\n\t\t<string>" + plist + "</string>\n\t</dict>\n</plist>\n",
+		filepath.Join(root, "build", "linux", "nfpm", "nfpm.yaml"):         "name: \"hyphp\"\narch: \"amd64\"\nversion: \"" + nfpm + "\"\ncontents:\n  - src: a\n    dst: /usr/lib/hyphp/hyphp\n",
 	} {
 		if err := os.WriteFile(p, []byte(conteudo), 0o644); err != nil {
 			t.Fatal(err)
@@ -207,6 +210,7 @@ func TestPublishCriaReleaseQueOAppAceita(t *testing.T) {
 	}{
 		{l.WindowsAMD64, "hyphp-1.0.0-windows-amd64-setup.exe", "instalador de teste"},
 		{l.DarwinARM64, "hyphp-1.0.0-darwin-arm64.dmg", "dmg de teste"},
+		{l.LinuxAMD64, "hyphp-1.0.0-linux-amd64.deb", "deb de teste"},
 	} {
 		if c.a == nil || c.a.Path != c.nome {
 			t.Fatalf("artefato %+v, quer path %s", c.a, c.nome)
@@ -221,8 +225,8 @@ func TestPublishCriaReleaseQueOAppAceita(t *testing.T) {
 			t.Errorf("%s não foi para a release", nome)
 		}
 	}
-	if len(gh.assets) != 6 {
-		t.Errorf("%d assets enviados, quer 6", len(gh.assets))
+	if len(gh.assets) != 7 {
+		t.Errorf("%d assets enviados, quer 7", len(gh.assets))
 	}
 
 	idx := lerIndice(t, web)
@@ -301,7 +305,7 @@ func TestPublishRecusaReleaseJaPublicada(t *testing.T) {
 // O GitHub guardou bytes diferentes dos enviados (upload truncado, asset
 // trocado): a release fica em draft, invisível, e o site não anuncia nada.
 func TestPublishDigestDiferenteFicaEmDraft(t *testing.T) {
-	for _, asset := range []string{"hyphp-1.0.0-darwin-arm64.dmg", "latest.json.sig", "install.sh"} {
+	for _, asset := range []string{"hyphp-1.0.0-darwin-arm64.dmg", "hyphp-1.0.0-linux-amd64.deb", "latest.json.sig", "install.sh"} {
 		t.Run(asset, func(t *testing.T) {
 			web, f, _, priv := ambiente(t)
 			gh := novoGH()
@@ -436,7 +440,7 @@ func TestNotasDaVersao(t *testing.T) {
 // ensaio, sem tag, confere só os arquivos de versão e não fala com o GitHub.
 func TestVerificar(t *testing.T) {
 	repo := t.TempDir()
-	escreverVersoes(t, repo, "1.1.0", "1.1.0", "1.1.0", "1.1.0")
+	escreverVersoes(t, repo, "1.1.0", "1.1.0", "1.1.0", "1.1.0", "1.1.0")
 	escreverNotas(t, repo, "1.1.0", `{"pt":["Corrige X"],"en":["Fixes X"]}`)
 	gh := novoGH()
 	gh.ultima = "v1.0.0"
@@ -466,7 +470,7 @@ func TestVerificar(t *testing.T) {
 	if err := verify(repo, "1.1.0", "", testRepo, semGH); err != nil {
 		t.Errorf("ensaio recusado: %v", err)
 	}
-	escreverVersoes(t, repo, "1.1.0", "1.1.0", "1.0.0", "1.1.0")
+	escreverVersoes(t, repo, "1.1.0", "1.1.0", "1.0.0", "1.1.0", "1.1.0")
 	if err := verify(repo, "1.1.0", "", testRepo, semGH); err == nil {
 		t.Error("ensaio aceitou arquivos de versão divergentes")
 	}
@@ -565,27 +569,33 @@ func TestPublicarCatalogoComPublicadoIlegivel(t *testing.T) {
 
 func TestVersoesConsistentes(t *testing.T) {
 	root := t.TempDir()
-	escreverVersoes(t, root, "1.0.0", "1.0.0", "1.0.0", "1.0.0")
+	escreverVersoes(t, root, "1.0.0", "1.0.0", "1.0.0", "1.0.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err != nil {
 		t.Errorf("versões iguais recusadas: %v", err)
 	}
-	escreverVersoes(t, root, "1.0.0", "0.1.0", "1.0.0", "1.0.0")
+	escreverVersoes(t, root, "1.0.0", "0.1.0", "1.0.0", "1.0.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("info.json divergente aceito")
 	}
-	escreverVersoes(t, root, "1.0.1", "1.0.0", "1.0.0", "1.0.0")
+	escreverVersoes(t, root, "1.0.1", "1.0.0", "1.0.0", "1.0.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("config.yml divergente aceito")
 	}
 	// O instalador sai com a versão do .nsh em "Aplicativos instalados".
-	escreverVersoes(t, root, "1.0.0", "1.0.0", "0.1.0", "1.0.0")
+	escreverVersoes(t, root, "1.0.0", "1.0.0", "0.1.0", "1.0.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err == nil {
 		t.Error("wails_tools.nsh divergente aceito")
 	}
 	// Info.plist com versão velha: o macOS mostra em "Sobre" e o update compara com ela.
-	escreverVersoes(t, root, "1.0.0", "1.0.0", "1.0.0", "0.1.0")
+	escreverVersoes(t, root, "1.0.0", "1.0.0", "1.0.0", "0.1.0", "1.0.0")
 	if err := checkVersions(root, "1.0.0"); err == nil || !strings.Contains(err.Error(), "build/darwin/Info.plist") {
 		t.Errorf("Info.plist divergente: erro = %v, quer citar build/darwin/Info.plist", err)
+	}
+	// O Version do .deb sai do nfpm.yaml, e o install-update do helper recusa
+	// pacote de versão diferente da anunciada no latest.json.
+	escreverVersoes(t, root, "1.0.0", "1.0.0", "1.0.0", "1.0.0", "0.1.0")
+	if err := checkVersions(root, "1.0.0"); err == nil || !strings.Contains(err.Error(), "nfpm.yaml") {
+		t.Errorf("nfpm.yaml divergente: erro = %v, quer citar o nfpm.yaml", err)
 	}
 }
 

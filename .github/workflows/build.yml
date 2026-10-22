@@ -4,10 +4,10 @@
 #   - modo publicar, com a tag: o mesmo que o push dela, para refazer uma
 #     publicação que parou antes de a release ficar pública (um draft que
 #     sobrou tem de ser apagado antes; o hyphp-release recusa enquanto existir);
-#   - modo ensaio: compila os dois instaladores e assina o latest.json em
+#   - modo ensaio: compila os três instaladores e assina o latest.json em
 #     memória, sem publicar nada.
 # Há duas aprovações: no job verificar, antes de compilar, e no job publicar,
-# com os dois instaladores prontos. Só o publicar usa segredos e só ele
+# com os três instaladores prontos. Só o publicar usa segredos e só ele
 # escreve no GitHub. Sem gatilho de pull request.
 name: build
 
@@ -98,7 +98,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: go run ./cmd/hyphp-release -verificar -tag "$TAG" >>"$GITHUB_OUTPUT"
       # Os créditos da tela Sobre saem do GitHub uma vez por release e vão
-      # iguais para os dois builds; o arquivo do repositório só vale para
+      # iguais para os três builds; o arquivo do repositório só vale para
       # builds locais.
       - name: contribuidores
         env:
@@ -210,8 +210,72 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  # ubuntu-24.04 fixo: a glibc 2.39 dele é o piso do .deb, e um runner mais
+  # novo geraria binários que o Ubuntu 24.04 não roda.
+  linux:
+    needs: verificar
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.verificar.outputs.ref }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
+      - name: wails3
+        run: go install "github.com/wailsapp/wails/v3/cmd/wails3@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v3)"
+      - uses: actions/download-artifact@v4
+        with:
+          name: contribuidores
+          path: internal/credits
+      - name: package
+        run: wails3 task linux:package
+      # O install-update do helper recusa pacote cujo Version ou Architecture
+      # não batam com o latest.json; conferir aqui evita publicar um .deb que
+      # nenhum app aceitaria.
+      - name: conferir
+        env:
+          VERSAO: ${{ needs.verificar.outputs.versao }}
+        run: |
+          v=$(dpkg-deb -f bin/hyphp.deb Version)
+          if [ "$v" != "$VERSAO" ]; then
+            echo "::error::o .deb traz a versão $v, não a $VERSAO"
+            exit 1
+          fi
+          a=$(dpkg-deb -f bin/hyphp.deb Architecture)
+          if [ "$a" != amd64 ]; then
+            echo "::error::o .deb é da arquitetura $a, não amd64"
+            exit 1
+          fi
+          conteudo=$(dpkg-deb -c bin/hyphp.deb | awk '{print $6}')
+          for p in ./usr/lib/hyphp/hyphp ./usr/lib/hyphp/hyphp-helper ./usr/lib/hyphp/cli/hyphp \
+            ./usr/bin/hyphp ./usr/share/applications/com.hyphp.app.desktop \
+            ./usr/share/polkit-1/actions/com.hyphp.app.helper.policy ./etc/apparmor.d/hyphp; do
+            if ! grep -qxF "$p" <<<"$conteudo"; then
+              echo "::error::o .deb não traz $p"
+              exit 1
+            fi
+          done
+          git diff --exit-code go.mod go.sum
+      # Um só caminho: o artefato guarda só o hyphp.deb, sem o bin/.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: bin/hyphp.deb
+          if-no-files-found: error
+          retention-days: 7
+
   publicar:
-    needs: [verificar, windows, macos]
+    needs: [verificar, windows, macos, linux]
     runs-on: windows-latest
     environment: release
     permissions:
@@ -226,7 +290,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      # Sem nome: cada artefato numa pasta, dist/windows e dist/macos.
+      # Sem nome: cada artefato numa pasta, dist/windows, dist/macos e dist/linux.
       - uses: actions/download-artifact@v4
         with:
           path: dist
@@ -248,7 +312,7 @@ jobs:
         if: needs.verificar.outputs.modo == 'ensaio'
         env:
           HYPHP_RELEASE_KEY: ${{ secrets.HYPHP_RELEASE_KEY }}
-        run: go run ./cmd/hyphp-release -ensaio -instalador dist/windows/hyphp-amd64-installer.exe -dmg dist/macos/bin/HyPHP.dmg
+        run: go run ./cmd/hyphp-release -ensaio -instalador dist/windows/hyphp-amd64-installer.exe -dmg dist/macos/bin/HyPHP.dmg -deb dist/linux/hyphp.deb
       - name: publicar
         if: needs.verificar.outputs.modo == 'publicar'
         env:
@@ -258,6 +322,7 @@ jobs:
           go run ./cmd/hyphp-release -publicar -tag "$TAG"
           -instalador dist/windows/hyphp-amd64-installer.exe
           -dmg dist/macos/bin/HyPHP.dmg
+          -deb dist/linux/hyphp.deb
           -install dist/macos/build/darwin/install.sh
           -uninstall dist/macos/build/darwin/uninstall.sh
           -web web

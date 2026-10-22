@@ -1,10 +1,10 @@
 // Package update verifica, baixa e aplica versões novas do HyPHP.
 //
 // Cada versão é uma release do GitHub. O app lê dois assets dela:
-// latest.json (um Latest, com o instalador do Windows e o dmg do Mac) e
-// latest.json.sig (ed25519 dos bytes exatos do latest.json, em base64). Toda
-// versão instalada fica para sempre lendo o mesmo endereço e esperando o
-// mesmo formato, então campo existente nunca muda de sentido.
+// latest.json (um Latest, com o instalador do Windows, o dmg do Mac e o .deb
+// do Linux) e latest.json.sig (ed25519 dos bytes exatos do latest.json, em
+// base64). Toda versão instalada fica para sempre lendo o mesmo endereço e
+// esperando o mesmo formato, então campo existente nunca muda de sentido.
 package update
 
 import (
@@ -115,7 +115,7 @@ func (r Release) Validate() error {
 		return err
 	}
 	// darwin_arm64 e linux_amd64 são opcionais no contrato (as releases até a
-	// 3.0.1 não têm o do Mac, e nenhuma publicada até aqui tem o do Linux), mas
+	// 3.0.1 não têm o do Mac, e as até a 4.2.0 não têm o do Linux), mas
 	// se vierem têm de ser tão confiáveis quanto o do Windows: é o que cada
 	// sistema baixa.
 	for _, o := range []struct {
