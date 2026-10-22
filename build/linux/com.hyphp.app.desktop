@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=HyPHP
+Comment=PHP development environment
+Comment[pt_BR]=Ambiente de desenvolvimento PHP
+Exec=/usr/lib/hyphp/hyphp
+Icon=hyphp
+Terminal=false
+Categories=Development;
+StartupWMClass=hyphp

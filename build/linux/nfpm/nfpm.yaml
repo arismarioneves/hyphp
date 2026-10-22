@@ -1,80 +1,66 @@
-# Feel free to remove those if you don't want/need to use them.
-# Make sure to check the documentation at https://nfpm.goreleaser.com
-#
-# The lines below are called `modelines`. See `:help modeline`
-
 name: "hyphp"
-arch: ${GOARCH}
+arch: "amd64"
 platform: "linux"
-version: "0.1.0"
-section: "default"
-priority: "extra"
-maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
-description: "Ambiente de desenvolvimento PHP"
-vendor: "HyPHP"
-homepage: "https://wails.io"
+# Igual ao internal/version.Current: o hyphp-release confere, e o Version do
+# control sai sem revisão para o updater comparar com a versão do app.
+version: "4.2.0"
+section: "devel"
+priority: "optional"
+maintainer: "Arismário Neves <contato@arismario.dev>"
+homepage: "https://ae8.com.br/hyphp/"
 license: "MIT"
-release: "1"
+description: |
+  Local PHP development environment
+  HyPHP runs several PHP versions side by side, and each project declares
+  its own. It serves sites with Apache or nginx, runs MySQL or MariaDB and
+  catches outgoing mail with Mailpit, without Docker.
 
-contents:
-  - src: "./bin/hyphp"
-    dst: "/usr/local/bin/hyphp"
-  - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/hyphp.png"
-  - src: "./build/linux/hyphp.desktop"
-    dst: "/usr/share/applications/hyphp.desktop"
-
-# Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:
   - libgtk-4-1
   - libwebkitgtk-6.0-4
+  - libnss3-tools
+  - pkexec
+  - ca-certificates
 
-# Distribution-specific overrides for different package formats
-overrides:
-  # RPM packages for Fedora / RHEL / AlmaLinux / Rocky Linux
-  rpm:
-    depends:
-      - gtk4
-      - webkitgtk6.0
+contents:
+  - src: "./bin/hyphp"
+    dst: "/usr/lib/hyphp/hyphp"
+    file_info:
+      mode: 0755
+  - src: "./bin/hyphp-helper"
+    dst: "/usr/lib/hyphp/hyphp-helper"
+    file_info:
+      mode: 0755
+  - src: "./bin/cli/hyphp"
+    dst: "/usr/lib/hyphp/cli/hyphp"
+    file_info:
+      mode: 0755
+  # A CLI no PATH; o app fica fora dele, só pelo .desktop.
+  - src: "/usr/lib/hyphp/cli/hyphp"
+    dst: "/usr/bin/hyphp"
+    type: symlink
+  # Os demais com 0644 fixo: o modo do checkout depende do umask de quem
+  # compila.
+  - src: "./build/linux/com.hyphp.app.desktop"
+    dst: "/usr/share/applications/com.hyphp.app.desktop"
+    file_info:
+      mode: 0644
+  - src: "./build/appicon.svg"
+    dst: "/usr/share/icons/hicolor/scalable/apps/hyphp.svg"
+    file_info:
+      mode: 0644
+  # Arquivo comum e não conffile: o apt remove o leva junto, sem esperar o
+  # purge, e o upgrade o troca sem perguntar.
+  - src: "./bin/linux/hyphp.apparmor"
+    dst: "/etc/apparmor.d/hyphp"
+    file_info:
+      mode: 0644
+  - src: "./bin/linux/com.hyphp.app.helper.policy"
+    dst: "/usr/share/polkit-1/actions/com.hyphp.app.helper.policy"
+    file_info:
+      mode: 0644
 
-  # Arch Linux packages
-  archlinux:
-    depends:
-      - gtk4
-      - webkitgtk-6.0
-
-# scripts section to ensure desktop database is updated after install
 scripts:
   postinstall: "./build/linux/nfpm/scripts/postinstall.sh"
-  # You can also add preremove, postremove if needed
-  # preremove: "./build/linux/nfpm/scripts/preremove.sh"
-  # postremove: "./build/linux/nfpm/scripts/postremove.sh"
-
-# If you build your app with -tags gtk3 (legacy WebKit2GTK 4.1 stack — supported through v3.0.x, removed in v3.1),
-# replace the depends/overrides above with these:
-#
-# depends:
-#   - libgtk-3-0
-#   - libwebkit2gtk-4.1-0
-# overrides:
-#   rpm:
-#     depends:
-#       - gtk3
-#       - webkit2gtk4.1
-#   archlinux:
-#     depends:
-#       - gtk3
-#       - webkit2gtk-4.1
-#
-# replaces:
-#   - foobar
-# provides:
-#   - bar
-# recommends:
-#   - whatever
-# suggests:
-#   - something-else
-# conflicts:
-#   - not-foo
-#   - not-bar
-# changelog: "changelog.yaml"
+  preremove: "./build/linux/nfpm/scripts/preremove.sh"
+  postremove: "./build/linux/nfpm/scripts/postremove.sh"
