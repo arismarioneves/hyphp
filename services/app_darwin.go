@@ -64,6 +64,10 @@ func readUserPath() (string, error) {
 	return strings.Join(dirs, ":"), nil
 }
 
+// cliOnSystemPath: no Mac nada põe a CLI no PATH de todos; vale só o
+// /etc/paths.d/hyphp.
+func cliOnSystemPath(string) bool { return false }
+
 // addCLIToUserPath põe o atalho hyphp na pasta cli e registra a pasta no
 // /etc/paths.d (senha só na primeira vez).
 func addCLIToUserPath(exe string) error {

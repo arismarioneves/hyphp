@@ -110,6 +110,21 @@ func readUserPath() (string, error) {
 	return out[strings.LastIndexByte(out, '\n')+1:], nil
 }
 
+// systemCLILink é o link que o pacote .deb instala para a CLI.
+const systemCLILink = "/usr/bin/hyphp"
+
+// cliOnSystemPath diz se o /usr/bin/hyphp leva à CLI exe. O pacote põe esse
+// link no PATH de todos os usuários, e aí a CLI já está no PATH sem a pasta
+// cli no /etc/profile.d.
+func cliOnSystemPath(exe string) bool {
+	alvo, err := filepath.EvalSymlinks(systemCLILink)
+	if err != nil {
+		return false
+	}
+	cli, err := filepath.EvalSymlinks(exe)
+	return err == nil && alvo == cli
+}
+
 // addCLIToUserPath põe o atalho hyphp na pasta cli e registra a pasta no
 // /etc/profile.d (senha só na primeira vez).
 func addCLIToUserPath(exe string) error {
