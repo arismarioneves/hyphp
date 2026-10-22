@@ -174,6 +174,10 @@ func addToUserPath(dir string) error {
 // entra no PATH.
 func cliPathDir(exe string) string { return filepath.Dir(exe) }
 
+// cliOnSystemPath: no Windows nada põe a CLI no PATH de todos; vale só o PATH
+// do usuário.
+func cliOnSystemPath(string) bool { return false }
+
 func addCLIToUserPath(exe string) error { return addToUserPath(filepath.Dir(exe)) }
 
 func addPHPToUserPath(inst runtime.Installed) error { return addToUserPath(inst.Dir) }

@@ -167,9 +167,14 @@ func (c *CLIService) Info() CLIInfo {
 	if _, err := os.Stat(c.d.Exe); err == nil {
 		info.ExeExists = true
 	}
-	if p, err := readUserPath(); err == nil {
-		_, mudou := pathComDir(p, cliPathDir(c.d.Exe))
-		info.OnPath = !mudou
+	// O link do pacote basta: sem ele, vale o PATH do shell de login, que
+	// custa um processo.
+	info.OnPath = cliOnSystemPath(c.d.Exe)
+	if !info.OnPath {
+		if p, err := readUserPath(); err == nil {
+			_, mudou := pathComDir(p, cliPathDir(c.d.Exe))
+			info.OnPath = !mudou
+		}
 	}
 	return info
 }
