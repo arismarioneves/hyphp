@@ -4,7 +4,7 @@ Valem para quem contribui e para agentes de código.
 
 ## O projeto
 
-- **App desktop:** Windows e macOS (Linux em desenvolvimento), em Go 1.26 com Wails v3 (`main.go`, `services/`, `internal/`) e interface em React com TypeScript (`frontend/`).
+- **App desktop:** Windows, macOS e Linux, em Go 1.26 com Wails v3 (`main.go`, `services/`, `internal/`) e interface em React com TypeScript (`frontend/`).
 - **CLI:** `cmd/hyphp`.
 - **Site:** `web/`, com regras próprias em [`web/README.pt-BR.md`](web/README.pt-BR.md).
 - **Código de um SO só:** fica em arquivos `_windows.go`, `_darwin.go` e `_linux.go`; o que o Mac e o Linux fazem igual fica em `_unix.go`, com `//go:build darwin || linux` (o sufixo `_unix` sozinho não restringe nada). O comportamento de um SO só muda de propósito, nunca como efeito colateral de mudar o outro.
@@ -68,6 +68,6 @@ npm --prefix frontend test
 
 ## Versão, catálogo e publicação
 
-- **Versão:** muda junto em `internal/version/version.go`, `build/config.yml` (`info.version`), `build/windows/info.json`, `build/windows/nsis/wails_tools.nsh`, `build/darwin/Info.plist`, `build/darwin/Info.dev.plist` e `cmd/hyphp-helper/hyphp-helper.exe.manifest`, com as notas em `release/notas/<versão>.json` (pt e en). `go run ./cmd/hyphp-release -verificar` confere. Não rode `common:update:build-assets`.
+- **Versão:** muda junto em `internal/version/version.go`, `build/config.yml` (`info.version`), `build/windows/info.json`, `build/windows/nsis/wails_tools.nsh`, `build/darwin/Info.plist`, `build/darwin/Info.dev.plist`, `build/linux/nfpm/nfpm.yaml` (`version`) e `cmd/hyphp-helper/hyphp-helper.exe.manifest`, com as notas em `release/notas/<versão>.json` (pt e en). `go run ./cmd/hyphp-release -verificar` confere. Não rode `common:update:build-assets`.
 - **Catálogo:** em `internal/pkgmgr/catalog.json`, link novo de pacote vai com o sha256 conferido no arquivo baixado e com o `serial` maior.
 - **Publicação:** push, PR, tag, release e disparo de workflow só a pedido do mantenedor.

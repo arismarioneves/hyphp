@@ -1,7 +1,7 @@
 import type { about as base } from '../pt-BR/about'
 
 export const about: typeof base = {
-  tagline: 'PHP development environment for Windows and macOS.',
+  tagline: 'PHP development environment for Windows, macOS and Linux.',
   version: 'Version',
   updateInactive: 'Disabled in development builds.',
   updateIdle: 'The first check runs one minute after launch.',

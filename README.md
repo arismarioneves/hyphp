@@ -4,12 +4,12 @@
 
 <h1 align="center">HyPHP</h1>
 
-<p align="center">PHP development environment for Windows and macOS.<br>Multiple PHP versions side by side, each project declares its own. No Docker.</p>
+<p align="center">PHP development environment for Windows, macOS and Linux.<br>Multiple PHP versions side by side, each project declares its own. No Docker.</p>
 
 <p align="center">
   <a href="https://github.com/arismarioneves/hyphp/releases/latest"><img src="https://img.shields.io/github/v/release/arismarioneves/hyphp?label=release&color=2563eb" alt="Latest release"></a>
   <a href="https://github.com/arismarioneves/hyphp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/arismarioneves/hyphp/ci.yml?branch=main&label=ci" alt="CI"></a>
-  <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS-555" alt="Windows and macOS">
+  <img src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-555" alt="Windows, macOS and Linux">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-555" alt="License"></a>
 </p>
 
@@ -34,6 +34,7 @@ MariaDB, Mailpit and phpMyAdmin are downloaded, verified and supervised by the a
 |---|---|
 | **Windows 10/11 x64** | [Installer](https://github.com/arismarioneves/hyphp/releases/latest) (`hyphp-<version>-windows-amd64-setup.exe`). It is not digitally signed yet: if SmartScreen warns you, choose **More info › Run anyway**. |
 | **macOS 15+ on Apple Silicon** | `curl -fsSL https://github.com/arismarioneves/hyphp/releases/latest/download/install.sh \| sh` installs or updates `/Applications/HyPHP.app`. The dmg on the Releases page works too; macOS blocks the first launch of an app it has not notarized, so allow it once in **System Settings › Privacy & Security › Open Anyway**. Runtimes come from [Homebrew](https://brew.sh). |
+| **Linux x64: Ubuntu 24.04+, Debian 13+, Linux Mint 22+** | `.deb` package (`hyphp-<version>-linux-amd64.deb`) on the [Releases page](https://github.com/arismarioneves/hyphp/releases/latest), installed with `sudo apt install ./hyphp-<version>-linux-amd64.deb`. It is not signed. Runtimes come from [Homebrew](https://brew.sh). |
 
 ## Why HyPHP
 
@@ -44,20 +45,20 @@ MariaDB, Mailpit and phpMyAdmin are downloaded, verified and supervised by the a
 | **WampServer** | PHP per VirtualHost through FCGI since 3.2.8 (official changelog), but Apache only, and the configuration lives in the installation's menus and files, not in the project. |
 | **DDEV / Devilbox / Lando** | Solid and open source, but they require Docker: 2–4 GB of RAM before the first request. |
 
-HyPHP brings together, on Windows and macOS and without Docker, what the others deliver
+HyPHP brings together, on Windows, macOS and Linux and without Docker, what the others deliver
 separately: **several PHP versions serving at the same time**, the version **declared in the
 project itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised workers.
 
 ## What it does
 
 - **Real simultaneous multi-version.** One pool of workers per PHP version (`php-cgi` in
-  FastCGI mode on Windows, `php-fpm` on macOS) behind a single Apache or nginx. Each project
+  FastCGI mode on Windows, `php-fpm` on macOS and Linux) behind a single Apache or nginx. Each project
   declares its version.
 - **Worker pool.** On Windows `php-cgi` serves one request at a time; without a pool, one slow
   request locks up the site. Measured: 2 requests of 3 s took 6.2 s with 1 worker and 3 s
   with 2.
-- **No orphan processes.** On Windows, a Job Object with kill-on-close; on macOS, a process
-  group per service. Processes left behind by a crash are cleaned up at the next start.
+- **No orphan processes.** On Windows, a Job Object with kill-on-close; on macOS and Linux, a
+  process group per service. Processes left behind by a crash are cleaned up at the next start.
 - **Real status.** Every service has a readiness probe; the UI shows `degraded` when the
   process is alive but not responding.
 - **`.test` domains and local HTTPS.** Each project answers at `<name>.test`, with a
@@ -94,7 +95,7 @@ project itself** (`hyphp.yaml`, committable), Apache or nginx, and supervised wo
 
 1. **Install** and open HyPHP (see [Download](#download)).
 2. **Runtimes:** download a PHP version and Apache (nginx, MySQL or MariaDB, Mailpit and
-   phpMyAdmin are optional). On macOS the same screen installs them with Homebrew.
+   phpMyAdmin are optional). On macOS and Linux the same screen installs them with Homebrew.
 3. **Projects:** add the folder where your projects live. Every subfolder with a
    `hyphp.yaml`, a `public/index.php`, an `index.php` or a `composer.json` becomes a project
    at `<folder>.test`.
@@ -123,7 +124,7 @@ Default ports: 80 and 443 for the web server, 3306 for the database, 1025 (SMTP)
 ## CLI
 
 `hyphp` talks to the open app (on Windows through a named pipe only your user can reach; on
-macOS through a socket inside the data root) and runs each command with the same services as
+macOS and Linux through a socket inside the data root) and runs each command with the same services as
 the window: what the CLI does shows up in the UI right away, and the **CLI** tab lists the
 recent calls and who made them. Put it on your PATH from that tab.
 
@@ -150,15 +151,17 @@ For scripts and AI agents: every command accepts `--json` (errors too), and the 
 
 ## Platforms
 
-| | Windows 10/11 x64 | macOS 15+ on Apple Silicon |
-|---|---|---|
-| Runtimes | downloaded by the app from the official sources | installed by the app with Homebrew (`shivammathur/php` for PHP) |
-| PHP workers | `php-cgi` pools (there is no `php-fpm` on Windows) | `php-fpm` |
-| `.test` domains | `hosts` file; wildcard through an NRPT rule | `/etc/resolver/test` |
-| Data root | next to the executable if writable, otherwise `%LOCALAPPDATA%\HyPHP` | `~/Library/Application Support/HyPHP` |
-| Signature | none yet (SmartScreen warning) | ad hoc, not notarized (Gatekeeper warning on the first launch) |
+| | Windows 10/11 x64 | macOS 15+ on Apple Silicon | Linux x64 (Ubuntu 24.04+, Debian 13+, Mint 22+) |
+|---|---|---|---|
+| Runtimes | downloaded by the app from the official sources | installed by the app with Homebrew (`shivammathur/php` for PHP) | installed by the app with Homebrew on Linux (`shivammathur/php` for PHP) |
+| PHP workers | `php-cgi` pools (there is no `php-fpm` on Windows) | `php-fpm` | `php-fpm` |
+| `.test` domains | `hosts` file; wildcard through an NRPT rule | `/etc/resolver/test` | systemd-resolved drop-in (`/etc/systemd/resolved.conf.d/hyphp.conf`); `/etc/hosts` without resolved |
+| Ports below 1024 | no restriction | no restriction | `net.ipv4.ip_unprivileged_port_start` lowered through `/etc/sysctl.d/60-hyphp.conf` |
+| Elevation | UAC | administrator password | `pkexec` with a polkit action |
+| Data root | next to the executable if writable, otherwise `%LOCALAPPDATA%\HyPHP` | `~/Library/Application Support/HyPHP` | `~/.local/share/HyPHP` (`$XDG_DATA_HOME/HyPHP` when set) |
+| Signature | none yet (SmartScreen warning) | ad hoc, not notarized (Gatekeeper warning on the first launch) | unsigned `.deb` |
 
-`HYPHP_ROOT` overrides the data root on both. OS-specific code lives in `_windows.go`,
+`HYPHP_ROOT` overrides the data root on all three. OS-specific code lives in `_windows.go`,
 `_darwin.go` and `_linux.go` files; code shared by macOS and Linux lives in `_unix.go` files.
 
 ## Stack
@@ -176,7 +179,7 @@ For scripts and AI agents: every command accepts `--json` (errors too), and the 
 | CA certificates | Mozilla's bundle | MPL-2.0 | curl.se |
 
 HyPHP does not redistribute these binaries: it downloads them on demand, verifies the
-SHA-256 and extracts them into `bin/` (on macOS, Homebrew installs them). Any compatible build
+SHA-256 and extracts them into `bin/` (on macOS and Linux, Homebrew installs them). Any compatible build
 placed manually in `bin/` is recognized as well. The catalog with the links and hashes lives in
 [`internal/pkgmgr/catalog.json`](internal/pkgmgr/catalog.json).
 
@@ -199,7 +202,7 @@ lives next to the executable if that directory is writable, otherwise in
 
 The installer ships `hyphp.exe` and `hyphp-helper.exe`. The helper performs the actions that
 need administrator rights (writing to `hosts`, installing the local root certificate, the
-`.test` DNS rule, installing an update); each one asks for UAC only when you click it.
+`.test` DNS rule); each one asks for UAC only when you click it.
 
 Uninstalling removes the app, the CLI and the helper. The data root stays, whether it is in the
 installation directory or in `%LOCALAPPDATA%\HyPHP`: the downloaded runtimes (`bin/`) and the
@@ -223,6 +226,31 @@ the app. The data (databases, settings, logs) stays unless you confirm in the Te
 `uninstall.sh | sh -s -- --apagar-dados`. Homebrew, its formulae and the mkcert CA files are
 left alone.
 
+### Linux
+
+```bash
+sudo apt install ./hyphp-<version>-linux-amd64.deb
+```
+
+The package installs the app in `/usr/lib/hyphp/hyphp`, the helper in
+`/usr/lib/hyphp/hyphp-helper` and the CLI in `/usr/lib/hyphp/cli/hyphp`, linked as
+`/usr/bin/hyphp`. It also installs the menu entry (`com.hyphp.app.desktop`), the icon, an
+AppArmor profile (`/etc/apparmor.d/hyphp`) that lets WebKit sandbox the interface page on
+Ubuntu, and a polkit action (`com.hyphp.app.helper`) so the password prompt says it is HyPHP.
+The helper performs the actions that need administrator rights (the `.test` DNS rule, the
+`hosts` block, `/etc/profile.d/hyphp.sh`, the local root certificate, ports below 1024,
+installing an update), each one only when you click it.
+
+```bash
+sudo apt remove hyphp   # closes the app and undoes the system changes
+sudo apt purge hyphp    # also removes /var/cache/hyphp
+```
+
+`apt remove` closes HyPHP and undoes what it applied to the system: the systemd-resolved
+drop-in, the `hosts` block, `/etc/profile.d/hyphp.sh`, the CA in the system trust store and the
+sysctl for ports. The data root `~/.local/share/HyPHP` (runtimes, databases, settings, logs)
+stays, as do per-user leftovers: the autostart entry and the CA in the browsers' NSS stores.
+
 ### Updates
 
 The app checks for the newest release one minute after it opens and every 6 hours (can be
@@ -233,6 +261,10 @@ Installation only happens when you click **Update and restart**: the services st
 system asks for permission once (Windows), and the app comes back in the new version. On
 macOS the app swaps its own bundle for the one in the new dmg, without a password when
 `/Applications` is writable by your account; otherwise it shows the Terminal command above.
+On Linux the app downloads the new `.deb` and asks for the administrator password (polkit); the
+helper checks the signature of `latest.json` again, installs only the package it describes,
+with `apt-get`, and refuses an older version. This only works for the app installed by the
+package (in `/usr/lib/hyphp`).
 
 ## Development
 
@@ -269,6 +301,11 @@ wails3 task windows:package INSTALL_SCOPE=user   # user scope, no UAC
 # macOS
 wails3 task darwin:package       # bin/HyPHP.app (ad hoc signed, CLI and helper in Contents/Helpers)
 wails3 task darwin:package:dmg   # bin/HyPHP.dmg
+```
+
+```bash
+# Linux
+wails3 task linux:package        # bin/hyphp.deb
 ```
 
 Project rules (comments, texts, tests, commits, checks before a pull request) are in
