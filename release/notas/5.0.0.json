@@ -1,0 +1,14 @@
+{
+  "pt": [
+    "Linux: Ubuntu 24.04+, Debian 13+ e Linux Mint 22+, x64, num pacote .deb (sudo apt install ./hyphp-5.0.0-linux-amd64.deb). Runtimes pelo Homebrew, domínios .test pelo systemd-resolved (ou pelo /etc/hosts), as portas 80 e 443, HTTPS local confiado pelo sistema e pelos navegadores, e a CLI hyphp no PATH. O apt remove desfaz o que o HyPHP mudou no sistema e mantém os seus dados.",
+    "Atualização automática no Linux: o app baixa o .deb novo e pede a senha de administrador; o pacote só é instalado se bater com o manifesto assinado da release.",
+    "Windows: desinstalar o HyPHP mantém os runtimes, os bancos e os logs da pasta de instalação, e o tamanho em Aplicativos instalados conta só os arquivos do instalador.",
+    "A detecção dos runtimes espera de novo um binário que demora a responder (logo depois de um build pesado, por exemplo), em vez de dá-lo como ausente."
+  ],
+  "en": [
+    "Linux: Ubuntu 24.04+, Debian 13+ and Linux Mint 22+, x64, in a .deb package (sudo apt install ./hyphp-5.0.0-linux-amd64.deb). Runtimes through Homebrew, .test domains through systemd-resolved (or /etc/hosts), ports 80 and 443, local HTTPS trusted by the system and the browsers, and the hyphp CLI on the PATH. apt remove undoes what HyPHP changed in the system and keeps your data.",
+    "Automatic updates on Linux: the app downloads the new .deb and asks for the administrator password; the package is installed only if it matches the release's signed manifest.",
+    "Windows: uninstalling HyPHP keeps the runtimes, databases and logs in the install folder, and the size in Installed apps counts only the installer's files.",
+    "Runtime detection waits again for a binary that is slow to answer (right after a heavy build, for example) instead of reporting it missing."
+  ]
+}

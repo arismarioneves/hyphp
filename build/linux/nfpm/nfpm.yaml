@@ -3,7 +3,7 @@ arch: "amd64"
 platform: "linux"
 # Igual ao internal/version.Current: o hyphp-release confere, e o Version do
 # control sai sem revisão para o updater comparar com a versão do app.
-version: "4.2.0"
+version: "5.0.0"
 section: "devel"
 priority: "optional"
 maintainer: "Arismário Neves <contato@arismario.dev>"

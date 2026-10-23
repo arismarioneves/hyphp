@@ -8,4 +8,4 @@ package version
 // do instalador, do Info.plist e do .deb, porque um binário que se declara
 // mais velho do que é acha sempre uma versão "nova" no manifesto e entra em
 // loop de update.
-const Current = "4.2.0"
+const Current = "5.0.0"
