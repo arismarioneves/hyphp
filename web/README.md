@@ -24,7 +24,7 @@ The website at `https://ae8.com.br/hyphp/` is built from this folder. The design
 7. **Download and history.**
    - The data comes from `releases/releases.js` (`window.HYPHP_RELEASES`), which already exists on the published site.
    - The Download button and the history link to this repository's release assets (`https://github.com/arismarioneves/hyphp/releases/download/v<version>/<asset>`).
-   - Each published platform keeps what it needs: the Windows installer and the SmartScreen notice; on macOS, the dmg, the `install.sh` command and the Gatekeeper notice.
+   - Each published platform keeps what it needs: the Windows installer and the SmartScreen notice; on macOS, the dmg, the `install.sh` command and the Gatekeeper notice; on Linux, the `.deb`, the `apt install` command and the unsigned-package notice.
 8. **Data files.**
    - Texts live in `assets/textos.js` and the comparison in `assets/comparacao.js`, in their current format.
    - Screenshots live in `assets/telas/en` and `assets/telas/pt`, with the same files in both folders, and use example projects and data only.
@@ -74,9 +74,12 @@ In the PR, attach screenshots of the page on a desktop screen and at 390×844, i
 | Windows 10 and 11 · x64 · macOS 15+ · Apple Silicon | NSIS installer with WebView2 (`build/windows/nsis/project.nsi`); `LSMinimumSystemVersion` 15.0 in `build/darwin/Info.plist`; `build/darwin/install.sh` requires arm64 and macOS 15 |
 | Mac notice: not notarized; if macOS blocks it, Privacy & Security › Open Anyway | ad hoc signature (`codesign --sign -`) in `build/darwin/Taskfile.yml`, no notarization; the command above the notice installs through `build/darwin/install.sh`, which downloads with `curl`, and `curl` sets no quarantine flag |
 | macOS tab command (`curl -fsSL …/install.sh \| sh`) | header of `build/darwin/install.sh`; each release's `install.sh` asset comes from the `publicar` job in `.github/workflows/build.yml` (`cmd/hyphp-release`, `stageAssets`) |
+| Ubuntu 24.04+ · Debian 13+ · Mint 22+ · x64 | `arch: "amd64"` and `depends` (`libwebkitgtk-6.0-4`, `libgtk-4-1`) in `build/linux/nfpm/nfpm.yaml`; the Linux package is built by a `runs-on: ubuntu-24.04` job in `.github/workflows/build.yml` |
+| Linux notice: the `.deb` is not signed; `apt` installs the dependencies | `build/linux/nfpm/nfpm.yaml` has no signature section and lists the `depends` |
+| Linux tab command (`sudo apt install ./hyphp-<version>-linux-amd64.deb`) | `mostrar` in `assets/site.js`, with the asset name from the release's `linux_amd64` (`internal/update/manifest.go`) |
 | PHP environment declared per project | PHP version in `hyphp.yaml` (`internal/project/manifest.go`, `Manifest.PHP`) |
 | Apache or nginx vhost, .test domain, local HTTPS, MySQL or MariaDB, and queue processes | `internal/webserver/*`, `internal/netcfg/hosts.go`, `internal/netcfg/mkcert.go`, `internal/stack/mysql.go` (`DBRuntime`), `internal/stack/desired.go` (`procSpecs`) |
-| No Docker | supervised native processes (`internal/supervisor/process_windows.go`) |
+| No Docker | supervised native processes (`internal/supervisor/process_windows.go`, `internal/supervisor/process_unix.go`) |
 | Includes: PHP 7.2 to 8.5, Apache or nginx, MySQL or MariaDB, Mailpit, phpMyAdmin, local HTTPS, automatic updates | `internal/pkgmgr/catalog.json`, `internal/update/updater.go` |
 | Includes: php.ini per version | the user's directives per series in `state.PHPIni`, written at the end of php.ini by `internal/render/phpini.go` (`RenderPHPIni`); panel in `frontend/src/screens/PhpIniPanel.tsx` |
 | Includes: CLI | `cmd/hyphp`, `internal/cli`, `services/cli_service.go` |

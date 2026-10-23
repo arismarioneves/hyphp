@@ -49,7 +49,7 @@ window.HYPHP_COMPARACAO = {
       criterio: 'Roda sem Docker nem WSL2',
       en: { rotulo: 'No Docker or WSL2', criterio: 'Runs without Docker or WSL2' },
       blocos: {
-        hyphp: { suporte: 'sim', texto: 'Processos nativos do Windows' , en: { texto: 'Native Windows processes' } },
+        hyphp: { suporte: 'sim', texto: 'Processos nativos do Windows, do macOS e do Linux' , en: { texto: 'Native Windows, macOS and Linux processes' } },
         laragon: { suporte: 'sim', texto: 'App Windows, sem Docker', fonte: 'https://laragon.org/docs/faq', em: '2026-09-26' , en: { texto: 'Windows app, no Docker' } },
         xampp: { suporte: 'sim', texto: 'Instalador e serviços Windows', fonte: 'https://www.apachefriends.org/faq_windows.html', em: '2026-09-26' , en: { texto: 'Windows installer and services' } },
         wampserver: { suporte: 'sim', texto: 'Plataforma baseada em Windows', fonte: 'https://wampserver.aviatechno.net/', em: '2026-09-26' , en: { texto: 'Windows-based platform' } },
