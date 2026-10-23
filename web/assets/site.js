@@ -115,8 +115,8 @@
 
   var PLATAFORMAS = [
     { chave: 'windows_amd64', nome: 'Windows' },
-    { chave: 'linux_amd64', nome: 'Linux' },
     { chave: 'darwin_arm64', nome: 'macOS' },
+    { chave: 'linux_amd64', nome: 'Linux' },
   ];
 
   // "<dono>/<repo>" das releases no GitHub, validado antes de entrar em URL.
@@ -141,7 +141,7 @@
   }
 
   // Refeito a cada troca de idioma: as abas, a linha de metadados, o comando
-  // do Mac e o aviso levam texto.
+  // do Mac e do Linux e o aviso levam texto.
   function montarDownload(lista) {
     var raiz = document.querySelector('[data-baixar]');
     var abas = raiz.querySelector('.abas');
@@ -163,6 +163,7 @@
     function mostrar(chave) {
       var a = ultima[chave];
       var mac = chave === 'darwin_arm64';
+      var linux = chave === 'linux_amd64';
       arquivo.replaceChildren(
         el('span', { classe: 'seta', 'aria-hidden': 'true', texto: '↓' }),
         el('span', { texto: a.path.split('/').pop() }),
@@ -183,20 +184,24 @@
         copiarHash
       );
       if (mac) meta.append(el('span', { texto: t('requisitoMac') }));
+      if (linux) meta.append(el('span', { texto: t('requisitoLinux') }));
 
       // No Mac, o install.sh pelo Terminal instala sem o passo do
-      // Gatekeeper, que barra o dmg baixado pelo navegador. Uma linha só,
-      // cortada com reticências; o title mostra e o copiar copia o inteiro.
+      // Gatekeeper, que barra o dmg baixado pelo navegador. No Linux, o apt
+      // instala o .deb baixado com as dependências. Uma linha só, cortada com
+      // reticências; o title mostra e o copiar copia o inteiro.
       comando.replaceChildren();
-      comando.hidden = !mac;
-      if (mac) {
-        var linha = 'curl -fsSL https://github.com/' + repoGitHub() + '/releases/latest/download/install.sh | sh';
+      comando.hidden = !mac && !linux;
+      if (mac || linux) {
+        var linha = mac
+          ? 'curl -fsSL https://github.com/' + repoGitHub() + '/releases/latest/download/install.sh | sh'
+          : 'sudo apt install ./' + a.path.split('/').pop();
         var codigo = el('code', { title: linha, texto: linha });
         var copiarComando = el('button', { type: 'button', classe: 'copiar', texto: t('copiar') });
         copiarAoClicar(copiarComando, codigo, linha);
         comando.append(codigo, copiarComando);
       }
-      aviso.innerHTML = t(mac ? 'avisoMacHtml' : 'avisoHtml');
+      aviso.innerHTML = t(mac ? 'avisoMacHtml' : linux ? 'avisoLinuxHtml' : 'avisoHtml');
     }
 
     PLATAFORMAS.forEach(function (p) {
@@ -278,7 +283,7 @@
         notas.append(el('li', { texto: String(n) }));
       });
       // Cada plataforma publicada na versão: Windows desde a 1.0.0, macOS
-      // desde a 4.0.0.
+      // desde a 4.0.0, Linux desde a 5.0.0.
       var plats = PLATAFORMAS.filter(function (p) { return r[p.chave] && caminhoSeguro(r[p.chave].path); });
       var cab = el('div', { classe: 'cab' }, [
         el('strong', { texto: 'v' + r.version }),
