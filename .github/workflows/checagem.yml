@@ -2,9 +2,6 @@
 # assinatura dele, build nova do Apache no Apache Lounge (que apaga a
 # anterior) e as fontes de cada pacote. Cada problema vira uma issue com o
 # rótulo "catalogo"; nada é publicado.
-#
-# Roda no Windows: o hyphp-release importa o internal/pkgmgr, que só compila
-# no Windows e no Mac.
 name: checagem
 
 on:
