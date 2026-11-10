@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "serial": 2026111000,
+  "serial": 2026111001,
   "updatedAt": "2026-11-10",
   "packages": [
     {
@@ -45,48 +45,48 @@
       "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
-      "id": "php-8.2.34-nts-vs16-x64",
+      "id": "php-8.2.35-nts-vs16-x64",
       "kind": "php",
-      "version": "8.2.34",
-      "url": "https://windows.php.net/downloads/releases/php-8.2.34-nts-Win32-vs16-x64.zip",
-      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.2.34-nts-Win32-vs16-x64.zip"],
-      "sha256": "03249b5c9414c6dbe30276f4a7598bd9d2a7417ee81f709b06b99e9c4a2aff4f",
+      "version": "8.2.35",
+      "url": "https://windows.php.net/downloads/releases/php-8.2.35-1-nts-Win32-vs16-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.2.35-1-nts-Win32-vs16-x64.zip"],
+      "sha256": "ebe75134c03869826cb1714d31fd5eb96afefa6d9fd35d786971c03020e7bce2",
       "compiler": "vs16",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-11-10; o arquivo usa o formato binario '<hash> *<nome>'). O sufixo -1 e uma recompilacao do mesmo patch pelo php.net; o php -v diz 8.2.35. Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
-      "id": "php-8.3.35-nts-vs16-x64",
+      "id": "php-8.3.36-nts-vs16-x64",
       "kind": "php",
-      "version": "8.3.35",
-      "url": "https://windows.php.net/downloads/releases/php-8.3.35-nts-Win32-vs16-x64.zip",
-      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.3.35-nts-Win32-vs16-x64.zip"],
-      "sha256": "25a8e2ac9ff30f1d768d1447c09a600617fa6e6082729f6e95f008b59c91fe45",
+      "version": "8.3.36",
+      "url": "https://windows.php.net/downloads/releases/php-8.3.36-1-nts-Win32-vs16-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.3.36-1-nts-Win32-vs16-x64.zip"],
+      "sha256": "1a097d52b7a68622cdc723073b61cc70caf79c941218ff65b2d8441dbc6b10d4",
       "compiler": "vs16",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-11-10; o arquivo usa o formato binario '<hash> *<nome>'). O sufixo -1 e uma recompilacao do mesmo patch pelo php.net; o php -v diz 8.3.36. Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
-      "id": "php-8.4.26-nts-vs17-x64",
+      "id": "php-8.4.27-nts-vs17-x64",
       "kind": "php",
-      "version": "8.4.26",
-      "url": "https://windows.php.net/downloads/releases/php-8.4.26-nts-Win32-vs17-x64.zip",
-      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.4.26-nts-Win32-vs17-x64.zip"],
-      "sha256": "da68394f9193b7f6b89d0c76861a4034ae10efee7fd55a7255d8118c2acf70d7",
+      "version": "8.4.27",
+      "url": "https://windows.php.net/downloads/releases/php-8.4.27-1-nts-Win32-vs17-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.4.27-1-nts-Win32-vs17-x64.zip"],
+      "sha256": "dbae154a0a89791f36c3d48e68bae797878333e7d6cb5721e74617de59b63ab7",
       "compiler": "vs17",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-11-10; o arquivo usa o formato binario '<hash> *<nome>'). O sufixo -1 e uma recompilacao do mesmo patch pelo php.net; o php -v diz 8.4.27. Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
-      "id": "php-8.5.11-nts-vs17-x64",
+      "id": "php-8.5.12-nts-vs17-x64",
       "kind": "php",
-      "version": "8.5.11",
-      "url": "https://windows.php.net/downloads/releases/php-8.5.11-nts-Win32-vs17-x64.zip",
-      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.5.11-nts-Win32-vs17-x64.zip"],
-      "sha256": "0ea96e0d2b9b737a6036f05cf4e95c49313faa6d0f27bd97edb2742503f0c043",
+      "version": "8.5.12",
+      "url": "https://windows.php.net/downloads/releases/php-8.5.12-1-nts-Win32-vs17-x64.zip",
+      "mirrors": ["https://windows.php.net/downloads/releases/archives/php-8.5.12-1-nts-Win32-vs17-x64.zip"],
+      "sha256": "2a36a2edcb7a5b9252f638fd5e4cf84d7f6e066092654220dc0b63e5cf4e9723",
       "compiler": "vs17",
       "arch": "x64",
-      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-09-24; o arquivo usa o formato binario '<hash> *<nome>'). Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
+      "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-11-10; o arquivo usa o formato binario '<hash> *<nome>'). O sufixo -1 e uma recompilacao do mesmo patch pelo php.net; o php -v diz 8.5.12. Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
       "id": "apache-2.4.70-vs18-x64",
