@@ -1,9 +1,6 @@
 # Publica o catálogo de pacotes assinado, que as versões instaladas (4.0.0 em
 # diante) leem a cada 6 h: um link novo de runtime chega sem versão nova do
 # app. Disparo manual, na main, com aprovação. Sem gatilho de pull request.
-#
-# Roda no Windows: o hyphp-release importa o internal/update, que só compila
-# no Windows e no Mac.
 name: catalogo
 
 on:
