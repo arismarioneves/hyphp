@@ -105,8 +105,8 @@ func apply(req ApplyRequest, logf func(string, ...any)) error {
 	}
 	defer os.Remove(mnt)
 	logf("montando %s em %s", req.Installer, mnt)
-	if out, err := exec.Command("/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mnt, req.Installer).CombinedOutput(); err != nil {
-		return fmt.Errorf("montar o dmg: %w: %s", err, strings.TrimSpace(string(out)))
+	if err := mountDMG(req.Installer, mnt, hdiutilAttach, logf); err != nil {
+		return err
 	}
 	// -force: com a troca feita ou desistida, nada mais lê do volume.
 	defer func() {
@@ -132,6 +132,34 @@ func apply(req ApplyRequest, logf func(string, ...any)) error {
 		return fmt.Errorf("%w; atualize pelo Terminal: %s", err, installCmd)
 	}
 	return nil
+}
+
+// attachPauses são as esperas entre as tentativas de montar o dmg. O hdiutil
+// às vezes recusa com "Resource temporarily unavailable" logo depois de outro
+// volume ser desmontado. O dmg já passou pelo sha256, então a falha é do
+// sistema e passa com o tempo. Variável: o teste zera as esperas.
+var attachPauses = []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
+
+// hdiutilAttach monta dmg em mnt, só leitura e sem abrir janela no Finder.
+func hdiutilAttach(dmg, mnt string) ([]byte, error) {
+	return exec.Command("/usr/bin/hdiutil", "attach", "-nobrowse", "-readonly", "-noautoopen", "-mountpoint", mnt, dmg).CombinedOutput()
+}
+
+// mountDMG roda attach até ele dar certo, com uma tentativa a mais que as
+// esperas de attachPauses. O erro é o da última tentativa.
+func mountDMG(dmg, mnt string, attach func(dmg, mnt string) ([]byte, error), logf func(string, ...any)) error {
+	for i := 0; ; i++ {
+		out, err := attach(dmg, mnt)
+		if err == nil {
+			return nil
+		}
+		err = fmt.Errorf("montar o dmg: %w: %s", err, strings.TrimSpace(string(out)))
+		if i == len(attachPauses) {
+			return err
+		}
+		logf("%v; nova tentativa em %s", err, attachPauses[i])
+		time.Sleep(attachPauses[i])
+	}
 }
 
 // appInDMG acha o único .app na raiz do volume montado.

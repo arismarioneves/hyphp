@@ -122,6 +122,50 @@ func TestAplicarRecusaVersaoDiferente(t *testing.T) {
 	desmontado(t, dmg)
 }
 
+// attachFalso devolve um attach que falha com a recusa transitória do
+// hdiutil nas primeiras falhas chamadas e depois monta, e o contador delas.
+func attachFalso(falhas int) (func(dmg, mnt string) ([]byte, error), *int) {
+	n := 0
+	return func(string, string) ([]byte, error) {
+		n++
+		if n <= falhas {
+			return []byte("hdiutil: attach failed - Resource temporarily unavailable"), errors.New("exit status 1")
+		}
+		return nil, nil
+	}, &n
+}
+
+// O hdiutil recusa montar logo depois de outro volume ser desmontado e aceita
+// pouco depois: o update segue sem o usuário ver o erro.
+func TestMontarDMGTentaDeNovoQuandoOHdiutilRecusa(t *testing.T) {
+	salvas := attachPauses
+	attachPauses = make([]time.Duration, len(salvas))
+	t.Cleanup(func() { attachPauses = salvas })
+	attach, chamadas := attachFalso(len(attachPauses))
+	if err := mountDMG("x.dmg", "/mnt", attach, func(string, ...any) {}); err != nil {
+		t.Fatalf("montou na última tentativa e devolveu %v", err)
+	}
+	if *chamadas != len(attachPauses)+1 {
+		t.Errorf("%d tentativas, quer %d", *chamadas, len(attachPauses)+1)
+	}
+}
+
+// Uma recusa que não passa vira o erro do update, com o motivo do hdiutil,
+// depois da última tentativa.
+func TestMontarDMGDesisteComOMotivoDoHdiutil(t *testing.T) {
+	salvas := attachPauses
+	attachPauses = make([]time.Duration, len(salvas))
+	t.Cleanup(func() { attachPauses = salvas })
+	attach, chamadas := attachFalso(len(attachPauses) + 1)
+	err := mountDMG("x.dmg", "/mnt", attach, func(string, ...any) {})
+	if err == nil || !strings.Contains(err.Error(), "Resource temporarily unavailable") {
+		t.Fatalf("erro = %v, quer o motivo do hdiutil", err)
+	}
+	if *chamadas != len(attachPauses)+1 {
+		t.Errorf("%d tentativas, quer %d", *chamadas, len(attachPauses)+1)
+	}
+}
+
 // O segundo rename falhou com o app atual já afastado: ele volta para o
 // lugar, senão a pasta ficaria sem HyPHP.
 func TestTrocaComSegundoRenameFalhoDevolveOAntigo(t *testing.T) {
