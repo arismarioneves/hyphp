@@ -19,9 +19,11 @@ func TestCatalogoEmbutido(t *testing.T) {
 	if c.Schema != CatalogSchema || c.Serial <= 0 {
 		t.Errorf("schema %d, serial %d", c.Schema, c.Serial)
 	}
-	// O Apache Lounge apaga a build anterior a cada recompilação (issue #7).
-	if p, ok := c.ByID("apache-2.4.69-vs18-x64"); !ok || !strings.Contains(p.URL, "261002") {
-		t.Errorf("Apache 2.4.69 (build 261002) fora do catálogo: %+v", p)
+	// O Apache é o web server padrão no Windows. O Apache Lounge apaga a build
+	// anterior a cada recompilação, e a troca da entrada não pode deixar o
+	// catálogo sem nenhum.
+	if n := len(c.ByKind(runtime.Apache)); n == 0 {
+		t.Error("o catálogo ficou sem Apache")
 	}
 	if n := len(c.ByKind(KindCACert)); n != 1 {
 		t.Errorf("o catálogo precisa de exatamente um pacote de CAs, tem %d", n)
