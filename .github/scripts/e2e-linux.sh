@@ -709,6 +709,9 @@ fechar_app
 passo "hosts pelo helper, o caminho sem systemd-resolved"
 # O runner tem o resolved, então o app não grava o hosts sozinho: o helper
 # grava o bloco que o app montaria, e o uninstall o tira sem mexer no resto.
+# O hosts ganha antes uma linha sem IP, como a de algumas imagens de nuvem: o
+# sistema a ignora, e ela não pode impedir o helper de gravar o bloco.
+printf ' linha-sem-ip.e2e.invalid linha-sem-ip\n' | sudo tee -a /etc/hosts >/dev/null
 cp /etc/hosts "$CORPO.hosts-original"
 {
 	cat /etc/hosts
