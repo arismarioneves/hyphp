@@ -127,6 +127,24 @@ func TestHostsWriteSoAceitaArquivoDoUsuarioQuePediu(t *testing.T) {
 	}
 }
 
+// O hosts do sistema já tem uma linha que o resolvedor ignora, sem IP (como o
+// de algumas imagens de nuvem): o bloco do HyPHP entra e a linha fica como
+// estava.
+func TestHostsWriteMantemLinhaTortaQueOHostsJaTinha(t *testing.T) {
+	sistemaFalso(t)
+	atual := "127.0.0.1 localhost\n ip-10-0-1-2.ec2.internal ip-10-0-1-2\n"
+	escrever(t, netcfg.HostsPath, atual)
+	novo := netcfg.RenderHostsBlock(atual, []string{"acme.test"})
+	from := filepath.Join(t.TempDir(), "hosts.next")
+	escrever(t, from, novo)
+	if code, err := run([]string{"hosts-write", "--from", from}); code != exitOK {
+		t.Fatalf("code = %d, err = %v", code, err)
+	}
+	if got := ler(t, netcfg.HostsPath); got != novo {
+		t.Fatalf("hosts = %q, quer %q", got, novo)
+	}
+}
+
 func TestHostsWriteSemUsuarioQuePediuRecusa(t *testing.T) {
 	sistemaFalso(t)
 	t.Setenv("PKEXEC_UID", "")
