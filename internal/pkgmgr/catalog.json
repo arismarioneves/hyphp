@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "serial": 2026111001,
-  "updatedAt": "2026-11-10",
+  "serial": 2026111300,
+  "updatedAt": "2026-11-13",
   "packages": [
     {
       "id": "php-7.2.34-nts-vc15-x64",
@@ -89,14 +89,14 @@
       "notes": "NTS x64. SHA-256 de https://downloads.php.net/~windows/releases/sha256sum.txt (conferido em 2026-11-10; o arquivo usa o formato binario '<hash> *<nome>'). O sufixo -1 e uma recompilacao do mesmo patch pelo php.net; o php -v diz 8.5.12. Zip plano (php.exe na raiz) -> bin/php/<id>/. ATENCAO: o php.net mantem apenas o patch MAIS RECENTE de cada serie em /releases/; quando sai um novo patch o anterior vira 404 e passa a viver em /releases/archives/<mesmo-nome>. O mirror aponta para /releases/archives/<mesmo-nome>: o download cai para ele quando o principal some."
     },
     {
-      "id": "apache-2.4.70-vs18-x64",
+      "id": "apache-2.4.71-vs18-x64",
       "kind": "apache",
-      "version": "2.4.70",
-      "url": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.70-261106-Win64-VS18.zip",
-      "sha256": "b96a40b66a99428b2e4aea48ebe98bab826c768df4ace81f78dd7e26a98ad311",
+      "version": "2.4.71",
+      "url": "https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.71-261112-Win64-VS18.zip",
+      "sha256": "44961a929dff16b767b3adbcea55760a942a00239b2891dc55806be34029e1fc",
       "compiler": "VS18",
       "arch": "x64",
-      "notes": "Apache Lounge build 261106. SHA-256 de https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.70-261106-Win64-VS18.zip.txt (publicado em maiusculas; comparacao case-insensitive). Zip tem raiz Apache24/ + ReadMe.txt/Security.txt soltos -> instalado em bin/apache/apache-2.4.70-vs18-x64/. Requer VC++ Redistributable 14.51+ (https://aka.ms/vc14/vc_redist.x64.exe). Apache Lounge SOBRESCREVE builds: quando a URL responder HTML, atualizar url+sha256, subir o serial e publicar o catalogo."
+      "notes": "Apache Lounge build 261112. SHA-256 de https://www.apachelounge.com/download/VS18/binaries/httpd-2.4.71-261112-Win64-VS18.zip.txt (publicado em maiusculas; comparacao case-insensitive). Zip tem raiz Apache24/ + ReadMe.txt/Security.txt soltos -> instalado em bin/apache/apache-2.4.71-vs18-x64/. Requer VC++ Redistributable 14.51+ (https://aka.ms/vc14/vc_redist.x64.exe). Apache Lounge SOBRESCREVE builds: quando a URL responder HTML, atualizar url+sha256, subir o serial e publicar o catalogo."
     },
     {
       "id": "nginx-1.30.5",
