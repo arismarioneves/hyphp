@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"sort"
 	"strings"
 	"unicode"
@@ -183,9 +184,15 @@ func ParseHostsBlock(existing string) []string {
 // sem NUL, e toda linha não-vazia/não-comentário no formato "<ip> <host> [...]", com a parte
 // de dados em UTF-8 válido. É a defesa do hyphp-helper contra sobrescrever o hosts com lixo.
 //
+// current é o hosts que o sistema tem agora (CurrentHosts). Uma linha fora do formato que já
+// está nele, igual, passa: o sistema já a ignora, o RenderHostsBlock a mantém intacta, e
+// recusá-la impediria o HyPHP de gravar o bloco até alguém corrigir o arquivo à mão. Algumas
+// imagens de nuvem trazem uma linha assim, com o nome da máquina e sem IP. Linha fora do
+// formato que não está no hosts atual continua recusada.
+//
 // Comentários ficam fora da exigência de UTF-8: um hosts salvo em ANSI pelo Bloco de Notas com
 // "# Configuração" é legítimo, passa intacto pelo RenderHostsBlock e seria recusado para sempre.
-func ValidateHostsContent(content string) error {
+func ValidateHostsContent(content, current string) error {
 	if content == "" {
 		return errors.New("conteúdo vazio")
 	}
@@ -195,20 +202,50 @@ func ValidateHostsContent(content string) error {
 	if strings.IndexByte(content, 0) >= 0 {
 		return errors.New("conteúdo contém byte NUL")
 	}
-	content = strings.TrimPrefix(content, "\uFEFF")
-	for n, line := range strings.Split(content, "\n") {
+	var existing map[string]bool
+	for n, line := range strings.Split(strings.TrimPrefix(content, "\uFEFF"), "\n") {
 		line = strings.TrimRight(line, "\r")
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
 		data, _, _ := strings.Cut(line, "#")
-		if !utf8.ValidString(data) {
-			return fmt.Errorf("linha %d não é UTF-8 válido", n+1)
+		utf8OK := utf8.ValidString(data)
+		if utf8OK && validHostsLine(line) {
+			continue
 		}
-		if !validHostsLine(line) {
+		if existing == nil {
+			existing = hostsLines(current)
+		}
+		switch {
+		case existing[line]:
+			continue
+		case !utf8OK:
+			return fmt.Errorf("linha %d não é UTF-8 válido", n+1)
+		default:
 			return fmt.Errorf("linha %d não tem formato \"<ip> <host>\": %q", n+1, line)
 		}
 	}
 	return nil
+}
+
+// hostsLines devolve as linhas de s, sem o \r do fim, para comparar com o conteúdo novo.
+func hostsLines(s string) map[string]bool {
+	lines := map[string]bool{}
+	for _, line := range strings.Split(strings.TrimPrefix(s, "\uFEFF"), "\n") {
+		lines[strings.TrimRight(line, "\r")] = true
+	}
+	return lines
+}
+
+// CurrentHosts lê o hosts do sistema, o current de ValidateHostsContent. Sem o arquivo, "".
+func CurrentHosts() (string, error) {
+	raw, err := os.ReadFile(HostsPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("netcfg: ler %s: %w", HostsPath, err)
+	}
+	return string(raw), nil
 }

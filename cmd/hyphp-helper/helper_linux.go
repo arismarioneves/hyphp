@@ -145,7 +145,11 @@ func hostsWrite(argv []string) (int, error) {
 	if err != nil {
 		return exitUsage, fmt.Errorf("hosts-write: %w", err)
 	}
-	if err := netcfg.ValidateHostsContent(string(raw)); err != nil {
+	current, err := netcfg.CurrentHosts()
+	if err != nil {
+		return exitIO, fmt.Errorf("hosts-write: %w", err)
+	}
+	if err := netcfg.ValidateHostsContent(string(raw), current); err != nil {
 		return exitUsage, fmt.Errorf("hosts-write: %w", err)
 	}
 	// O hosts é lido pelo nome, não por pasta: o temporário pode ficar ao lado.

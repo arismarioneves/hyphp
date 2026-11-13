@@ -88,7 +88,11 @@ func hostsWrite(argv []string) (int, error) {
 	if err != nil {
 		return exitIO, fmt.Errorf("hosts-write: ler %s: %w", *from, err)
 	}
-	if err := netcfg.ValidateHostsContent(string(raw)); err != nil {
+	current, err := netcfg.CurrentHosts()
+	if err != nil {
+		return exitIO, fmt.Errorf("hosts-write: %w", err)
+	}
+	if err := netcfg.ValidateHostsContent(string(raw), current); err != nil {
 		return exitUsage, fmt.Errorf("hosts-write: conteúdo recusado: %w", err)
 	}
 	if err := writeHostsAtomic(raw); err != nil {

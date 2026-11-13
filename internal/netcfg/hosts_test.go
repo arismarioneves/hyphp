@@ -160,7 +160,36 @@ func TestValidateHostsContent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateHostsContent(tt.content)
+			err := ValidateHostsContent(tt.content, "")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// Uma linha fora do formato que o hosts atual já tem não impede o bloco do HyPHP: o sistema já
+// a ignora, e só quem edita o arquivo à mão pode tirá-la. Linha torta que não estava lá é lixo.
+func TestValidateHostsContentComOHostsAtual(t *testing.T) {
+	// A linha que imagens de nuvem trazem: o nome da máquina, sem IP.
+	atual := "127.0.0.1 localhost\n ip-10-0-1-2.ec2.internal ip-10-0-1-2\n127.0.0.1 a\xff\n"
+	comBloco := RenderHostsBlock(atual, []string{"acme.test"})
+	tests := []struct {
+		name    string
+		content string
+		current string
+		wantErr bool
+	}{
+		{"linha sem IP que já está no hosts", comBloco, atual, false},
+		{"linha não UTF-8 que já está no hosts", comBloco, atual, false},
+		{"mesma linha, hosts atual com CRLF", comBloco, strings.ReplaceAll(atual, "\n", "\r\n"), false},
+		{"linha sem IP que o hosts atual não tem", comBloco, "127.0.0.1 localhost\n127.0.0.1 a\xff\n", true},
+		{"lixo novo junto de uma linha torta existente", comBloco + "banana\n", atual, true},
+		{"arquivo qualquer no lugar de um hosts vazio", "Este arquivo nao e um hosts\n", "", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateHostsContent(tt.content, tt.current)
 			if (err != nil) != tt.wantErr {
 				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
 			}
