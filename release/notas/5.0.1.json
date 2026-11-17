@@ -1,0 +1,12 @@
+{
+  "pt": [
+    "Windows e Linux sem systemd-resolved: um arquivo hosts com uma linha fora do formato, que o sistema já ignorava, deixa de impedir o HyPHP de gravar os domínios .test. Uma linha torta nova continua recusada.",
+    "macOS: a atualização automática tenta de novo montar o dmg quando o sistema recusa na primeira vez (\"Resource temporarily unavailable\"), em vez de falhar.",
+    "Catálogo embutido com Apache 2.4.71 e PHP 8.2.35, 8.3.36, 8.4.27 e 8.5.12, as versões que já chegavam pelo catálogo remoto."
+  ],
+  "en": [
+    "Windows and Linux without systemd-resolved: a hosts file with a malformed line, which the system already ignored, no longer stops HyPHP from writing the .test domains. A new malformed line is still refused.",
+    "macOS: automatic updates try mounting the dmg again when the system refuses the first time (\"Resource temporarily unavailable\"), instead of failing.",
+    "Built-in catalog with Apache 2.4.71 and PHP 8.2.35, 8.3.36, 8.4.27 and 8.5.12, the versions already delivered by the remote catalog."
+  ]
+}
